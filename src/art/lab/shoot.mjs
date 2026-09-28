@@ -21,7 +21,7 @@ const out = outArg ? resolve(outArg.slice(6)) : join(tmpdir(), 'artlab-shots');
 const shots = args.filter((a) => !a.startsWith('--'));
 mkdirSync(out, { recursive: true });
 
-const server = await createServer({ root, logLevel: 'error', server: { port: 5199, strictPort: false } });
+const server = await createServer({ root, logLevel: 'error', server: { port: 5199, strictPort: false, hmr: false, watch: null } }); // no HMR: agents share this tree
 await server.listen();
 const base = server.resolvedUrls.local[0];
 // real GPU (ANGLE/Metal) by default — SwiftShader is far too slow for pre-rolled frames; SOFTWARE=1 to force it

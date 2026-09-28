@@ -8,6 +8,7 @@ import type { LightingDirector } from '../world/lighting';
 import { drawFxView, drawGreyboxWorld, drawHeroView, drawLightingView, drawRigView } from './genericViews';
 import { SLIM_DESC, drawBarView, drawStreetView, drawStressView } from './grindhouseViews';
 import { drawSkinsView } from './skinsView';
+import { drawAct3View } from './act3Views';
 
 export interface LabCtx {
   g: Ctx;
@@ -25,7 +26,7 @@ export interface LabCtx {
   onion: boolean;
 }
 
-export type ViewId = 'slim' | 'street' | 'bar' | 'stress' | 'skins' | 'rig' | 'fx' | 'lighting' | 'world';
+export type ViewId = 'slim' | 'street' | 'bar' | 'stress' | 'act3' | 'skins' | 'rig' | 'fx' | 'lighting' | 'world';
 
 export interface LabView {
   label: string;
@@ -42,6 +43,7 @@ export const VIEWS: Record<ViewId, LabView> = {
   bar: { label: 'Bar', help: 'Act 1b: honky-tonk interior — bottle shelves, neon beer signs, jukebox, pool tables under swinging lamps, brawlers on the beat, bottles on the snare, pool balls on piano runs.', lights: 'grindhouse', poses: SLIM_POSES, draw: drawBarView },
   stress: { label: 'Stress', help: 'Street with ~3x ambient life (30 pedestrians, 11 cars) + full-house audience + Slim. Watch the perf readout.', lights: 'grindhouse', poses: SLIM_POSES, draw: drawStressView },
   street: { label: '42nd St', help: 'Act 1: matte sky, rooftops, grindhouse facades (marquees chase on 8ths), ambient life, festoon bulbs + steam, film pass, theatre audience (cycles 0 -> FULL HOUSE). Hold camera to pose Slim.', lights: 'grindhouse', poses: SLIM_POSES, draw: drawStreetView },
+  act3: { label: 'Act 3', help: 'The climax (URL act3=jim|roof|pool|casino|penthouse|finale): Big Jim\'s rig (bluff= roar= crack=L,R reflect= chain= panic=), the sunset roof + BIG JIM letters (fall=), the Pool Room, the Velvet Casino (dark=), the penthouse, the theatre finale.', lights: 'grindhouse', poses: SLIM_POSES, draw: drawAct3View },
   skins: { label: 'Skins', help: 'Every gameplay entity skin (src/render/entityDraw.ts) grouped by danger class: LETHAL red+hot edge, STUMBLE ink+red points, REWARD gold, TERRAIN cream lip. Bluffer beat cycle incl. the wind-up tell. G = greyscale+blur test.', lights: 'grindhouse', poses: SLIM_POSES, draw: drawSkinsView },
   rig: { label: 'Rig', help: 'Generic rig framework on a theme-neutral mannequin: every pose, strike filmstrip (smears), 25% check. Debug = bones, Onion = ghosts.', lights: 'neutral', poses: HERO_POSES, draw: drawRigView },
   fx: { label: 'FX', help: 'Pooled particle presets fired by BeatInfo lanes (kick/snare/hat/crash/cowbell/bass) + stateless helpers.', lights: 'neutral', poses: HERO_POSES, draw: drawFxView },

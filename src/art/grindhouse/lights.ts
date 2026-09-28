@@ -4,7 +4,7 @@
  * interior: amber + neon) -> facade / facadeHigh (act 2: the night climb up the Jimperial's outside, colder and
  * starrier the higher you get) -> blacklight / blacklightHot (the Blacklight Lanes: UV violet, glow cyan + pink;
  * Hot = the chorus) -> poolroom (felt-green lamp pools) -> velvet (fig darkness)
- * -> sunset (coral-rose roof, the drop) -> dusk (fig dusk climb) -> throne (one cream skylight)
+ * -> sunset (coral-rose roof, the drop) -> sunsetRose (the sun sinks, neon wakes) -> dusk (fig dusk climb) -> throne (one cream skylight)
  * -> houselights (amber, the finale). Sunsets are coral/rose, never orange (tangerine is sacred).
  */
 import { hex } from '../core/color';
@@ -245,14 +245,40 @@ registerLights('grindhouse', {
     amb: H('#5E2B4E'),
     rim: H('#FFE9C2'),
     rimAmt: 1,
-    haze: H('#E88A8A'),
-    hazeK: 0.55,
+    haze: H('#D87888'),
+    hazeK: 0.4,
     cloud: H('#8A3A6A'),
     cloudLit: H('#FFC0A0'),
     cloudAmt: 0.7,
     lightDir: 1,
     lamps: 0.4,
     accentAmt: 0.2,
+    bgDesat: 0.1,
+  },
+  sunsetRose: {
+    skyTop: H('#3A1A40'),
+    skyMid: H('#C84A7A'),
+    skyLow: H('#F28A7A'),
+    glow: H('#FFD6B8'),
+    glowAmt: 0.9,
+    sun: H('#FFE2C8'),
+    sunX: 0.7,
+    sunY: 0.56,
+    sunR: 140,
+    sunAmt: 0.9,
+    key: H('#F2A0B0'),
+    amb: H('#4A2244'),
+    rim: H('#FFD6C8'),
+    rimAmt: 1,
+    haze: H('#D87A90'),
+    hazeK: 0.55,
+    cloud: H('#6A2A5A'),
+    cloudLit: H('#FFB0A8'),
+    cloudAmt: 0.7,
+    lightDir: 1,
+    lamps: 0.65,
+    accent: H('#E8577A'),
+    accentAmt: 0.4,
     bgDesat: 0.1,
   },
   dusk: {

@@ -30,7 +30,7 @@ const out = resolve(String(args.out ?? join(root, 'playtest/out-art/gameshot')))
 mkdirSync(out, { recursive: true });
 const secs = Number(args.secs ?? 20);
 const every = Number(args.every ?? 2000);
-const server = await createServer({ root, logLevel: 'error', server: { port: 5199, strictPort: false } });
+const server = await createServer({ root, logLevel: 'error', server: { port: 5199, strictPort: false, hmr: false, watch: null } }); // no HMR: agents share this tree
 await server.listen();
 const base = server.resolvedUrls.local[0];
 const gpu = process.env.SOFTWARE ? [] : ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'];
