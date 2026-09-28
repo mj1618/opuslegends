@@ -299,5 +299,7 @@ export interface LevelDef {
   endBeat: number;
   /** cold open before the music: the hero waits at startBeat until Strike is pressed */
   coldOpen?: boolean;
+  /** first edit bar (1-based) of each act of a joined level (design tag: the rubric's block grid restarts on them) */
+  acts?: number[];
   items: LevelItem[];
 }

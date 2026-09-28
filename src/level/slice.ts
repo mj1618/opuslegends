@@ -251,7 +251,7 @@ export const sliceLevel: LevelDef = {
     fx(and(bar(21, 3)), 'bgPulse', 0.5),
     fx(and(bar(21, 4)), 'bgPulse', 0.5),
     // ---- bar 22: the walk-up E E F# G# with the record's HUP HUP HEY: the motto phrase
-    ...gapHop(bar(22, 1), 'tight'),
+    ...gapHop(bar(22, 1), CHORUS_FIT), // iteration 5: −90 (was 'tight' −80): act 1 was as deadly as act 3 for ±130
     ...spikeHop(bar(22, 2)),
     jabber(bar(22, 3)),
     { type: 'phrase', beats: [bar(22, 1), bar(22, 2), bar(22, 3)] },

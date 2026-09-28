@@ -295,3 +295,26 @@ height (the seam drops act 2's `finish`, keeps its 240 flash). Runtime: `game/me
 
 The early side is only tight where no hop comes in the half-beat before. Inside the HUP-HUP phrases the jump buffer
 catches early presses.
+
+## Iteration 5 changes (fairness sweep + designed teeth)
+
+Driven by `docs/reviews/iter4.md` fixes 2 and 7; checked by `node playtest/slack.mjs --level=src/level/index.ts#gameLevel
+--hidden` (every action swept: a reward / stumble press may not kill inside ±150 ms or when skipped).
+- **Hidden lethals removed.** 275 is no longer a reward hop (its late landing fell into the 276 well: the 277 loop):
+  bar 69 is X (274) · X (275) · tokens, then the well on 276, whose early side is now real (−85). The first fist is
+  WALKED onto (no 308 hop: a strike on his pinky ring instead), so 309 is lethal with a real early side (−105/+150).
+  324's near lip sits at +0.36 so a late 323 knuckle-ring hop lands on the lapel (323 stays a stumble: −300/+170).
+- **Chorus 4 teeth** (−85..−95 early, each after a strike or a landing, so no jump buffer hides them): 280 (onto the I,
+  −90), 284 (a NEW light-well past the G: the G now lies 282.75–284.13, bare roof to the J), the **Bluffer pair** on the
+  HEYs 277 · 278 (two stumbles two beats apart = the Burn). Tubes on 279.66 and 303.66 keep ≥ 1 action per beat.
+- **The gauntlet** gets two lethals after strikes/landings: 312 (off his cuff onto the sleeve, right after the fists:
+  309 · 310 · 312) and 318 (after the left-lens HEY, across the lapel notch). 326 stays a reward; 329 is a medallion
+  (X X ∪ X X on bar 83). A chip tower on 264 (the Rack's landing) keeps the breakdown ≥ the outro in intensity.
+- **Rubric shape (act 3):** breakdown 4.31 · chorus 4 6.63 · outro 4.30 — C1 (ρ = 1) and C2 (1 valley) pass by a hair:
+  any new threat in bars 77–86 needs a matching one in 65–68 (and the Rack is at its 0.5 lethal/bar valley cap, 75 %
+  rewards), or it breaks C1.
+- Pool Room: a 1-bar camera push-in on each call bar (240 → 0.84, 248 → 0.86), back to 0.95 for the answers.
+
+Lethal windows now: 262 −90/+150 · 266 −90/+155 · 268 −90/+155 · 270.7 −255/+155 · 276 −85/+165 · 280 −90/+155 ·
+282 −95/+150 · 284 −95/+165 · 290 −90/+200 · 291/292 −225 · 294 −90/+195 · 309 −105/+150 · 310 −190/+210 · 312 −90/+155
+· 316 −255/+160 · 318 −85/+160 · 324 −190/+250.

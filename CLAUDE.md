@@ -45,7 +45,9 @@ World y grows DOWN; the base ground top is y = 0.
   on the first STRIKE of a first-ever run (nothing stored; SPACE skips, a skip is stored too), on ↓ in the cold open,
   on X in the pause screen, and with `?calib=1`. In the run, an **auto-drift** nudges the offset by 0.35 × the median
   error of every 16 graded presses (only a clear bias: ≥ 18 ms and ≥ 2 standard errors of the median, so sloppy noise
-  doesn't random-walk it; ≤ 8 ms per bar line, ±40 ms around the calibrated value).
+  doesn't random-walk it; ≤ 8 ms per bar line, ±40 ms around the calibrated value). When 16 presses average ≥ 45 ms off, or
+  the drift is PINNED at that clamp for 2 steps (iteration 5), the sync is RE-OFFERED: a toast at the next checkpoint / respawn count-in (never
+  mid-action; ≤ 3 times) and `Game.resyncOffer` (±1) for the pause screen; `?resync=1` makes the bot accept it.
   `Game.setLatencyMs(ms, store)` sets both the offset and the drift's centre.
   `conductor.outputDelay` = our graph's delay (the booth's 6 ms film delay line + the master limiter's look-ahead,
   measured at load: `AudioSystem.outputDelay`), subtracted from song time.
@@ -56,7 +58,9 @@ World y grows DOWN; the base ground top is y = 0.
   reaches `conductor.time`; rendering interpolates. When no music plays (title, death) it runs on a
   wall-clock accumulator. Input edges are timestamped and applied on the exact step they belong to.
 - Hitstop (contact only) freezes the world but not the music; the lost time ("debt") is repaid by
-  simulating slightly faster right after (`Tun.strike.catchUpRate`), so the hero lands back on the beat.
+  simulating slightly faster right after (`Tun.strike.catchUpRate`), so the hero lands back on the beat. A JUMP press
+  while debt is unpaid repays it at once first (iteration 5, `Game.flushDebt`): otherwise an on-beat hop right after a
+  late strike took off from the lagging world, i.e. up to 80 ms early (the 116 pit after the walkdown giants).
   The Perfect "Freeze" is presentation-only (zoom punch + speed lines), never a sim freeze.
 - **Catch-up surge** (`Tun.grooveLock`): holding forward while behind the music line gives up to +15%
   speed until back on the beat grid (~4.7 beats after a stumble). Never pushes ahead.
@@ -84,7 +88,13 @@ World y grows DOWN; the base ground top is y = 0.
   (or a stumble into a fill) = caught. Checkpoints snapshot its gap; a respawn restarts it at rest (1.75, iteration 4:
   was 1.1 → catch-twice loops) and the first stumble after a respawn doesn't pull it (it only flares); after it CAUGHT
   you it rests 0.5 beat further back until the next checkpoint (`Tun.chaser.caughtBonus`).
-- **Failure hints**: only 3 first-appearance prompts in the level (`hint` items with an `icon`); anything else
+  **The assist (iteration 5):** it only KILLS once pulled below `catchBelowGap` 0.95 beat, and a stumble that is the
+  only pulling one in the last 2 bars doesn't count toward that — ONE stumble never catches, even after misses or into a
+  fill lunge (it scorches your heels: held at your back, flaring); two within 2 bars still do. Per checkpoint segment: after 2
+  catches missed rewards stop feeding it and it rests at 2.5 without lunging; after 3 it can't kill (a hero with no
+  forward progress for 2 beats — a softlock — is still caught). Lazy / reckless bots finish with ≤ 2 catches per spot.
+  Hook rides grab by the hero's POSITION when he's behind the grid (a stumble's knockback), not only the song beat.
+- **Failure hints**: 6 first-appearance prompts in the level (3 in act 1, 3 in act 2: `hint` items); anything else
   is taught by placement + `Game.FAIL_HINTS`, shown once after the player fails the same thing twice.
 - **Mix** (`audio/audioSystem.ts`, `audio/mix.ts`): music (record at unity + overlay stems) → **projection
   booth** (`audio/booth.ts`) ┐ + SFX (+6 dB) → trim (**−4 dB headroom**, cancels the limiter makeup) → soft
@@ -169,7 +179,11 @@ sits at 340.5 so a strike ON 340 connects; Slim then runs into the throne (a `bl
 ~2 s), checks every strike target is reachable on its beat and every hop leaves the ground on its beat, and
 predicts deaths per bot profile — run it after any geometry change, then confirm with real bots. It runs the act-2
 mechanics too (`game/mech`: bottles, balls, hooks, scramble, fall-out); `--stumbles` sweeps every moving threat and
-hook ride, `--why` says why a run died, `--trace=a,b` prints the hero's path.
+hook ride, `--why` says why a run died, `--trace=a,b` prints the hero's path. **`--hidden`** (iteration 5) sweeps EVERY
+action for death: a reward / stumble press that kills inside ±150 ms (or when skipped) is a HIDDEN LETHAL and fails it,
+as does a lethal under −70/+150 (acts 2-3 author to −85). `npm run playtest` runs it as a gate on the full level
+before the browser (~10 s; `--no-hidden` skips it). A reward hop must never land late into the next pit: put a strike
+or tokens before a lethal hop, or push the pit's near lip out. The rubric's block grid restarts on `LevelDef.acts`.
 **Act 2 (iteration 4, `docs/level/act2_plan.md`):** the level climbs — `Terrain` in `act2.ts` builds fire-escape
 flights (≤ 24 px risers: the 26 px step-up assist walks you up), storey jumps (held, ≤ 150 px: a tap scrambles) and
 alleys jumped UP; `camera` items take `ground` (the ground line's screen-y, default 0.66; the climb frames at 0.52 so

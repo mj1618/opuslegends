@@ -172,6 +172,8 @@ const FIT = {
    * 275 (a +95 ms late 275 hop landed in the well — a hidden lethal, the 277 loop): X X X ∪, its early side is real */
   well: [0.13, 0.84] as const,
   wellStd: [0.09, 0.8] as const,
+  /** 284 (iteration 5): the light-well past the G, after the G's neon (282.66): no buffer */
+  wellG: [0.13, 0.81] as const,
   /** 294: held jump UP +150 from the M's hump to the terrace */
   terrace: [0.2, 1.5] as const,
   /** 316 / 324: tap hop UP +50 across the gap between Big Jim's lapels */
@@ -215,6 +217,7 @@ export function act3Items(h0 = 950): LevelItem[] {
   T.gapUp(bar(70, 1), FIT.well, 0) // 276: LETHAL light-well
     .gapUp(bar(71, 1), FIT.ontoI, 50) // 280: LETHAL — across a light-well UP onto the fallen I (the A7 climb, .90)
     .gapUp(bar(71, 3), FIT.wellStd, 0) // 282: LETHAL light-well
+    .gapUp(bar(72, 1), FIT.wellG, 0) // 284: LETHAL light-well past the G (iteration 5: chorus 4's teeth, after a strike)
     .set(bar(72, 4) + 0.7, ROOF + 50); // (the J lies to 287.3; its hook = the see-saw at 287)
   T.set(bar(73, 1) + 0.6, ROOF + 140); // the second I's cap tier: the J-hook launch lands on it ON 289
   T.posts(bar(73, 4), 2); // 290 · 291 · 292: LETHAL posts over the light-well -> the M's hump at 292.7
@@ -228,12 +231,11 @@ export function act3Items(h0 = 950): LevelItem[] {
   T.gapUp(bar(79, 1), FIT.climb, 50); // 312: LETHAL — off his cuff, across the gap onto the velvet sleeve
   T.up(bar(79, 4), 50); // 315: HUP — up the sleeve to his shoulder
   T.gapUp(bar(80, 1), FIT.lapel, 50); // 316: HUP — LETHAL: across to the lapel
-  T.gapUp(bar(80, 3), FIT.notch, 0); // 318: LETHAL — after the HEY, across the lapel's notch to his tie pin
+  T.gapUp(bar(80, 3), FIT.notch, 0); // 318: LETHAL — after the HEY (the lens), across the lapel's notch to his tie pin
   T.set(bar(81, 1) + 0.3, T.h - 24).set(bar(81, 1) + 1.6, T.h); // 320: his breast pocket (safe pool)
   T.gapUp(bar(82, 1), FIT.lapelHup, 50); // 324: HUP — LETHAL: lapel -> collar
-  T.gapUp(bar(82, 3), FIT.climb, 50); // 326: LETHAL — after the HEY, up across onto his lens rim
+  T.up(bar(82, 3), 50); // 326: up onto his lens rim
   // ---- the finale (84-86): the film strip, sprockets rising on the pickup (B C D D#), iris blades
-  T.gapUp(bar(83, 3), FIT.notch, 0); // 330: LETHAL — the bridge of his aviators (the last threat before the finale)
   T.up(bar(84, 1), 40).up(bar(84, 3), 40).up(bar(84, 4), 40);
   T.up(bar(85, 1), 30).up(bar(85, 3), 30).up(bar(85, 4), 30);
   const terrain = T.end(bar(86) + 40);
@@ -303,6 +305,7 @@ export function act3Items(h0 = 950): LevelItem[] {
     fx(bar(66, 4), 'bgPulse', 0.4),
     // ---- bar 67 (.36, the inhale): a goon jab on the snare (265), up (266), the last chandelier (267): only the gold
     // head goon still glows
+    smash(bar(67, 1), 'chips'), // iteration 5: a chip tower on the landing (the kick)
     jabber(bar(67, 2)),
     pendulum(bar(67, 4)),
     fx(bar(67, 4), 'bgPulse', 0.5),
@@ -345,25 +348,26 @@ export function act3Items(h0 = 950): LevelItem[] {
     smash(bar(69, 4), 'letterNeon'),
     lumRowSwung(and(bar(69, 3)), bar(70, 1) - 0.1, 50),
     topple(bar(69), 0, 'B', 274.3, 276.09, ROOF, 'frame'),
-    // ---- bar 70 (.80, HEY 277 · 278): the light-well on the kick (276, tight), the Bluffer leaps off the falling I on
-    // the first HEY, the I's neon on the second, neon tubes on 4 and its "and"
+    // ---- bar 70 (.80, HEY 277 · 278): the light-well on the kick (276, tight), the BLUFFER PAIR leaps off the falling I
+    // on the two HEYs, neon tubes on 4 and its "and"
     mode(bar(70, 1), 'letters'),
     topple(bar(70), 1, 'I', 278.0, 280.55, ROOF),
     jabber(bar(70, 2)),
-    crate(bar(70, 3), 'letterNeon'),
+    jabber(bar(70, 3)), // iteration 5: the BLUFFER PAIR — a second one leaps off the I on the second HEY (miss both = the Burn)
     fx(bar(70, 2), 'flash', 0.45),
     fx(bar(70, 3), 'flash', 0.45),
     smash(bar(70, 4), 'letterNeon'),
+    smash(and(bar(70, 4)), 'letterNeon'), // the I's last tube on the "and" of 4
     // ---- bar 71 (.90, the A7 climb): up onto the fallen I (280), bat a bottle from the crown's window into the G on
     // the snare (281), the light-well on the kick (282), the G's neon mid-hop on the D# (282.66)
-    topple(bar(71), 2, 'G', 282.75, 286.0, ROOF + 50),
+    topple(bar(71), 2, 'G', 282.75, 284.13, ROOF + 50),
     batBottle(bar(71, 2)),
     smash(and(bar(71, 3)), 'letterNeon'),
-    ...tokenHop(bar(71, 4)),
-    // ---- bar 72 (.72, the dip, HEY 286): a token hop, the J's neon on the snare, a Bluffer riding the J on the HEY,
+    // (iteration 5: no hop on 283 — the 284 well's early side is real; tokens along the G)
+    lumRowSwung(bar(71, 4), bar(72, 1) - 0.1, 50),
+    // ---- bar 72 (.72, the dip, HEY 286): the light-well past the G on the kick (284, lethal), the J's neon on the snare, a Bluffer riding the J on the HEY,
     // the J-HOOK SEE-SAW on 4 flings you up ON 289
     topple(bar(72), 3, 'J', 286.0, 287.3, ROOF + 50),
-    ...tokenHop(bar(72, 1)),
     smash(bar(72, 2), 'letterNeon'),
     jabber(bar(72, 3)),
     fx(bar(72, 3), 'flash', 0.45),
@@ -409,6 +413,7 @@ export function act3Items(h0 = 950): LevelItem[] {
     ...tokenHop(bar(76, 2)),
     ...tokenHop(bar(76, 3)),
     smash(bar(76, 4), 'decanter'),
+    smash(and(bar(76, 4)), 'glass'), // (iteration 5) his whisky glass on the "and" — the chorus keeps ≥ 1 action per beat
 
     // ================================================================ BLOCK 4 — THE REVEAL + THE GAUNTLET (77-83). No chalk marks
     { type: 'checkpoint', beat: bar(77) },
@@ -460,11 +465,12 @@ export function act3Items(h0 = 950): LevelItem[] {
     giant(bar(82, 2), 'lens'),
     fx(bar(82, 2), 'flash', 0.8),
     smash(bar(82, 4), 'letterNeon'),
-    // ---- bar 83 (the fill &3 &4): the exam's LAST question — the GOLD CHAIN snaps on 1, tokens along the rim, then
-    // (iteration 5) the lethal hop over the bridge of his aviators on the kick (330, after a strike: no buffer), the fill
-    // run through the flying medallions mid-hop (330.70, 331.68)
+    // ---- bar 83 (the fill &3 &4): the exam's cadence, 0 threats (the song's outro is its calmest section: the valley
+    // after chorus 4) — the GOLD CHAIN snaps on 1, a medallion off it on 2, a hop, the fill run through the flying
+    // medallions (330.70, 331.68)
     crate(bar(83, 1), 'chain'),
-    lumRowSwung(bar(83, 1) + 0.5, bar(83, 3) - 0.2, 50),
+    smash(bar(83, 2), 'bell'), // a medallion flying off the snapped chain (X X ∪ X X)
+    ...tokenHop(bar(83, 3)),
     smash(330.7, 'letterNeon'),
     smash(331.68, 'letterNeon'),
     fx(330.7, 'bgPulse', 0.7),

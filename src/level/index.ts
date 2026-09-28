@@ -31,5 +31,8 @@ export const gameLevel: LevelDef = {
   startBeat: sliceLevel.startBeat,
   endBeat: act3Level.endBeat,
   coldOpen: sliceLevel.coldOpen,
+  // the act seams: act 1 = bars 1-33, act 2 = 34-60, act 3 = 61-86 (the rubric judges the joined level in the same
+  // phrase-aligned blocks as its acts)
+  acts: [1, 34, 61],
   items: [...sliceLevel.items.filter((it) => it.type !== 'finish'), ...act2, ...act3Items(endHeight(act2Items, act3Level.startBeat - 0.05))],
 };

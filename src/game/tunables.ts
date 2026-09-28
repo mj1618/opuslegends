@@ -249,6 +249,9 @@ export const Tun = {
      * live. Two stumbles close together, or a stumble after a run of misses (already pulled), still catch.
      */
     catchBelowGap: 0.95,
+    /** …and when only ONE stumble pulled it in the last `stumbleMemoryBeats` (2 bars), that stumble's pull doesn't count
+     * toward the catch (misses + a single stumble ≠ caught; two stumbles within 2 bars still are) */
+    stumbleMemoryBeats: 8,
     /**
      * the ASSIST, per checkpoint segment (resets at the next checkpoint): after `missFeedOffAfter` catches, missed
      * rewards stop feeding it; after `restAfter` catches it rests at `assistRest` beats and stops lunging; after
@@ -293,9 +296,10 @@ export const Tun = {
     maxStepMs: 8,
     rangeMs: 40,
     /**
-     * iteration 5 (review iter4 fix 6): when the drift wants to go past its clamp this many steps in a row (~2 bars
-     * of clear bias), the projector sync is RE-OFFERED — a prompt at the next checkpoint / count-in (never mid-action)
-     * and in the pause screen (`Game.resyncOffer`), at most `offerTimes` times
+     * iteration 5 (review iter4 fix 6): the projector sync is RE-OFFERED — a prompt at the next checkpoint / count-in
+     * (never mid-action) and in the pause screen (`Game.resyncOffer`), at most `offerTimes` times — when 16 graded
+     * presses average ≥ 45 ms off (the first bars of an uncalibrated Bluetooth player), or when the drift wants to go
+     * past its clamp `pinnedSteps` steps in a row
      */
     pinnedSteps: 2,
     offerTimes: 3,

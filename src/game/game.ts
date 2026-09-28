@@ -109,6 +109,8 @@ export class Game {
   private burnRestBonus = 0;
   /** Burn catches since the last checkpoint (the assist: Tun.chaser.missFeedOffAfter / restAfter / spentAfter) */
   private burnCatches = 0;
+  /** world beats of the stumbles that pulled the Burn this attempt (the one-stumble rule) */
+  private burnStumbles: number[] = [];
   /** the hero's last forward progress (world x, beat): the Burn's softlock rule */
   private progress = { x: -Infinity, beat: 0 };
   /**
@@ -433,6 +435,7 @@ export class Game {
     const gap = Math.min(rest, Math.max(this.snap.burnGap, Tun.chaser.respawnMinGap + this.burnRestBonus));
     this.chaser = { active: false, x: -Infinity, riseBeat: 0, gap, rel: gap + 0.5, lunge: 0, danger: 0, flare: 0 };
     this.progress = { x: beat * this.level.ppb, beat };
+    this.burnStumbles = [];
     for (const b of [...this.dropsDone]) if (b >= beat - 1e-6) this.dropsDone.delete(b);
     this.dropCapBeat = -Infinity;
     this.lungeIdx = this.lungeBeats.findIndex((b) => b >= beat - 1e-6);
@@ -505,6 +508,8 @@ export class Game {
     this.stats.deathLog.push({ beat: round3(this.player.x / this.level.ppb), cause });
     this.breakCombo('death');
     this.events.emit('death', { cause, beat: round3(this.player.x / this.level.ppb) });
+    // (bots: the last presses before a death, song beats — the death-loop diagnosis)
+    if (this.bot) this.log('deathPresses', { presses: this.bot.presses.slice(-3).map((q) => ({ type: q.type, beat: q.beat, at: round3(this.tempo.timeToBeat(q.songTime)) })) });
     const overLifts = this.level.slams.some((f) => Math.abs(f.solid.x + f.solid.w / 2 - this.player.x) < 1.5 * this.level.ppb);
     this.noteFailure(cause === 'chaser' ? 'burn' : overLifts ? 'lifts' : 'pit', true);
     this.player.mode = 'dead';
@@ -754,7 +759,7 @@ export class Game {
     this.resyncDue = false;
     this.resyncShown++;
     const late = this.resyncOffer > 0;
-    this.showToast(`Your sound is running ${late ? 'LATE' : 'EARLY'} — Esc, then X to re-sync the projector (4 s)`, 4.5);
+    this.showToast(`Hitting ${late ? 'LATE' : 'EARLY'} every time? Your sound may lag — Esc, then X re-syncs the projector (4 s)`, 4.5);
     this.log('resyncPrompt', { shown: this.resyncShown, late });
     if (this.bot && params.resync) {
       this.setPaused(true);
@@ -782,9 +787,10 @@ export class Game {
     const next = clamp(cur + step, this.latencyBaseMs - A.rangeMs, this.latencyBaseMs + A.rangeMs);
     // pinned: a clear bias pushing past the clamp → re-offer the projector sync (at the next checkpoint / count-in)
     if (Math.abs(cur + step - next) > 0.5) {
-      if (++this.resyncPinned >= A.pinnedSteps && !this.resyncOffer && this.resyncShown < A.offerTimes) {
+      if (++this.resyncPinned >= A.pinnedSteps && !this.resyncDue && this.resyncShown < A.offerTimes) {
         this.resyncOffer = Math.sign(step);
         this.resyncDue = true;
+        this.resyncPinned = 0;
         this.log('resyncOffer', { medianMs: Math.round(med), ms: Math.round(next) });
       }
     } else this.resyncPinned = 0;
@@ -871,6 +877,11 @@ export class Game {
       this.debt += dt;
       return; // world frozen; edges stay pending in Controls
     }
+    // iteration 5: a JUMP pressed while hitstop debt is unpaid took off where the lagging world had the hero (up to
+    // ~80 ms behind the music), so an on-beat hop right after a late strike was really an EARLY hop: the ±130 bot's
+    // 116 loop after the walkdown giants (−87 ms presses dying on a −120 pit). Repay the debt first (the world snaps
+    // onto the music in ≤ 1-step substeps, the press edges held back), then the press acts on the grid.
+    if (this.debt > 0 && this.controls.jumpPressed && this.phase === 'run') this.flushDebt(t - dt);
     // world time lags song time by the hitstop debt until it's repaid
     this.simulate(dt, t - dt, t - dt - this.debt);
     if (this.debt > 0 && this.phase === 'run') {
@@ -879,6 +890,27 @@ export class Game {
       this.debt -= extra;
       this.simulate(extra, t, w0);
     } else if (this.phase !== 'run') this.debt = 0;
+  }
+
+  /** repay the whole hitstop debt now (world time catches up to song time `t0`), keeping this step's input edges */
+  private flushDebt(t0: number): void {
+    const c = this.controls;
+    const e = { jp: c.jumpPressed, jr: c.jumpReleased, sp: c.strikePressed, dp: c.downPressed, jt: c.jumpPressTime, st: c.strikePressTime, dt: c.downPressTime };
+    c.clearEdges();
+    while (this.debt > 1e-9 && this.phase === 'run') {
+      const d = Math.min(this.debt, this.dt);
+      const w0 = t0 - this.debt;
+      this.debt -= d;
+      this.simulate(d, t0, w0);
+    }
+    if (this.phase !== 'run') this.debt = 0;
+    c.jumpPressed = e.jp;
+    c.jumpReleased = e.jr;
+    c.strikePressed = e.sp;
+    c.downPressed = e.dp;
+    c.jumpPressTime = e.jt;
+    c.strikePressTime = e.st;
+    c.downPressTime = e.dt;
   }
 
   /**
@@ -1162,7 +1194,11 @@ export class Game {
     // (a hero STUCK — no progress for stuckBeats, a wall he can't pass — is still caught: no softlock)
     if (p.x > this.progress.x + 0.25 * L.ppb) this.progress = { x: p.x, beat: beatW };
     const stuck = beatW - this.progress.beat > B.stuckBeats;
-    if (margin < 0 && (c.gap >= B.catchBelowGap || this.burnCatches >= B.spentAfter) && !stuck) {
+    // ONE stumble never catches, whatever else pulled it (iteration 5): with a single pulling stumble in the last 2 bars
+    // its pull is discounted (a sloppy player who missed two rewards and then stumbled once used to be caught)
+    const recent = this.burnStumbles.filter((b) => beatW - b < B.stumbleMemoryBeats).length;
+    const pulled = c.gap + (recent === 1 ? B.stumblePull : 0);
+    if (margin < 0 && (pulled >= B.catchBelowGap || this.burnCatches >= B.spentAfter) && !stuck) {
       c.x = (p.x - p.w / 2 + Tun.player.hurtInset) - 0.02 * L.ppb;
       c.flare = 1;
       margin = 0.02;
@@ -1355,8 +1391,14 @@ export class Game {
     const mean = e.reduce((a, b) => a + b, 0) / e.length;
     if (Math.abs(mean) < 45) return;
     this.latencyTipShown = true;
-    this.showToast(`Hitting ${mean > 0 ? 'LATE' : 'EARLY'} every time? Esc → X re-syncs the projector (or nudge with  [  ])`, 4);
     this.log('latencyTip', { meanMs: Math.round(mean) });
+    // iteration 5: no mid-action toast — the projector sync is OFFERED at the next checkpoint / count-in instead (the
+    // same channel as the drift's clamp), so an uncalibrated Bluetooth player is guided to it in the first bars
+    if (!this.resyncDue && this.resyncShown < Tun.autoLatency.offerTimes) {
+      this.resyncOffer = Math.sign(mean);
+      this.resyncDue = true;
+      this.log('resyncOffer', { meanMs: Math.round(mean), from: 'bias' });
+    }
   }
 
   private breakCombo(reason: 'good' | 'miss' | 'stumble' | 'death'): void {
@@ -1499,7 +1541,10 @@ export class Game {
       if (this.burnGrace > 0) {
         this.burnGrace--;
         this.chaser.flare = 1; // it flares (you see it) but doesn't pull
-      } else this.feedBurn(Tun.chaser.stumblePull);
+      } else {
+        this.feedBurn(Tun.chaser.stumblePull);
+        this.burnStumbles.push(this.worldBeat);
+      }
     }
     this.events.emit('stumble', { cause, beat: round3(p.x / this.level.ppb) });
     this.noteFailure(cause.split('@')[0], false);

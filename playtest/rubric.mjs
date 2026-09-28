@@ -37,7 +37,8 @@
  *   intensity(bar) = 3·lethal + 1.5·stumble + 0.5·reward + 2·[new element in the bar].
  *   isochronous run = ≥ 3 threat actions of one verb+kind at a 1-beat interval (slam lifts): for A2/A3/A6 the
  *              rubric counts such a run (≤ 8) as ONE threat. Both raw and adjusted numbers are reported.
- *   blocks   = BLOCK-bar sections from the level's first bar; a trailing remainder shorter than BLOCK/2 bars
+ *   blocks   = BLOCK-bar sections from the level's first bar, restarting at each act seam (`LevelDef.acts`); a
+ *              trailing remainder shorter than BLOCK/2 bars
  *              (e.g. the 33rd bar of a 33-bar act) is merged into the previous block instead of being judged
  *              as a 1-bar "section".
  *   design tags (level items, ignored by the game): `mode` (traversal mode from a beat → B6, novelty) and
@@ -315,9 +316,18 @@ const barRow = (bar) => bars.find((b) => b.bar === bar);
 // ------------------------------------------------------------------ blocks (sections)
 const blocks = [];
 const blockStarts = [];
-for (let b = firstBar; b <= lastBar; b += BLOCK) blockStarts.push(b);
-// a trailing remainder shorter than half a block joins the previous block
-if (blockStarts.length > 1 && lastBar + 1 - blockStarts[blockStarts.length - 1] < BLOCK / 2) blockStarts.pop();
+// the grid restarts at every ACT seam the level declares (`LevelDef.acts`, 1-based edit bars; iteration 5): a joined
+// level (acts of 33 / 27 / 26 bars) is judged in the same phrase-aligned blocks as its acts — a fixed grid from bar 1
+// straddled the seams (the Rack + drop judged as one "breakdown" block at verse caps). A trailing remainder shorter
+// than half a block joins the previous block, per act.
+const seams = [firstBar, ...(level.acts ?? []).map((a) => a - 1).filter((a) => a > firstBar && a <= lastBar)].sort((a, b) => a - b);
+seams.forEach((s0, i) => {
+  const end = i + 1 < seams.length ? seams[i + 1] - 1 : lastBar;
+  const mine = [];
+  for (let b = s0; b <= end; b += BLOCK) mine.push(b);
+  if (mine.length > 1 && end + 1 - mine[mine.length - 1] < BLOCK / 2) mine.pop();
+  blockStarts.push(...mine);
+});
 const blockLen = (b) => {
   const i = blockStarts.indexOf(b);
   return i < blockStarts.length - 1 ? blockStarts[i + 1] - b : lastBar + 1 - b;

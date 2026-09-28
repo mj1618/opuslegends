@@ -7,14 +7,14 @@
  *   spikeHop(38)    tap-hop ON 38 over a spike at 38.45           (stumble if missed) ~±110 ms
  *   gapHop(52)      tap-hop ON 52 over a pit; timing presets (GAP_FIT, measured by playtest/slack.mjs):
  *                     'std'   52.09..52.75  ~-110/+150 ms  (iteration 3 default)
- *                     'teach' 52.22..52.77  ~-100/+200 ms  (bars 1-16: a sloppy ±85 ms player never dies here)
+ *                     'teach' 52.22..52.72  ~-125/+200 ms  (bars 1-16: a sloppy ±85 ms player never dies here, a ±130 one rarely)
  *                     'tight' 52.09..52.84  ~-85/+150 ms   (the chorus body: jump too EARLY and you land short)
  *                     'peak'  52.09..52.88  ~-75/+150 ms   (the lethal combination at a block's peak bar)
  *                   The LATE side stays generous everywhere (+150 ms: an uncalibrated-latency player still clears);
  *                   the teeth are on the early side, so a tight pit must not follow a hop within ~0.5 beat (the jump
  *                   buffer would save an early press and hide the teeth)
  *   gapJump(56)     held jump ON 56 over a long pit (lands ~58): 'std' 56.3..57.6 ~-165/+230 ms,
- *                     'teach' 56.3..57.75 ~-115/+230 ms, 'tightDrop' (off a raised floor) ~-85/+235 ms
+ *                     'teach' 56.3..57.7 ~-130/+230 ms, 'tightDrop' (off a raised floor) ~-85/+235 ms
  *   jabber(106)     strike ON 106 (the jabber's jab beat)         (stumble if missed) ~-220/+135 ms
  *   pendulum(23)    strike ON 23 (bottom of the swing)            (pure bonus)
  *   slamRun(72,2)   hop from the ledge ON 71, then ON every beat; platforms slam on 72, 73;
@@ -65,13 +65,14 @@ export function spike(beat: number): LevelItem {
  * early side by where it ends (an early hop lands short).
  */
 export const GAP_FIT = {
-  teach: [0.22, 0.77],
+  /** iteration 5: ends 0.05 sooner (was 0.77: −105 ms) — the tutorial bars 1-16 forgive a ±130 press too */
+  teach: [0.22, 0.72],
   std: [0.09, 0.75],
   tight: [0.09, 0.86],
   peak: [0.09, 0.88],
 } as const;
 export const GAP_JUMP_FIT = {
-  teach: [0.3, 1.75],
+  teach: [0.3, 1.7],
   std: [0.3, 1.6],
   /** off a raised surface onto the floor below (the bar top): the landing comes later, so the pit is longer */
   tightDrop: [0.3, 2.06],

@@ -199,7 +199,11 @@ Playtest Good at ±150 **[tune]**. **Forgiveness:** coyote 100 ms, jump buffer 1
 **Fail state (reference Q3 → C, with A for pits).**
 - **Stumble** (snapped cues, goon jabs, thrown bottles, rolling balls, Little Jims, low obstacles, Big Jim's fists):
   0.5-beat knockback, 1 beat of i-frames, 5 tokens dropped (they hover 1 bar), audience −25% (min 3). The surge wins the
-  ground back. **Two stumbles within 2 bars = you fall behind to the Burn** (a death, unless you surge clear).
+  ground back. **Two stumbles within 2 bars = you fall behind to the Burn** (a death, unless you surge clear). **One
+  stumble never kills** (iteration 5: the Burn scorches your heels but only catches once pulled below ~1 beat), and a
+  struggling player always gets through: after 2 Burn catches in one checkpoint segment missed rewards stop feeding it
+  and it stops lunging, after 3 it can't kill until the next checkpoint (Rayman's rule: missing rewards costs score,
+  not life).
 - **Death** from falling out of the frame (street gaps, lift shafts, lane gutters over the floor below, roof edges) or
   being caught by the Burn. **Bars 93–96 cannot kill you.**
 
