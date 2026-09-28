@@ -22,7 +22,7 @@ import { type BeatInfo, hit } from '../art/core/beat';
 import { drawGlow, star4 } from '../art/core/draw';
 import { JIM_NORM, JIM_PARTS, drawBigJim } from '../art/grindhouse/bigjim';
 import { drawHeadGoon, drawRackFrame } from '../art/grindhouse/casino';
-import { drawCurtainFrame, drawEruption, drawFinalBurst, drawIris, drawMarqueeCutIn, drawTheEnd, drawVictory } from '../art/grindhouse/finale';
+import { drawCurtainFrame, drawEruption, drawFinalBurst, drawIris, drawLensShatter, drawMarqueeCutIn, drawTheEnd, drawVictory } from '../art/grindhouse/finale';
 import { drawLetterLegs, drawSignLetter } from '../art/grindhouse/roof';
 import { drawSlim } from '../art/grindhouse/slim';
 import type { Lighting } from '../art/world/lighting';
@@ -41,7 +41,15 @@ const PART_OF_LOOK: Record<string, keyof typeof JIM_PARTS> = { lens: 'lensL', ch
  * the ending's timeline (seconds after the final hit): the frame FREEZES on the strike at `freeze`, the iris slams shut
  * on Slim by `shut`, THE END burns in, the victory iris opens at `victory`; the renderer holds the poster until `poster`
  */
-export const ENDING = { freeze: 0.085, shut: 0.6, victory: 3.1, poster: 6.6 } as const;
+export const ENDING = { freeze: 0.04, hold: 0.3, shut: 1.05, victory: 3.55, poster: 7.0 } as const;
+
+/**
+ * THE FINAL HIT's staging (iteration 6, review iter5 fix 2): from `loomFrom` Big Jim LOOMS in — big, roaring, fists up —
+ * until his face sits ON the final-hit target by `loomFrom + loomBeats`, so Slim's last strike lands on his jaw. He only
+ * flattens AFTER the hit: the hitstop freeze (ENDING.freeze → hold), then his head snaps back (`snap`), he squashes into a
+ * pancake (`flat`) and is sucked away into a tiny film frame (`cut`), seconds after the hit.
+ */
+export const FINALE = { loomFrom: 335.5, loomBeats: 3.8, scale: 0.8, faceY: -930, faceDX: 70, snap: [0.3, 0.46], flat: [0.42, 0.68], cut: [0.62, 1.0] } as const;
 
 const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 
@@ -65,6 +73,24 @@ export class Act3Art {
 
   private finBeat = NaN;
   private finKey: unknown = null;
+  private hitKey: unknown = null;
+  private hitAt: { x: number; y: number } | null = null;
+
+  /** the final-hit target (world) — his face lands on it */
+  finalTarget(game: Game): { x: number; y: number } | null {
+    if (this.hitKey !== game.level) {
+      this.hitKey = game.level;
+      const fh = game.level.breakables.find((k) => k.look === 'finalHit');
+      this.hitAt = fh ? { x: fh.x, y: fh.y } : null;
+    }
+    return this.hitAt;
+  }
+
+  /** 0..1 how far Big Jim has loomed in onto the final-hit target (1 from ~339.3 through the ending) */
+  loomK(game: Game): number {
+    if (!this.finalTarget(game)) return 0;
+    return smooth((game.worldBeat - FINALE.loomFrom) / FINALE.loomBeats);
+  }
 
   /** the finale's first beat (the level's `pullOut` set-piece, 332), NaN if the level has none */
   finaleBeat(game: Game): number {
@@ -102,7 +128,7 @@ export class Act3Art {
   }
 
   // ------------------------------------------------------------------ BIG JIM (behind the play band)
-  behind(g: CanvasRenderingContext2D, game: Game, cam: Camera, x0: number, x1: number, L: Lighting, b: BeatInfo, clock: number): void {
+  behind(g: CanvasRenderingContext2D, game: Game, _cam: Camera, x0: number, x1: number, L: Lighting, b: BeatInfo, clock: number): void {
     const A = game.mech.act3;
     const J = A.bigJim.state;
     const wb = game.worldBeat;
@@ -110,17 +136,28 @@ export class Act3Art {
     this.drawCallGoons(g, game, x0, x1, L, clock);
     this.face.x = NaN;
     if (J.visible <= 0.01) return;
-    const s = J.scale;
-    const k = JIM_NORM * s;
-    const Ht = 1480 * k;
+    const s0 = J.scale;
+    const k0 = JIM_NORM * s0;
+    const Ht = 1480 * k0;
     let ax = J.x;
     let ay = J.y + (1 - J.rise) * 0.85 * Ht;
-    if (J.panic > 0.5) {
-      // the finale: shrunk into one film frame, held in the upper right of the picture (the iris's target)
-      const fk = smooth((J.panic - 0.5) * 2);
-      ax += (cam.rx + 430 / cam.rzoom - ax) * fk;
-      ay += (cam.ry + 170 / cam.rzoom - ay) * fk;
+    // THE FINALE (iteration 6): he LOOMS in until his face sits on the final-hit target (no shrink before the hit)
+    const loom = this.loomK(game);
+    const T = this.hitT(clock);
+    let sEff = s0;
+    if (loom > 0) {
+      const ft = this.finalTarget(game) as { x: number; y: number };
+      const kF = JIM_NORM * FINALE.scale;
+      // he rocks toward Slim on every beat while he looms (a roar per beat), still on the hit
+      const rock = Number.isNaN(T) ? 26 * Math.exp(-(wb - Math.floor(wb)) * 4) * (1 - loom * 0.6) : 0;
+      const fx = ft.x + FINALE.faceDX * kF - rock;
+      const fy = ft.y - FINALE.faceY * kF;
+      ax += (fx - ax) * loom;
+      ay += (fy - ay) * loom;
+      sEff = s0 + (FINALE.scale - s0) * loom;
     }
+    const s = loom > 0 ? sEff : s0;
+    const k = JIM_NORM * s;
     // bound-part alignment: the part being hit sits exactly on its target
     const lvl = game.level;
     let best = 0;
@@ -159,42 +196,56 @@ export class Act3Art {
       fists[i] = { x: (f.x - ax) / s, y: (f.y - lift - 60 - ay) / s };
       hidden[i] = true;
     }
-    // the finale: framed, pounding the edges of his film frame on alternating beats
-    if (J.panic > 0.5) {
+    // the finale: looming in with both fists up over Slim, shaking them on alternating beats; after the hit they fly up
+    if (loom > 0.05) {
       const ph = Math.floor(wb) % 2;
-      const pound = Math.exp(-(wb - Math.floor(wb)) * 5);
-      fists[0] = { x: -700 - (ph === 0 ? 120 * pound : 0), y: -700 };
-      fists[1] = { x: 700 + (ph === 1 ? 120 * pound : 0), y: -700 };
+      const pound = Number.isNaN(T) ? Math.exp(-(wb - Math.floor(wb)) * 5) : 0;
+      const up = Number.isNaN(T) ? 0 : smooth(T / 0.4);
+      fists[0] = { x: -620 - 180 * up, y: -1150 - (ph === 0 ? 90 * pound : 0) - 300 * up };
+      fists[1] = { x: 560 + 220 * up, y: -1250 - (ph === 1 ? 90 * pound : 0) - 260 * up };
+      hidden[0] = hidden[1] = false;
     }
     // the backhand (his swing rides the Burn's lunge): the right fist sweeps low across the floor
     if (J.swing > 0.05 && !fists[1]) fists[1] = { x: 900 - 1600 * J.swing, y: -100 + 40 * Math.sin(J.swing * Math.PI) };
     const crackT: [number, number] = [0, 1].map((i) => (Number.isNaN(J.crackBeat[i]) ? NaN : (wb - J.crackBeat[i]) * b.spb)) as [number, number];
     g.save();
     g.globalAlpha = Math.min(1, J.visible);
-    // THE FINAL HIT flattens him: squashed into a pancake in his own film frame, tipped over, seeing stars
-    const I = A.state.iris;
-    const flat = I.active && wb >= I.beat ? smooth((wb - I.beat) / 0.06) : 0;
-    if (flat > 0) {
-      g.translate(ax, ay);
-      g.rotate(-0.16 * flat);
-      g.scale(1 + 0.5 * flat, 1 - 0.62 * flat);
+    // AFTER THE FINAL HIT (seconds T): the hitstop holds him on the blow, then his head SNAPS back, he squashes into a
+    // pancake and is sucked away into a tiny film frame up-stage (the cut-out comes after the hit, not before)
+    const Tl = Number.isNaN(T) ? -1 : T;
+    const snap = Tl < 0 ? 0 : smooth((Tl - FINALE.snap[0]) / (FINALE.snap[1] - FINALE.snap[0]));
+    const flat = Tl < 0 ? 0 : smooth((Tl - FINALE.flat[0]) / (FINALE.flat[1] - FINALE.flat[0]));
+    const cut = Tl < 0 ? 0 : smooth((Tl - FINALE.cut[0]) / (FINALE.cut[1] - FINALE.cut[0]));
+    if (snap > 0 || flat > 0 || cut > 0) {
+      const fx = ax;
+      const fy = ay - 930 * k;
+      // snap: rocked back around his seat, knocked up-stage
+      g.translate(ax + 260 * k * snap + 900 * k * cut, ay - 200 * k * snap - 1300 * k * cut);
+      g.rotate(0.3 * snap - 0.5 * flat + 6 * cut * cut);
+      const sq = 1 - 0.72 * flat;
+      const shrink = 1 - 0.8 * cut;
+      g.scale((1 + 0.55 * flat) * shrink, sq * shrink);
       g.translate(-ax, -ay);
+      void fx;
+      void fy;
     }
-    if (J.panic > 0.5) this.drawFrame(g, ax, ay, k, b);
+    if (cut > 0.05) this.drawFrame(g, ax, ay, k, b);
+    const jimCrack: [number, number] = Tl >= 0 ? [2, 2] : J.crack;
+    const jimCrackT: [number, number] = Tl >= 0 ? [Tl, Tl] : crackT;
     drawBigJim(g, ax, ay, s, {
       time: clock,
       beat: wb,
-      bluff: J.bluff,
-      roar: J.roar,
-      reel: J.reel,
-      reelDir: J.reelDir,
-      crack: J.crack,
-      crackT,
+      bluff: loom > 0.2 ? 0 : J.bluff,
+      roar: loom > 0 ? Math.max(J.roar, Tl >= 0 ? 1 - snap * 0.3 : 0.55 + 0.45 * Math.exp(-(wb - Math.floor(wb)) * 3)) : J.roar,
+      reel: Tl >= 0 ? Math.max(snap, 1 - flat * 0.5) : J.reel,
+      reelDir: Tl >= 0 ? 1 : J.reelDir,
+      crack: jimCrack,
+      crackT: jimCrackT,
       reflect: J.reflect,
       reflectX: Math.sin(wb * 0.5) * 0.4,
       blaze: J.blaze,
       chainT: Number.isNaN(J.chainBeat) ? NaN : (wb - J.chainBeat) * b.spb,
-      panic: J.panic,
+      panic: loom > 0 ? (Tl >= 0 ? 1 : 0.25) : J.panic,
       fists,
       fistHidden: hidden,
       lift: [0.2 + 0.2 * Math.sin(wb * Math.PI * 0.5), 0.2 + 0.2 * Math.cos(wb * Math.PI * 0.5)],
@@ -203,12 +254,14 @@ export class Act3Art {
       lod: s < 0.5 ? 0 : 1,
     });
     g.restore();
-    if (flat > 0) {
+    if (flat > 0.3 && cut < 0.9) {
       // KO: stars circling where his head landed
-      const hy = ay - 1100 * k * (1 - 0.7 * flat);
+      const hx = ax + 260 * k * snap + 900 * k * cut;
+      const hy = ay - 200 * k * snap - 1300 * k * cut - 1100 * k * (1 - 0.72 * flat) * (1 - 0.8 * cut);
+      const sk = (1 - 0.8 * cut) * flat;
       for (let i = 0; i < 5; i++) {
         const a = clock * 5 + (i / 5) * Math.PI * 2;
-        star4(g, ax + Math.cos(a) * 260 * k, hy - 120 * k + Math.sin(a) * 70 * k, 70 * k * flat, clock * 3 + i, i % 2 ? '#FFE08A' : '#FFF6E8');
+        star4(g, hx + Math.cos(a) * 300 * k * sk, hy - 140 * k * sk + Math.sin(a) * 80 * k * sk, 80 * k * sk, clock * 3 + i, i % 2 ? '#FFE08A' : '#FFF6E8');
       }
     }
     // his aura in the reveal: slow gold + fig rays behind the silhouette
@@ -595,7 +648,17 @@ export class Act3Art {
       // the hit OPENS the frame fully (the blades spring back on the flash), then the iris slams shut, accelerating
       const r = Math.hypot(VIEW_W, VIEW_H) * 0.7 * (1 - u * u * u);
       void I;
+      // IMPACT FRAMES: the white-out on contact (drawFinalBurst), then ~3 film frames in NEGATIVE (the white-out and
+      // the burst invert to a dark frame with the silhouettes burning), then the held contact frame — the hitstop
       drawFinalBurst(g, T, at[0], at[1]);
+      drawLensShatter(g, T, at[0] + 20, at[1] - 60);
+      if (T >= ENDING.freeze + 0.02 && T < ENDING.freeze + 0.08) {
+        g.save();
+        g.globalCompositeOperation = 'difference';
+        g.fillStyle = '#FFF6E8';
+        g.fillRect(0, 0, VIEW_W, VIEW_H);
+        g.restore();
+      }
       const m = Math.min(1, u * 1.6);
       const cx = this.irisAt[0] + (hx - this.irisAt[0]) * m;
       const cy = this.irisAt[1] + (hy - 90 - this.irisAt[1]) * m;

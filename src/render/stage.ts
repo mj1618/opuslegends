@@ -23,7 +23,7 @@ import { TAU, hash } from '../art/core/math';
 import { drawBarFloor, makeBar } from '../art/grindhouse/bar';
 import './../art/grindhouse/lights';
 import { type StreetScene, drawStreetGround, makeStreet } from '../art/grindhouse/street';
-import { drawFireEscape, makeFacade } from '../art/grindhouse/facade';
+import { drawFireEscape, makeFacade, setFacadeGrid } from '../art/grindhouse/facade';
 import { drawLanesFloor, makeLanes } from '../art/grindhouse/lanes';
 import { drawFeltFloor, makePoolRoom } from '../art/grindhouse/poolroom';
 import { type CasinoState, drawRackFloor, makeCasino } from '../art/grindhouse/casino';
@@ -173,6 +173,9 @@ export class Stage {
   update(dt: number, L: RuntimeLevel, beat: number): void {
     if (this.cuesKey !== L) {
       this.cuesKey = L;
+      // the facade changes face every 4 bars from the act's first facade beat (art/grindhouse/facade.ts)
+      const fb = this.boundaries(L).find((q) => q.to === 'facade');
+      if (fb) setFacadeGrid(L.ppb, Math.round(fb.x / L.ppb));
       this.cues = Object.fromEntries(ENVS.map((e) => [e, []])) as unknown as Record<Env, { beat: number; key: string }[]>;
       for (const c of L.skyCues) {
         const key = SKY_TO_LIGHT[c.preset] ?? c.preset;

@@ -220,6 +220,40 @@ export class MusicFeed {
     return r;
   }
 
+  private extra = new Map<string, { beats: Float64Array; ends: Float64Array }>();
+
+  /**
+   * THE GOON BAND's timing (iteration 6): any beat-map lane by name (overlays `cowbell` / `stomps` / `claps` / `shouts`,
+   * `piano`, `hooks` …) at the current beat — beats since its last event (Infinity = none yet), the gap between that
+   * event and the next (anticipation), and 0..1 `active` inside a span event (`endBeat`, e.g. a hook's phrase).
+   */
+  /** events of a lane in [a, b) (beats), and whether a span event (`endBeat`) covers beat a */
+  laneSpan(name: string, a: number, b: number): { n: number; covers: boolean } {
+    this.lane(name);
+    const tr = this.extra.get(name) as { beats: Float64Array; ends: Float64Array };
+    const i0 = MusicFeed.last(tr.beats, a - 1e-6) + 1;
+    const i1 = MusicFeed.last(tr.beats, b - 1e-6);
+    const j = MusicFeed.last(tr.beats, a + 1e-6);
+    return { n: Math.max(0, i1 - i0 + 1), covers: j >= 0 && tr.ends[j] > a };
+  }
+
+  lane(name: string): { since: number; gap: number; active: number; count: number } {
+    let tr = this.extra.get(name);
+    if (!tr) {
+      const l = (this.song.map?.lanes ?? {})[name] ?? [];
+      const ev = [...l].sort((a, b) => a.beat - b.beat);
+      tr = { beats: Float64Array.from(ev.map((e) => e.beat)), ends: Float64Array.from(ev.map((e) => (typeof e.endBeat === 'number' ? (e.endBeat as number) : e.beat))) };
+      this.extra.set(name, tr);
+    }
+    const beat = this.info.beat;
+    const i = MusicFeed.last(tr.beats, beat + 1e-4);
+    if (i < 0) return { since: Infinity, gap: tr.beats.length ? tr.beats[0] - beat : 2, active: 0, count: 0 };
+    const next = i + 1 < tr.beats.length ? tr.beats[i + 1] : tr.beats[i] + 2;
+    const end = tr.ends[i];
+    const active = end > tr.beats[i] && beat < end ? Math.min(1, (beat - tr.beats[i]) / 0.25, (end - beat) / 0.25) : 0;
+    return { since: beat - tr.beats[i], gap: next - tr.beats[i], active, count: i + 1 };
+  }
+
   update(g: Groove): BeatInfo {
     const b = this.info;
     const beat = g.beat;

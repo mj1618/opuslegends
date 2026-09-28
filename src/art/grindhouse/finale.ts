@@ -669,6 +669,47 @@ export function drawFinalBurst(g: Ctx, T: number, x: number, y: number): void {
 }
 
 /**
+ * THE AVIATORS SHATTER AT THE LENS (T = seconds since the final hit, x, y = his face on screen): chrome + sky-blue shards
+ * burst from his glasses TOWARD the camera (growing as they come), a few big ones spinning past the frame edges.
+ * Deterministic in T.
+ */
+export function drawLensShatter(g: Ctx, T: number, x: number, y: number): void {
+  if (T < 0.02 || T > 1.2) return;
+  const t = T - 0.02;
+  const a = Math.max(0, 1 - t / 1.15);
+  g.save();
+  for (let i = 0; i < 30; i++) {
+    const ang = hash(i + 70) * TAU;
+    const sp = 400 + hash(i + 71) * 1500;
+    const px = x + Math.cos(ang) * sp * t;
+    const py = y + Math.sin(ang) * sp * t + 700 * t * t;
+    const s = (10 + hash(i + 72) * 34) * (1 + t * (2 + 3 * hash(i + 73)));
+    g.save();
+    g.translate(px, py);
+    g.rotate(t * (5 + i * 0.7) + i);
+    g.globalAlpha = a;
+    g.fillStyle = i % 4 === 0 ? 'rgba(255,224,138,0.8)' : i % 3 === 0 ? 'rgba(150,196,230,0.75)' : 'rgba(226,232,240,0.8)';
+    g.beginPath();
+    g.moveTo(-s, -s * 0.35);
+    g.lineTo(s * 0.9, -s * 0.15);
+    g.lineTo(-s * 0.05, s);
+    g.closePath();
+    g.fill();
+    g.strokeStyle = 'rgba(255,255,255,0.95)';
+    g.lineWidth = 2;
+    g.stroke();
+    g.strokeStyle = 'rgba(26,20,16,0.6)';
+    g.lineWidth = 1.5;
+    g.beginPath();
+    g.moveTo(-s * 0.2, -s * 0.2);
+    g.lineTo(s * 0.4, s * 0.2);
+    g.stroke();
+    g.restore();
+  }
+  g.restore();
+}
+
+/**
  * THE HOUSE ERUPTS (T = seconds since the final hit, a = alpha): the front rows jump up in silhouette in front of the
  * screen, arms up and bouncing on the beat, popcorn fountains out of their buckets and confetti cannons fire from both
  * corners (drifting down for seconds). Deterministic in T (no state).

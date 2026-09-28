@@ -16,7 +16,6 @@
  * Read-only on game state; owns only render-side state (camera moment offsets, debris).
  */
 import type { BeatInfo } from '../art/core/beat';
-import { drawGlow } from '../art/core/draw';
 import { TAU, hash } from '../art/core/math';
 import { CF } from '../art/palette';
 import { VIEW_H, VIEW_W } from '../engine/display';
@@ -43,6 +42,7 @@ interface Smash {
   y: number;
   t: number;
   word: string;
+  big?: boolean;
 }
 
 const WORDS = ['KRAK!', 'SMASH!', 'WHAM!', 'KA-BOOM!'];
@@ -182,7 +182,7 @@ export class Moments {
     this.launchK = lk;
     // --- giant smashes
     L.breakables.forEach((b, i) => {
-      if (b.broken && !this.broke[i] && (b.giant || (b.big && this.giantAt(b.beat)))) this.smash(b.x, b.y, b.r, cam, b.look === 'pin');
+      if (b.broken && !this.broke[i] && (b.giant || (b.big && this.giantAt(b.beat)))) this.smash(b.x, b.y, b.r, cam, b.look === 'pin', b.look === 'finalHit');
       this.broke[i] = b.broken;
     });
     // --- the chorus shot (+ level 'shot' cues punch it)
@@ -214,7 +214,7 @@ export class Moments {
     glintK = glintK * glintK * (3 - 2 * glintK);
     this.glintK = glintK;
     if (this.crashT >= 0 && this.crashT < 0.05) this.punch = Math.max(this.punch, 0.08);
-    cam.momentZoom = -0.16 * this.launchK + this.punch - 0.04 * this.shotPunch - 0.1 * glintK;
+    cam.momentZoom = -0.1 * this.launchK + this.punch - 0.04 * this.shotPunch - 0.1 * glintK;
     cam.momentY = -150 * this.launchK - 460 * glintK;
     this.punch *= Math.exp(-dt / 0.1);
     this.freeze *= Math.exp(-dt / 0.14);
@@ -229,15 +229,15 @@ export class Moments {
       if (d.t > 1.3) d.on = false;
     }
     for (const s of this.smashes) s.t += dt;
-    while (this.smashes.length && this.smashes[0].t > 0.6) this.smashes.shift();
+    while (this.smashes.length && this.smashes[0].t > (this.smashes[0].big ? 1.1 : 0.6)) this.smashes.shift();
   }
 
-  private smash(x: number, y: number, r: number, cam: Camera, pin = false): void {
+  private smash(x: number, y: number, r: number, cam: Camera, pin = false, finale = false): void {
     this.punch = Math.max(this.punch, 0.07);
-    this.freeze = 1;
+    this.freeze = finale ? 0 : 1;
     cam.addTrauma(0.5);
     this.wordN++;
-    this.smashes.push({ x, y: y - r * 2.2, t: 0, word: pin ? PIN_WORDS[this.wordN % PIN_WORDS.length] : WORDS[this.wordN % WORDS.length] });
+    this.smashes.push({ x, y: y - r * 2.2, t: 0, word: finale ? 'KNOCKOUT!' : pin ? PIN_WORDS[this.wordN % PIN_WORDS.length] : WORDS[this.wordN % WORDS.length], big: finale });
     if (this.smashes.length > 3) this.smashes.shift();
     let n = 0;
     for (const d of this.debris) {
@@ -365,11 +365,10 @@ export class Moments {
   }
 
   /**
-   * SCREEN space after the world (inside the film): launch speed lines, the chorus follow-spot + iris,
-   * the giant-smash flash / lines / comic stamp. `toScreen` maps world -> screen.
+   * SCREEN space, the LIGHT layer (iteration 6: drawn BEFORE Slim, so the light never bleaches him): the chorus
+   * follow-spot + iris, the giant smash's flash.
    */
-  drawScreen(g: CanvasRenderingContext2D, b: BeatInfo, toScreen: (x: number, y: number) => [number, number]): void {
-    if (this.crashT >= 0 && this.crashT < 1.1) this.drawShatter(g, this.crashT);
+  drawLight(g: CanvasRenderingContext2D): void {
     const hx = this.heroSx;
     const hy = this.heroSy;
     // --- chorus: key follow-spot from the top + a dark iris around the star
@@ -394,8 +393,25 @@ export class Moments {
       g.closePath();
       g.fill();
       g.restore();
-      drawGlow(g, hx, hy - 10, '#FFF1D6', 200, 0.22 * s);
+      // (no glow ON the star any more: he gets his own rim light in the hero pass)
     }
+    // --- giant smash: the projector flash
+    if (this.freeze > 0.02) {
+      g.save();
+      g.globalCompositeOperation = 'lighter';
+      g.fillStyle = `rgba(255,244,220,${0.42 * this.freeze})`;
+      g.fillRect(0, 0, VIEW_W, VIEW_H);
+      g.restore();
+    }
+  }
+
+  /**
+   * SCREEN space after the world (inside the film): the window crash, launch speed lines, the giant-smash lines + comic
+   * stamp (the light is drawLight). `toScreen` maps world -> screen.
+   */
+  drawScreen(g: CanvasRenderingContext2D, b: BeatInfo, toScreen: (x: number, y: number) => [number, number]): void {
+    if (this.crashT >= 0 && this.crashT < 1.1) this.drawShatter(g, this.crashT);
+    const hx = this.heroSx;
     // --- launch: speed lines rushing DOWN the frame edges (we're rising): tapered cream wedges, thick at take-off
     const lk = this.launchK;
     if (lk > 0.02) {
@@ -420,18 +436,11 @@ export class Moments {
       }
       g.restore();
     }
-    // --- giant smash: flash, radial lines, the comic stamp
-    if (this.freeze > 0.02) {
-      g.save();
-      g.globalCompositeOperation = 'lighter';
-      g.fillStyle = `rgba(255,244,220,${0.42 * this.freeze})`;
-      g.fillRect(0, 0, VIEW_W, VIEW_H);
-      g.restore();
-    }
+    // --- giant smash: radial lines, the comic stamp (the flash is drawLight, under Slim)
     for (const sm of this.smashes) {
       const [sx, sy] = toScreen(sm.x, sm.y);
-      const k = sm.t / 0.6;
-      if (sm.t < 0.25) {
+      const k = sm.t / (sm.big ? 1.1 : 0.6);
+      if (sm.t < 0.25 && !sm.big) {
         g.save();
         g.strokeStyle = `rgba(26,20,16,${0.6 * (1 - sm.t / 0.25)})`;
         g.lineWidth = 5;
@@ -447,7 +456,7 @@ export class Moments {
         g.restore();
       }
       const inK = Math.min(1, sm.t / 0.06);
-      const sc = 1.8 - 0.8 * inK;
+      const sc = (1.8 - 0.8 * inK) * (sm.big ? 1.45 : 1);
       g.save();
       g.globalAlpha = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
       g.translate(sx, sy - 40 * k);

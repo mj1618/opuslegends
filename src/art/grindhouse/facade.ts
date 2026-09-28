@@ -41,10 +41,35 @@ const SIGN_FONT = '"Impact", "Haettenschweiler", "Arial Narrow Bold", sans-serif
 /** the Jimperial's storey grid (layer px at 0.92) */
 const WX = 250;
 const WY = 290;
-/** wings: a period of P with a light-well gap of GAP at its end */
-const P = 3300;
+/** wings: a period of P with a light-well gap of GAP at its end (iteration 6: P = one 4-bar SECTION, see FACADE_GRID) */
 const GAP = 820;
 const F_WALL = 0.92;
+
+/**
+ * THE FACADE VARIES EVERY 4 BARS (iteration 6, review iter5 fix 9): each wing of the Jimperial is one 4-bar section of the
+ * climb (its light-well gap is the seam), and each section is a different building face — `FACADE_THEMES`, in order:
+ * the red-brick fire-escape face, the NEON hotel face (HOTEL JIMPERIAL, every window lit), the soot-black iron face (fire
+ * escapes on every other bay), the LAUNDRY COURTYARD (stucco, lines strung across every storey, flower boxes) and the
+ * BILLBOARD face (terracotta, a giant painted ad on scaffolding, a water tower on a setback) — then round again.
+ * `setFacadeGrid(ppb, beat0, lead)` aligns the sections with the level (the renderer's Stage calls it): a section
+ * boundary sits at the screen centre when the camera centre is `lead` world px past beat0 + 16 n.
+ */
+export const FACADE_THEMES = ['brick', 'neon', 'iron', 'laundry', 'billboard'] as const;
+export type FacadeTheme = (typeof FACADE_THEMES)[number];
+const GRID: { P: number; O: number; base?: number } = { P: 16 * 384 * F_WALL, O: 0 };
+
+export function setFacadeGrid(ppb: number, beat0: number, lead = 500): void {
+  GRID.P = 16 * ppb * F_WALL;
+  const x0 = F_WALL * (beat0 * ppb + lead);
+  GRID.O = ((x0 % GRID.P) + GRID.P) % GRID.P;
+  GRID.base = Math.round((x0 - GRID.O) / GRID.P);
+}
+
+/** the theme of wing k (k = the section index; `GRID.base` = the first section of the act) */
+export function facadeTheme(k: number): FacadeTheme {
+  const i = k - (GRID.base ?? 0);
+  return FACADE_THEMES[((i % FACADE_THEMES.length) + FACADE_THEMES.length) % FACADE_THEMES.length];
+}
 
 export function makeFacade(light: LightingDirector): ParallaxScene {
   const scene = new ParallaxScene(light);
@@ -231,32 +256,48 @@ function bricks(): HTMLCanvasElement {
 
 const patterns = new WeakMap<Ctx, CanvasPattern>();
 
-class JimperialWall {
-  private cols: { key: number; brick: string; brickDark: string; stone: string; iron: string; ironRim: string; glass: string; sil: string; frame: string } | null = null;
+type WallCols = { key: number; brick: string; brickDark: string; stone: string; iron: string; ironRim: string; glass: string; sil: string; frame: string };
 
-  private colours(f: SceneFrame) {
-    if (this.cols && this.cols.key === f.version) return this.cols;
+class JimperialWall {
+  private cache = new Map<FacadeTheme, WallCols>();
+
+  /** per-theme wall colours (lit by the scene; re-made when the light changes) */
+  private colours(f: SceneFrame, theme: FacadeTheme = 'brick') {
+    const hit0 = this.cache.get(theme);
+    if (hit0 && hit0.key === f.version) return hit0;
     const L = f.L;
     const d = 0.1;
-    this.cols = {
+    const BRICK: Record<FacadeTheme, [string, string, string]> = {
+      brick: ['#6B3A2E', '#3A2018', '#B8A890'],
+      neon: ['#3E2436', '#1E1020', '#6A5A70'],
+      iron: ['#42282A', '#1E1214', '#8A7A70'],
+      laundry: ['#A88E68', '#6A5238', '#D8C8A8'],
+      billboard: ['#A8683E', '#5A3420', '#E0C8A0'],
+    };
+    const [br, bd, st] = BRICK[theme];
+    const c: WallCols = {
       key: f.version,
-      brick: css(lit(L, H('#6B3A2E'), 0.7, d)),
-      brickDark: css(lit(L, H('#3A2018'), 0.5, d)),
-      stone: css(lit(L, H('#B8A890'), 0.75, d)),
+      brick: css(lit(L, H(br), 0.7, d)),
+      brickDark: css(lit(L, H(bd), 0.5, d)),
+      stone: css(lit(L, H(st), 0.75, d)),
       iron: css(lit(L, H('#2A2630'), 0.5, d)),
       ironRim: css(mix(lit(L, H('#2A2630'), 0.9, d), L.rim, 0.6), 0.9),
       glass: css(lit(L, H('#1A1E2E'), 0.6, d)),
       sil: css(lit(L, H('#140C10'), 0.3, d)),
-      frame: css(lit(L, H('#4E3A2C'), 0.7, d)),
+      frame: css(lit(L, H(theme === 'laundry' ? '#3E5A5E' : '#4E3A2C'), 0.7, d)),
     };
-    return this.cols;
+    this.cache.set(theme, c);
+    return c;
   }
 
   draw(g: Ctx, cam: ArtCamera, f: SceneFrame): void {
     const v = layerView(cam, F_WALL);
-    const C = this.colours(f);
     const L = f.L;
     const b = f.b;
+    const P = GRID.P;
+    const O = GRID.O;
+    const wingOf = (x: number) => Math.floor((x - O) / P);
+    const inWingOf = (x: number) => (((x - O) % P) + P) % P;
     pushLayer(g, v);
     let pat = patterns.get(g);
     if (!pat) {
@@ -265,90 +306,266 @@ class JimperialWall {
     }
     const yTop = v.y0 - 20;
     const yBot = Math.min(v.y1 + 20, 60);
-    if (yBot > yTop) {
-      for (let k = Math.floor(v.x0 / P); k * P < v.x1; k++) {
-        const x0 = Math.max(v.x0 - 10, k * P);
-        const x1 = Math.min(v.x1 + 10, k * P + P - GAP);
-        if (x1 <= x0) continue;
-        g.fillStyle = C.brick;
-        g.fillRect(x0, yTop, x1 - x0, yBot - yTop);
-        g.fillStyle = pat;
-        g.fillRect(x0, yTop, x1 - x0, yBot - yTop);
-        // corner quoins + a shadow down the light-well side
-        const cx = k * P + P - GAP;
-        if (cx > v.x0 - 100 && cx < v.x1 + 100) {
-          const gr = g.createLinearGradient(cx - 90, 0, cx, 0);
-          gr.addColorStop(0, 'rgba(10,6,12,0)');
-          gr.addColorStop(1, 'rgba(10,6,12,0.55)');
-          g.fillStyle = gr;
-          g.fillRect(cx - 90, yTop, 90, yBot - yTop);
-          g.fillStyle = C.stone;
-          for (let y = Math.floor(yTop / 60) * 60; y < yBot; y += 60) {
-            const odd = Math.abs(Math.round(y / 60)) % 2 === 1;
-            g.fillRect(odd ? cx - 28 : cx - 40, y, odd ? 28 : 40, 26);
-          }
-        }
-        const lx = k * P;
-        if (lx > v.x0 - 100 && lx < v.x1 + 100) {
-          g.fillStyle = C.stone;
-          for (let y = Math.floor(yTop / 60) * 60; y < yBot; y += 60) g.fillRect(lx, y, Math.abs(Math.round(y / 60)) % 2 ? 28 : 40, 26);
-        }
-      }
-    }
-    // storeys: cornice bands, windows, silhouettes
+    const kick = hit(b, 'kick', 0.12);
     const r0 = Math.floor(v.y0 / WY) - 1;
     const r1 = Math.min(0, Math.ceil(v.y1 / WY));
-    const c0 = Math.floor(v.x0 / WX) - 1;
-    const c1 = Math.ceil(v.x1 / WX) + 1;
-    const kick = hit(b, 'kick', 0.12);
-    for (let row = r0; row < r1; row++) {
-      const ry = row * WY;
-      for (let k = Math.floor(v.x0 / P); k * P < v.x1; k++) {
-        const a = Math.max(v.x0, k * P);
-        const z = Math.min(v.x1, k * P + P - GAP);
-        if (z <= a) continue;
+    for (let k = wingOf(v.x0); O + k * P < v.x1; k++) {
+      const theme = facadeTheme(k);
+      const C = this.colours(f, theme);
+      const ws = O + k * P;
+      const we = ws + P - GAP;
+      const a = Math.max(v.x0 - 10, ws);
+      const z = Math.min(v.x1 + 10, we);
+      if (z <= a || yBot <= yTop) continue;
+      // the wall face
+      g.fillStyle = C.brick;
+      g.fillRect(a, yTop, z - a, yBot - yTop);
+      if (theme === 'laundry' || theme === 'billboard') {
+        // stucco / terracotta: horizontal courses instead of bricks
+        g.fillStyle = 'rgba(0,0,0,0.12)';
+        for (let y = Math.floor(yTop / 48) * 48; y < yBot; y += 48) g.fillRect(a, y, z - a, 3);
+      } else {
+        g.fillStyle = pat;
+        g.fillRect(a, yTop, z - a, yBot - yTop);
+      }
+      if (theme === 'iron') {
+        // soot streaks down from every storey
+        g.fillStyle = 'rgba(8,4,6,0.22)';
+        for (let x = Math.ceil(a / 90) * 90; x < z; x += 90) g.fillRect(x + hash(x) * 40, yTop, 18 + hash(x + 1) * 20, yBot - yTop);
+      }
+      // corner quoins + a shadow down the light-well side
+      if (we > v.x0 - 100 && we < v.x1 + 100) {
+        const gr = g.createLinearGradient(we - 90, 0, we, 0);
+        gr.addColorStop(0, 'rgba(10,6,12,0)');
+        gr.addColorStop(1, 'rgba(10,6,12,0.55)');
+        g.fillStyle = gr;
+        g.fillRect(we - 90, yTop, 90, yBot - yTop);
         g.fillStyle = C.stone;
-        g.fillRect(a, ry + WY - 26, z - a, 14);
+        for (let y = Math.floor(yTop / 60) * 60; y < yBot; y += 60) {
+          const odd = Math.abs(Math.round(y / 60)) % 2 === 1;
+          g.fillRect(odd ? we - 28 : we - 40, y, odd ? 28 : 40, 26);
+        }
+      }
+      if (ws > v.x0 - 100 && ws < v.x1 + 100) {
+        g.fillStyle = C.stone;
+        for (let y = Math.floor(yTop / 60) * 60; y < yBot; y += 60) g.fillRect(ws, y, Math.abs(Math.round(y / 60)) % 2 ? 28 : 40, 26);
+      }
+      // storeys: cornice bands, windows (+ fire escapes, laundry lines, flower boxes by theme)
+      const c0 = Math.floor(a / WX) - 1;
+      const c1 = Math.ceil(z / WX) + 1;
+      const escP = theme === 'iron' ? 0.55 : theme === 'brick' ? 0.24 : 0.06;
+      for (let row = r0; row < r1; row++) {
+        const ry = row * WY;
+        g.fillStyle = C.stone;
+        g.fillRect(a, ry + WY - 26, z - a, theme === 'billboard' ? 20 : 14);
         g.fillStyle = C.brickDark;
         g.fillRect(a, ry + WY - 12, z - a, 6);
+        for (let col = c0; col <= c1; col++) {
+          const wx = col * WX + 70;
+          const iw = inWingOf(wx);
+          if (wingOf(wx) !== k || iw < 60 || iw + 110 > P - GAP - 40) continue;
+          if (theme === 'billboard' && this.inBillboard(wx, ry + 60, ws)) continue;
+          this.window(g, wx, ry + 60, col, row, C, L, b, kick, theme);
+          if (theme === 'laundry' && hash(col * 3 + row * 7) < 0.6) {
+            // flower box under the sill
+            g.fillStyle = C.frame;
+            g.fillRect(wx - 6, ry + 60 + 160, 122, 14);
+            for (let i = 0; i < 6; i++) {
+              g.fillStyle = i % 2 ? css(lit(L, H('#B84A5E'), 0.8, 0.1)) : css(lit(L, H('#4A7A3A'), 0.8, 0.1));
+              g.beginPath();
+              g.arc(wx + 4 + i * 20, ry + 60 + 158, 8, 0, TAU);
+              g.fill();
+            }
+          }
+        }
+        for (let col = c0; col <= c1; col++) {
+          if (hash(col * 7 + 3) > escP) continue;
+          const wx = col * WX + 20;
+          const iw = inWingOf(wx);
+          if (wingOf(wx) !== k || iw + WX * 1.4 > P - GAP - 20) continue;
+          if (theme === 'billboard' && this.inBillboard(wx + 100, ry + 200, ws)) continue;
+          this.fireEscape(g, wx, ry, row, C);
+        }
+        if (theme === 'laundry') this.laundryLines(g, a, z, ry, row, L, b);
       }
+      if (theme === 'neon') this.neonBand(g, ws, we, v, L, b, kick);
+      if (theme === 'billboard') this.billboard(g, ws, v, C, L, b);
+      // drainpipes
       for (let col = c0; col <= c1; col++) {
-        const wx = col * WX + 70;
-        const inWing = ((wx % P) + P) % P;
-        if (inWing < 60 || inWing + 110 > P - GAP - 40) continue;
-        this.window(g, wx, ry + 60, col, row, C, L, b, kick);
-      }
-      // fire escapes on some columns: a landing under each window + stairs to the next storey
-      for (let col = c0; col <= c1; col++) {
-        if (hash(col * 7 + 3) > 0.22) continue;
-        const wx = col * WX + 20;
-        const inWing = ((wx % P) + P) % P;
-        if (inWing + WX * 1.4 > P - GAP - 20) continue;
-        this.fireEscape(g, wx, ry, row, C);
+        if (hash(col * 13 + 5) > (theme === 'iron' ? 0.3 : 0.12)) continue;
+        const x = col * WX + 5;
+        if (wingOf(x) !== k || inWingOf(x) > P - GAP - 20) continue;
+        g.fillStyle = C.iron;
+        g.fillRect(x, yTop, 10, yBot - yTop);
+        g.fillStyle = C.ironRim;
+        g.fillRect(x, yTop, 2, yBot - yTop);
       }
     }
-    // drainpipes
-    for (let col = c0; col <= c1; col++) {
-      if (hash(col * 13 + 5) > 0.12) continue;
-      const x = col * WX + 5;
-      const inWing = ((x % P) + P) % P;
-      if (inWing > P - GAP - 20) continue;
-      g.fillStyle = C.iron;
-      g.fillRect(x, yTop, 10, yBot - yTop);
-      g.fillStyle = C.ironRim;
-      g.fillRect(x, yTop, 2, yBot - yTop);
-    }
-    // BIG JIM'S vertical neon blade signs, one per wing, at hashed heights
-    for (let k = Math.floor(v.x0 / P) - 1; k * P < v.x1 + 200; k++) {
-      const sx = k * P + P - GAP - 150;
-      const sy = -420 - Math.floor(hash(k * 3 + 1) * 5) * WY;
-      if (sy + 700 < v.y0 || sy - 60 > v.y1) continue;
-      this.blade(g, sx, sy, L, b, kick);
+    // BIG JIM'S vertical neon blade signs, one per wing (two on the neon face), at hashed heights
+    for (let k = wingOf(v.x0) - 1; O + k * P < v.x1 + 200; k++) {
+      const theme = facadeTheme(k);
+      const n = theme === 'neon' ? 2 : theme === 'laundry' ? 0 : 1;
+      for (let j = 0; j < n; j++) {
+        const sx = O + k * P + P - GAP - 150 - j * 1900;
+        const sy = -420 - Math.floor(hash(k * 3 + 1 + j * 5) * 5) * WY;
+        if (sy + 700 < v.y0 || sy - 60 > v.y1) continue;
+        this.blade(g, sx, sy, L, b, kick);
+      }
     }
     g.restore();
   }
 
-  private window(g: Ctx, x: number, y: number, col: number, row: number, C: NonNullable<JimperialWall['cols']>, L: Lighting, b: BeatInfo, kick: number): void {
+  /** the billboard face's painted ad occupies storeys -2..-4 of the wing's first 2/3 */
+  private inBillboard(x: number, y: number, ws: number): boolean {
+    return x > ws + 300 && x < ws + 2500 && y > -4 * WY - 40 && y < -WY + 10;
+  }
+
+  /** THE LAUNDRY COURTYARD: lines strung across the storey between windows, sheets + shirts flapping on the hats */
+  private laundryLines(g: Ctx, a: number, z: number, ry: number, row: number, L: Lighting, b: BeatInfo): void {
+    const hat = hit(b, 'hat', 0.1);
+    const yy = ry + 30;
+    const SPAN = 700;
+    const cloth = [css(lit(L, H('#E9DCC4'), 0.75, 0.1)), css(lit(L, H('#5E6E8A'), 0.75, 0.1)), css(lit(L, H('#8A4A76'), 0.75, 0.1)), css(lit(L, H('#C8A048'), 0.6, 0.1))];
+    g.strokeStyle = css(lit(L, H('#1A1016'), 0.4, 0.1));
+    g.lineWidth = 2;
+    for (let x0 = Math.floor(a / SPAN) * SPAN; x0 < z; x0 += SPAN) {
+      if (hash(x0 * 0.01 + row * 3) < 0.3) continue;
+      const x1 = Math.min(z, x0 + SPAN - 60);
+      if (x1 - x0 < 200) continue;
+      const sag = 40;
+      g.beginPath();
+      g.moveTo(x0, yy);
+      g.quadraticCurveTo((x0 + x1) / 2, yy + sag * 2, x1, yy);
+      g.stroke();
+      for (let i = 1; i < 6; i++) {
+        const u = i / 6;
+        const px = x0 + (x1 - x0) * u;
+        const py = yy + sag * 4 * u * (1 - u);
+        const flap = Math.sin(b.time * 5 + i * 1.7 + row) * (2 + 8 * hat);
+        g.fillStyle = cloth[(i + row) % 4];
+        const w = i % 2 ? 22 : 30;
+        g.beginPath();
+        g.moveTo(px - w, py);
+        g.lineTo(px + w, py);
+        g.lineTo(px + w - 4 + flap, py + (i % 2 ? 44 : 70));
+        g.lineTo(px - w + 4 + flap, py + (i % 2 ? 44 : 70));
+        g.closePath();
+        g.fill();
+      }
+    }
+  }
+
+  /** THE NEON FACE: a HOTEL JIMPERIAL band sign across the wing, letters chasing on the 8ths, blazing on the kick */
+  private neonBand(g: Ctx, ws: number, we: number, v: { y0: number; y1: number }, L: Lighting, b: BeatInfo, kick: number): void {
+    const text = 'HOTEL JIMPERIAL';
+    for (const row of [-2, -6]) {
+      const y = row * WY + WY - 60;
+      if (y + 80 < v.y0 || y - 80 > v.y1) continue;
+      const x0 = ws + 260;
+      const x1 = Math.min(we - 300, x0 + 1900);
+      g.fillStyle = css(lit(L, H('#140A12'), 0.4, 0.1));
+      g.fillRect(x0, y - 58, x1 - x0, 116);
+      g.font = `italic 92px ${SIGN_FONT}`;
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      const step = (x1 - x0) / text.length;
+      const ch = Math.floor(b.beat * 2);
+      for (let i = 0; i < text.length; i++) {
+        if (text[i] === ' ') continue;
+        const on = (i + ch) % 5 === 0 ? 1 : 0.55 + 0.35 * kick;
+        const col = i < 5 ? CF.neonJade : CF.neonRose;
+        g.fillStyle = css(mix(H(col), [255, 255, 255], 0.25 * on), 0.35 + 0.65 * on * Math.max(0.4, L.lamps));
+        g.fillText(text[i], x0 + (i + 0.5) * step, y + 4);
+      }
+      drawGlow(g, (x0 + x1) / 2, y, CF.neonRose, (x1 - x0) * 0.4, 0.22 * (0.6 + 0.4 * kick) * Math.max(0.4, L.lamps));
+    }
+  }
+
+  /** THE BILLBOARD FACE: a giant painted ad on scaffolding over three storeys + a water tower on a setback higher up */
+  private billboard(g: Ctx, ws: number, v: { x0: number; x1: number; y0: number; y1: number }, C: WallCols, L: Lighting, b: BeatInfo): void {
+    const x0 = ws + 300;
+    const x1 = ws + 2500;
+    const y0 = -4 * WY - 40;
+    const y1 = -WY + 10;
+    if (!(x1 < v.x0 || x0 > v.x1 || y1 < v.y0 || y0 > v.y1)) {
+      // scaffold
+      g.strokeStyle = C.iron;
+      g.lineWidth = 6;
+      for (let x = x0; x <= x1; x += 220) {
+        g.beginPath();
+        g.moveTo(x, y0 - 30);
+        g.lineTo(x, y1 + 40);
+        g.stroke();
+      }
+      // the painted ad (faded ghost-sign palette)
+      g.fillStyle = css(lit(L, H('#E8D8B0'), 0.75, 0.1));
+      g.fillRect(x0, y0, x1 - x0, y1 - y0);
+      g.fillStyle = css(lit(L, H('#8A3A2E'), 0.75, 0.1));
+      g.fillRect(x0, y0, x1 - x0, 70);
+      g.fillRect(x0, y1 - 70, x1 - x0, 70);
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillStyle = css(lit(L, H('#E8D8B0'), 0.8, 0.1));
+      g.font = `italic 56px ${SIGN_FONT}`;
+      g.fillText('ENJOY  ·  ICE COLD  ·  SINCE 1952', (x0 + x1) / 2, y0 + 36);
+      g.fillText('ASK FOR IT BY NAME', (x0 + x1) / 2, y1 - 34);
+      g.fillStyle = css(lit(L, H('#3E5A5E'), 0.8, 0.1));
+      g.font = `italic 300px ${SIGN_FONT}`;
+      g.fillText("JIM-COLA", (x0 + x1) / 2 - 180, (y0 + y1) / 2 + 10);
+      // the bottle (drawn in the ad), winking on the kick
+      const bx = x1 - 360;
+      const by = (y0 + y1) / 2;
+      g.fillStyle = css(lit(L, H('#5A2E24'), 0.8, 0.1));
+      g.beginPath();
+      g.moveTo(bx - 60, by + 300);
+      g.lineTo(bx - 70, by - 80);
+      g.lineTo(bx - 24, by - 200);
+      g.lineTo(bx - 24, by - 330);
+      g.lineTo(bx + 24, by - 330);
+      g.lineTo(bx + 24, by - 200);
+      g.lineTo(bx + 70, by - 80);
+      g.lineTo(bx + 60, by + 300);
+      g.closePath();
+      g.fill();
+      g.fillStyle = css(lit(L, H('#E8D8B0'), 0.8, 0.1));
+      g.fillRect(bx - 66, by - 20, 132, 90);
+      // the scaffold's plank + a lamp on it
+      g.fillStyle = C.iron;
+      g.fillRect(x0 - 40, y1 + 30, x1 - x0 + 80, 12);
+      for (let x = x0 + 200; x < x1; x += 600) drawGlow(g, x, y1 + 20, CF.lampPool, 140, 0.3 * L.lamps);
+      // peeling / weathering
+      g.fillStyle = 'rgba(0,0,0,0.1)';
+      for (let i = 0; i < 18; i++) g.fillRect(x0 + hash(i + ws) * (x1 - x0), y0 + hash(i + 3) * (y1 - y0), 20 + hash(i + 7) * 90, 6 + hash(i + 9) * 18);
+    }
+    // the water tower on a setback, high up
+    const tx = ws + 3300;
+    const ty = -7 * WY + WY - 26;
+    if (tx + 200 > v.x0 && tx - 200 < v.x1 && ty > v.y0 - 50 && ty - 420 < v.y1) {
+      g.fillStyle = C.iron;
+      for (const lx of [-90, -30, 30, 90]) g.fillRect(tx + lx - 5, ty - 150, 10, 150);
+      g.fillRect(tx - 110, ty - 160, 220, 12);
+      g.fillStyle = css(lit(L, H('#5A4030'), 0.7, 0.1));
+      g.beginPath();
+      g.moveTo(tx - 100, ty - 160);
+      g.lineTo(tx - 100, ty - 350);
+      g.lineTo(tx, ty - 420);
+      g.lineTo(tx + 100, ty - 350);
+      g.lineTo(tx + 100, ty - 160);
+      g.closePath();
+      g.fill();
+      g.fillStyle = 'rgba(0,0,0,0.3)';
+      for (let k = 0; k < 4; k++) g.fillRect(tx - 100, ty - 330 + k * 44, 200, 5);
+      g.strokeStyle = C.ironRim;
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(tx - 100, ty - 350);
+      g.lineTo(tx, ty - 420);
+      g.stroke();
+    }
+    void b;
+  }
+
+  private window(g: Ctx, x: number, y: number, col: number, row: number, C: WallCols, L: Lighting, b: BeatInfo, kick: number, theme: FacadeTheme = 'brick'): void {
     const w = 110;
     const h = 150;
     const hs = hash(col * 31 + row * 17);
@@ -359,7 +576,7 @@ class JimperialWall {
     g.fillStyle = C.frame;
     g.fillRect(x - 4, y - 4, w + 8, h + 8);
     const lamps = L.lamps;
-    const litW = hs < 0.58 && lamps > 0.2;
+    const litW = hs < (theme === 'neon' ? 0.9 : theme === 'iron' ? 0.4 : 0.58) && lamps > 0.2;
     if (!litW) {
       g.fillStyle = C.glass;
       g.fillRect(x, y, w, h);
@@ -372,7 +589,7 @@ class JimperialWall {
       g.fill();
     } else {
       const kind = Math.floor(hash(col * 5 + row * 3 + 1) * 5);
-      const warm = kind === 1 ? '#9AC8F0' : kind === 2 ? CF.neonRose : CF.bulb;
+      const warm = theme === 'neon' ? (kind % 2 ? CF.neonRose : CF.neonJade) : kind === 1 ? '#9AC8F0' : kind === 2 ? CF.neonRose : CF.bulb;
       const flick = kind === 1 ? 0.6 + 0.4 * hash(Math.floor(b.time * 12) + col) : 1;
       g.fillStyle = css(atmos(L, H(warm), 0.1), (0.55 + 0.35 * lamps) * flick);
       g.fillRect(x, y, w, h);
@@ -418,7 +635,7 @@ class JimperialWall {
     g.fillRect(x, y + h * 0.48, w, 6);
   }
 
-  private fireEscape(g: Ctx, x: number, ry: number, row: number, C: NonNullable<JimperialWall['cols']>): void {
+  private fireEscape(g: Ctx, x: number, ry: number, row: number, C: WallCols): void {
     const w = WX * 1.35;
     const ly = ry + WY - 40;
     // landing grating + rail

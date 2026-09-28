@@ -17,8 +17,8 @@
  */
 import type { BeatInfo } from '../art/core/beat';
 import { drawGlow } from '../art/core/draw';
-import { drawSlim } from '../art/grindhouse/slim';
 import { drawTheatre } from '../art/grindhouse/theatre';
+import type { SlimState } from '../art/grindhouse/slim';
 import { CF } from '../art/palette';
 import type { ArtCamera } from '../art/world/camera';
 import { VIEW_H, VIEW_W } from '../engine/display';
@@ -61,6 +61,9 @@ import { MusicFeed } from './music';
 import { FONT, MARQUEE, drawCenterText, drawEndScreen, drawHud, drawRewind, drawTitleScreen, outlineText } from './screens';
 import { drawCalibration } from './calibDraw';
 import { SlimDriver } from './slimDriver';
+import { HeroPass } from './heroPass';
+import { drawSpeedLayer } from './speedLayer';
+import { GoonBand, partAt } from './band';
 import type { SpriteSet } from './sprites';
 import { Stage } from './stage';
 import { VisualBeats } from './beats';
@@ -77,6 +80,12 @@ export class Renderer {
   readonly stage: Stage;
   readonly feed: MusicFeed;
   readonly slim = new SlimDriver();
+  /** Slim's own pass: after the light layer, with a rim light (render/heroPass.ts) */
+  readonly hero = new HeroPass();
+  readonly band = new GoonBand();
+  /** the part each Bluffer plays along to (render/band.ts partAt), per level */
+  private goonParts = new Map<number, { part: string; lane: string }>();
+  private goonPartsKey: unknown = null;
   readonly director = new Director();
   readonly feedback = new Feedback();
   readonly burn = new Burn();
@@ -100,6 +109,8 @@ export class Renderer {
   private frozen = false;
   private frozenHero: [number, number] = [0, 0];
   private frozenHit: [number, number] = [0, 0];
+  /** the camera + Slim locked on the final hit (render-only, from the freeze on) */
+  private lock: { rx: number; ry: number; rz: number; px: number; py: number; pose: SlimState['pose']; pt: number; fx: number; fy: number } | null = null;
   /** JS render cost (ms) samples for perf probes */
   private msSamples: number[] = [];
 
@@ -188,11 +199,32 @@ export class Renderer {
 
     // pre-warm the scenes (+ the finale's freeze buffer) while nothing is at stake: cold open, count-in, pauses
     if (cold || g.phase === 'countIn' || g.paused) this.warm(ctx, b);
-    const acam: ArtCamera = { x: cam.rx, y: cam.ry, zoom: cam.rzoom };
-    // act 3's finale: seconds since the FINAL HIT (NaN before it); the frame freezes on the strike (see below)
+    // act 3's finale: seconds since the FINAL HIT (NaN before it); the frame freezes on the strike (see below), then the
+    // camera + Slim stay LOCKED on the blow (render-only) while Big Jim flies off
     this.act3.track(g, this.clock);
     const hitT = this.act3.hitT(this.clock);
-    if (!(hitT >= 0)) this.frozen = false;
+    if (!(hitT >= 0)) {
+      this.frozen = false;
+      this.lock = null;
+    }
+    const loom = this.act3.loomK(g);
+    if (loom > 0 && !this.lock) {
+      // the finale's push-in: Slim and Big Jim's face fill the frame for the last Hup-Hup-HEY
+      cam.momentZoom += 0.24 * loom;
+    }
+    if (this.lock && hitT >= 0) {
+      const Lk = this.lock;
+      const push = 1 + 0.14 * easeOutK(Math.max(0, Math.min(1, (hitT - ENDING.hold) / 0.9)));
+      const sh = hitT < 0.8 ? (1 - hitT / 0.8) ** 2 * 22 : 0;
+      cam.rzoom = Lk.rz * push;
+      cam.rx = Lk.rx + (Lk.fx - Lk.rx) * (1 - 1 / push) + sh * Math.sin(hitT * 71);
+      cam.ry = Lk.ry + (Lk.fy - Lk.ry) * (1 - 1 / push) + sh * Math.cos(hitT * 53);
+      px = Lk.px;
+      py = Lk.py;
+      slimState.pose = Lk.pose;
+      slimState.poseTime = Lk.pt + 0.22 * Math.max(0, hitT - ENDING.hold);
+    }
+    const acam: ArtCamera = { x: cam.rx, y: cam.ry, zoom: cam.rzoom };
     this.syncAct3(envHere);
     const w = this.stage.film.weave(b);
     ctx.save();
@@ -216,6 +248,8 @@ export class Renderer {
       (x) => Number.isNaN(L.floorYAt(x)),
       (e) => this.stage.sceneCam(L, e as EnvKind, acam),
     );
+    // THE GOON BAND: goons playing the record's parts just behind the play band (render/band.ts)
+    if (!cold) this.band.draw(ctx, g, cam, this.feed, b, (x) => this.stage.envAt(L, x), (e) => this.stage.light(e as EnvKind), dt);
     this.moments.gelScale = envHere === 'roof' ? 0.15 : envHere === 'theatre' ? 0 : 1;
     this.moments.drawBehind(ctx, b);
     this.beats.drawBehind(ctx, b, cam.rx);
@@ -230,6 +264,19 @@ export class Renderer {
     this.act3.behind(ctx, g, cam, v.x0, v.x1, this.stage.light(envHere), b, this.clock); // act 3: Big Jim (render/act3Draw.ts)
     this.beats.drawWorld(ctx, g, b, v.x0, v.x1); // the facade's window chase / tenants (render/beats.ts)
     this.drawLevel(ctx, v.x0, v.x1, v.y0, v.y1, b);
+    ctx.restore();
+    // screen-space: hero position for the replay burst / audience ripple / the light layer
+    const hsx = VIEW_W / 2 + (px - cam.rx) * cam.rzoom;
+    const hsy = VIEW_H / 2 + (py - cam.ry) * cam.rzoom;
+    this.moments.heroSx = hsx;
+    this.moments.heroSy = hsy;
+    // THE LIGHT LAYER (iteration 6): spotlights, follow-spots, flashes, blooms — all UNDER the star, so they light the
+    // scene around Slim and never bleach his tangerine
+    this.moments.drawLight(ctx);
+    this.beats.drawFront(ctx, b, hsx, hsy);
+    this.director.drawLight(ctx);
+    ctx.save();
+    cam.apply(ctx);
     // SLIM
     if (!(g.player.mode === 'dead' && g.fade > 0.5)) {
       // the projector's follow-spot on the star (night scenes) + a contact shadow: Slim always pops
@@ -244,13 +291,15 @@ export class Renderer {
         ctx.ellipse(px, gy + 2, 46 * (1 - lift / 800), 9, 0, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.globalAlpha = this.slim.alpha;
-      drawSlim(ctx, px, py, slimState);
-      ctx.globalAlpha = 1;
+      // his rim light takes the scene's rim colour, pushed toward cream
+      const rim = Lh.rim;
+      this.hero.rim = `rgb(${Math.round(255 * 0.55 + rim[0] * 0.45)},${Math.round(240 * 0.55 + rim[1] * 0.45)},${Math.round(214 * 0.55 + rim[2] * 0.45)})`;
+      this.hero.draw(ctx, px, py, slimState, this.slim.alpha);
     }
     g.particles.draw(ctx, v.x0, v.x1);
     this.moments.drawWorld(ctx);
-    this.feedback.drawWorld(ctx);
+    // (the stamps sit out the finale: the HUD is gone from 332, the KNOCKOUT! is the only word on the screen)
+    if (this.act3.hudAlpha(g) > 0.5) this.feedback.drawWorld(ctx);
     this.drawPopups(ctx);
     g.debug.drawWorld(ctx, v);
     ctx.restore();
@@ -262,16 +311,31 @@ export class Renderer {
       ctx.translate(-VIEW_W / 2, -VIEW_H / 2);
     }
     this.stage.drawFront(ctx, L, acam, b);
+    // SPEED: the foreground whip (parallax 1.6, never over the lane) + margin speed lines at full run (render/speedLayer.ts)
+    if (!cold && g.scene === 'play') {
+      const p = g.player;
+      const fy = L.surfaceYNear(px);
+      drawSpeedLayer(
+        ctx,
+        {
+          camX: cam.rx,
+          zoom: cam.rzoom,
+          groundSy: VIEW_H / 2 + ((Number.isNaN(fy) ? py : Math.max(fy, py)) - cam.ry) * cam.rzoom,
+          heroSy: VIEW_H / 2 + (py - cam.ry) * cam.rzoom,
+          env: envHere,
+          L: this.stage.light(envHere),
+          ppb: L.ppb,
+          speedK: p.mode === 'dead' || !g.conductor.playing ? 0 : Math.min(1, Math.max(0, p.vx / Math.max(1, p.runSpeed))),
+          boost: Math.max(this.feed.chorus ? 1 : 0, Math.min(1, Math.max(0, p.vx / Math.max(1, p.runSpeed) - 1) / 0.12)),
+        },
+        b,
+      );
+    }
     this.drawRevealCurtain(ctx, cam, g.worldBeat);
     ctx.restore();
-    // screen-space: hero position for the replay burst / audience ripple
-    const hsx = VIEW_W / 2 + (px - cam.rx) * cam.rzoom;
-    const hsy = VIEW_H / 2 + (py - cam.ry) * cam.rzoom;
-    this.moments.heroSx = hsx;
-    this.moments.heroSy = hsy;
+    this.drawWhew(ctx, this.feedback.whewT, hsx, hsy, cam.rzoom);
     this.moments.drawScreen(ctx, b, (x, y) => [VIEW_W / 2 + (x - cam.rx) * cam.rzoom, VIEW_H / 2 + (y - cam.ry) * cam.rzoom]);
     this.director.draw(ctx, b);
-    this.beats.drawFront(ctx, b, hsx, hsy);
     this.feedback.drawScratches(ctx, hsx, hsy, cam.rzoom);
     // act 3: the hush, the finale's iris, THE END, the victory (render/act3Draw.ts)
     this.act3.screen(ctx, g, (x, y) => [VIEW_W / 2 + (x - cam.rx) * cam.rzoom, VIEW_H / 2 + (y - cam.ry) * cam.rzoom], hsx, hsy, b, this.clock, this.stage.light(envHere));
@@ -283,6 +347,8 @@ export class Renderer {
     this.stage.film.draw(ctx, b, { amount: 1, damage });
     // THE BURN: the print melting in from the left edge (always on screen once risen)
     if (g.chaser.active) {
+      const th = (g.chaser as { threat?: number }).threat;
+      const burnThreat = typeof th === 'number' ? th : Math.max(0, Math.min(1, (Tun.chaser.restGap - g.chaser.gap) / 0.75));
       const riseK = Math.max(0, Math.min(1, (this.sc.wb - g.chaser.riseBeat) / Tun.chaser.riseBeats));
       const last = g.stats.deathLog[g.stats.deathLog.length - 1];
       const eat = g.phase === 'dying' && last?.cause === 'chaser' ? Math.min(1, g.deathProgress * 1.6) : 0;
@@ -292,8 +358,10 @@ export class Renderer {
           realX: VIEW_W / 2 + (g.chaser.x - cam.rx) * cam.rzoom,
           heroX: hsx,
           rise: riseK,
-          lunge: this.director.active ? Math.max(g.chaser.lunge ?? 0, this.feed.fill * (0.6 + 0.4 * this.feed.fillStrength)) : 0,
-          flare: Math.max(this.burnFlare, g.chaser.flare ?? 0),
+          // (iteration 6: it only surges / flares when it is actually pulled in from its rest — `threat`; at rest a drum
+          // fill is a small pulse, so the one real threat never cries wolf)
+          lunge: this.director.active ? Math.max(g.chaser.lunge ?? 0, this.feed.fill * (0.6 + 0.4 * this.feed.fillStrength) * (0.15 + 0.85 * burnThreat)) : 0,
+          flare: Math.max(this.burnFlare, (g.chaser.flare ?? 0) * (0.3 + 0.7 * burnThreat)),
           eat,
           t: this.clock,
         },
@@ -307,26 +375,23 @@ export class Renderer {
       // freeze on the strike's contact (a late / early swing still gets its frame; no swing: freeze anyway at 0.22 s)
       if (!this.frozen && hitT >= ENDING.freeze) {
         const fh = L.breakables.find((k) => k.look === 'finalHit');
-        if (!fh || (fh.broken && fh.brokenT >= 0.03) || hitT >= 0.22) {
+        if (!fh || (fh.broken && fh.brokenT >= 0.02) || hitT >= 0.2) {
           this.freezeFrame(ctx, hsx, hsy);
           this.frozenHit = fh ? [VIEW_W / 2 + (fh.x - cam.rx) * cam.rzoom, VIEW_H / 2 + (fh.y - cam.ry) * cam.rzoom] : [hsx + 150, hsy - 110];
+          const ft = this.act3.finalTarget(g);
+          this.lock = { rx: cam.rx, ry: cam.ry, rz: cam.rzoom, px, py, pose: slimState.pose, pt: slimState.poseTime, fx: ft ? (px + ft.x) / 2 : px, fy: ft ? (py + ft.y) / 2 - 60 : py - 100 };
         }
       }
       const [fx, fy] = this.frozen ? this.frozenHero : [hsx, hsy];
-      if (this.frozen && hitT < ENDING.shut && this.freezeCv) {
-        const push = 1 + 0.16 * easeOutK(Math.min(1, (hitT - ENDING.freeze) / 0.45));
-        const [ox, oy] = this.act3.focus();
+      // THE HITSTOP: the contact frame holds (a jolt on its first frames), then the live world resumes locked on the blow
+      if (this.frozen && hitT < ENDING.hold && this.freezeCv) {
+        const jolt = hitT - ENDING.freeze < 0.07 ? 1.035 : 1;
+        const [ox, oy] = this.frozenHit;
         ctx.save();
         ctx.translate(ox, oy);
-        ctx.scale(push, push);
+        ctx.scale(jolt, jolt);
         ctx.translate(-ox, -oy);
         ctx.drawImage(this.freezeCv, 0, 0, VIEW_W, VIEW_H);
-        ctx.restore();
-        // the freeze warms toward a sepia still
-        ctx.save();
-        ctx.globalCompositeOperation = 'multiply';
-        ctx.fillStyle = `rgba(242,208,160,${Math.min(0.35, (hitT - ENDING.freeze) * 1.2)})`;
-        ctx.fillRect(0, 0, VIEW_W, VIEW_H);
         ctx.restore();
       }
       this.act3.post(ctx, g, hitT, fx, fy, this.frozen ? this.frozenHit : [fx + 150, fy - 110], b, this.clock, this.stage.light(envHere));
@@ -381,6 +446,42 @@ export class Renderer {
       ctx.globalAlpha = 1;
     }
     g.debug.drawScreen(ctx);
+  }
+
+  /**
+   * THE WHEW (iteration 6, the game's `whew` event: a near-miss survived by a hair): a SLOW-MO FLASH — time "catches its
+   * breath": two cream rings contract onto Slim, the frame edges go cold and desaturated for ~half a second, a quick
+   * push-in; the WHEW! stamp comes with the game's `stamp` event (render/feedback.ts). Render-only: the sim never slows.
+   */
+  private drawWhew(ctx: CanvasRenderingContext2D, T: number, hx: number, hy: number, z: number): void {
+    if (!(T >= 0) || T > 0.55) return;
+    if (T < 0.05) this.director.punch = Math.max(this.director.punch, 0.035);
+    const k = 1 - T / 0.55;
+    ctx.save();
+    // cold, desaturated edges (a held breath)
+    const vg = ctx.createRadialGradient(hx, hy - 80 * z, 160 * z, hx, hy - 80 * z, 1200);
+    vg.addColorStop(0, 'rgba(40,60,80,0)');
+    vg.addColorStop(1, `rgba(40,60,80,${0.45 * k})`);
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    ctx.globalCompositeOperation = 'saturation';
+    const sg = ctx.createRadialGradient(hx, hy - 80 * z, 220 * z, hx, hy - 80 * z, 900);
+    sg.addColorStop(0, 'rgba(128,128,128,0)');
+    sg.addColorStop(1, `rgba(128,128,128,${0.7 * k})`);
+    ctx.fillStyle = sg;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    ctx.globalCompositeOperation = 'source-over';
+    // rings contracting onto him
+    for (let i = 0; i < 2; i++) {
+      const u = Math.min(1, (T - i * 0.07) / 0.3);
+      if (u <= 0 || u >= 1) continue;
+      ctx.strokeStyle = `rgba(244,239,226,${0.7 * (1 - u)})`;
+      ctx.lineWidth = 6 + 10 * (1 - u);
+      ctx.beginPath();
+      ctx.arc(hx, hy - 80 * z, (520 - 400 * u) * z, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   private reveal: { key: unknown; x: number; beat: number } = { key: null, x: NaN, beat: NaN };
@@ -645,10 +746,12 @@ export class Renderer {
 
     // breakables (reward: gold rim, glint the beat before), bounce pads (launch), low signs (stumble: slide under)
     const jimOn = (g.mech.act3?.bigJim.state.visible ?? 0) > 0.5;
+    const jimFace = jimOn && this.act3.loomK(g) > 0.5;
     for (const bk of L.breakables) {
       if (bk.x < x0 - 150 || bk.x > x1 + 150 || (bk.broken && bk.brokenT > 0.45)) continue;
       sc.env = this.env(bk.x);
-      if (jimOn && bk.look === 'lens' && !bk.broken) {
+      if (bk.look === 'finalHit' && jimFace && bk.broken) continue;
+      if (jimOn && ((bk.look === 'lens' && !bk.broken) || (bk.look === 'finalHit' && jimFace))) {
         // his REAL lens sits on the target (act3Draw leans him in): only the reward ring + glint here
         const glint = Math.max(0, 1 - Math.abs(wb - bk.beat + 1) / 0.3);
         const now = Math.max(0, 1 - Math.abs(wb - bk.beat) / 0.35);
@@ -741,7 +844,20 @@ export class Renderer {
       const fade = !e.alive && !e.heaved ? Math.max(0, 1 - Math.max(0, e.deadTime - 0.3) / 0.35) : 1;
       if (fade <= 0.01) continue;
       ctx.globalAlpha = fade;
+      let pp = this.goonParts.get(e.id);
+      if (!pp || this.goonPartsKey !== L) {
+        if (this.goonPartsKey !== L) {
+          this.goonParts.clear();
+          this.goonPartsKey = L;
+        }
+        pp = partAt(this.feed, e.beat);
+        this.goonParts.set(e.id, pp);
+      }
+      const pl = this.feed.lane(pp.lane);
+      const partHit = live && Number.isFinite(pl.since) ? Math.exp(-(pl.since * b.spb) / 0.14) : 0;
       drawJabber(ctx, e.x, e.y + r.dy, {
+        part: pp.part,
+        partHit,
         flex: live ? flexK : 0,
         jab: live ? Math.min(1, e.jabT / 0.12) : 0,
         windup: live && toJab > 0 && toJab < 1 ? 1 - toJab : 0,

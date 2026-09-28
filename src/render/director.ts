@@ -51,6 +51,8 @@ export class Director {
   private lastKick = -1;
   private lastCrash = -1;
   private lastHey = -1;
+  private lastBar = -1;
+  private chorusK = 0;
   private flyers: Flyer[] = [];
   private specks: Speck[] = [];
   private seed = 7;
@@ -74,9 +76,17 @@ export class Director {
     const e = feed.energy;
     // --- section framing: the chorus zooms OUT (the stage opens up), dense bars a little
     // (iteration 3: the chorus is its own SHOT — a bigger pull-out than the old -7 %; moments.ts adds gel + spot)
-    const want = this.active ? (feed.chorus ? -0.13 * (0.6 + 0.4 * e) : e > 0.85 ? -0.03 : 0) : 0;
+    // (iteration 6: the pull-out is gentle — Slim stays big; the chorus is sold by a slow camera ROLL on the 2-bar line,
+    // a push-in punch on every downbeat and the light, not by a tiny hero)
+    const want = this.active ? (feed.chorus ? -0.045 * (0.6 + 0.4 * e) : e > 0.85 ? -0.015 : 0) : 0;
     this.sectionZoom += (want - this.sectionZoom) * Math.min(1, dt * 1.6);
     cam.musicZoom = this.sectionZoom;
+    this.chorusK += ((this.active && feed.chorus ? 1 : 0) - this.chorusK) * Math.min(1, dt * 1.5);
+    cam.musicAngle = this.chorusK * 0.011 * Math.sin((b.beat / 8) * Math.PI);
+    if (this.active && feed.chorus && b.beatInBar === 0 && b.beatPhase < 0.08 && b.bar !== this.lastBar) {
+      this.lastBar = b.bar;
+      this.punch = Math.max(this.punch, 0.028 * (0.6 + 0.4 * e));
+    }
     // --- edges
     if (this.active) {
       if (feed.accentCount !== this.lastAccent && feed.accent < 0.12) {
@@ -152,6 +162,18 @@ export class Director {
     }
   }
 
+  /** screen space, the LIGHT layer (drawn before Slim: flashes never bleach him) */
+  drawLight(g: CanvasRenderingContext2D): void {
+    // warm projector flash + crash bloom from the top of the frame
+    if (this.flash > 0.01) {
+      g.globalCompositeOperation = 'lighter';
+      g.fillStyle = `rgba(255,236,200,${this.flash * 0.5})`;
+      g.fillRect(0, 0, VIEW_W, VIEW_H);
+      g.globalCompositeOperation = 'source-over';
+    }
+    if (this.bloom > 0.01) drawGlow(g, VIEW_W / 2, -60, '#FFF1D6', 900, this.bloom * 0.6);
+  }
+
   /** screen space, after the world and foreground, before the film pass */
   draw(g: CanvasRenderingContext2D, b: BeatInfo): void {
     // dust / plaster shaken down
@@ -197,14 +219,6 @@ export class Director {
       }
       g.restore();
     }
-    // warm projector flash + crash bloom from the top of the frame
-    if (this.flash > 0.01) {
-      g.globalCompositeOperation = 'lighter';
-      g.fillStyle = `rgba(255,236,200,${this.flash * 0.5})`;
-      g.fillRect(0, 0, VIEW_W, VIEW_H);
-      g.globalCompositeOperation = 'source-over';
-    }
-    if (this.bloom > 0.01) drawGlow(g, VIEW_W / 2, -60, '#FFF1D6', 900, this.bloom * 0.6);
     void hit;
     void b;
   }

@@ -13,7 +13,23 @@ import { Tun } from '../game/tunables';
  * `zoomMul` on top of the level's zoom (0.95 x 1.14 = 1.08 -> Slim ~155 px at 1080p) and moves the hero
  * left to `leadFraction` so the runway stays ~3.5 beats (was 3.7).
  */
-export const FRAMING = { zoomMul: 1.14, leadFraction: 0.25 };
+export const FRAMING = { zoomMul: 1.2, leadFraction: 0.22 };
+
+/**
+ * Iteration 6 (review iter5 fix 3, "Slim big"): the level's zoom-OUTs are softened on screen — the gap between a
+ * `camera` item's zoom and the verse framing (0.95) is cut by `squeeze` (40 %), so a chorus 0.76 frames at 0.84 and
+ * Slim stays ≥ 1/8 of the screen height. The spectacle comes from light and camera MOVES instead. Wide shots at
+ * ≤ `wideBelow` (the 272 drop's 0.72, the finale's pull-out) keep their width (the squeeze fades out over 0.06).
+ */
+export const ZOOM_SQUEEZE = { base: 0.95, squeeze: 0.4, wideBelow: 0.7, fade: 0.06 };
+
+/** the on-screen zoom for a level zoom (see ZOOM_SQUEEZE) */
+export function squeezeZoom(z: number): number {
+  const Q = ZOOM_SQUEEZE;
+  if (z >= Q.base) return z;
+  const k = Math.max(0, Math.min(1, (z - Q.wideBelow) / Q.fade));
+  return z + (Q.base - z) * Q.squeeze * k;
+}
 
 export class Camera {
   /** world point at the view center */
@@ -49,9 +65,12 @@ export class Camera {
     this.y = this.targetYForGround(groundY);
   }
 
+  /** additive camera roll (radians) from the music director: a slow sway in the chorus — render-owned */
+  musicAngle = 0;
+
   /** level zoom x framing (what the follow maths frames with) */
   get frameZoom(): number {
-    return this.zoom * FRAMING.zoomMul * (1 + this.musicZoom + this.momentZoom);
+    return squeezeZoom(this.zoom) * FRAMING.zoomMul * (1 + this.musicZoom + this.momentZoom);
   }
 
   private targetX(px: number): number {
@@ -91,8 +110,8 @@ export class Camera {
     const f = 18;
     this.rx = this.x + C.maxShakeOffset * s * noise1(this.t * f, 1);
     this.ry = this.y + this.momentY + C.maxShakeOffset * s * noise1(this.t * f, 2);
-    this.rangle = C.maxShakeAngle * s * noise1(this.t * f, 3);
-    this.rzoom = this.zoom * FRAMING.zoomMul * (1 + this.zoomPunch + this.beatZoom + this.musicZoom + this.momentZoom + this.hitZoom);
+    this.rangle = C.maxShakeAngle * s * noise1(this.t * f, 3) + this.musicAngle;
+    this.rzoom = squeezeZoom(this.zoom) * FRAMING.zoomMul * (1 + this.zoomPunch + this.beatZoom + this.musicZoom + this.momentZoom + this.hitZoom);
   }
 
   addTrauma(a: number): void {

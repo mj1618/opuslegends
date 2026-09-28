@@ -435,6 +435,14 @@ export interface JabberPose {
   /** presentation clock */
   time: number;
   seed: number;
+  /**
+   * iteration 6 — THE GOONS PLAY THE SONG: the record's part this goon plays along to (render/band.ts partAt) and 1 → 0
+   * on each of its hits: 'cowbell' = an iron bell on his belt that CLANKS, 'stomps' / 'claps' / 'piano' = a boot STOMP
+   * (dust + ring), 'shouts' = he yells HEY! with the gang. Scenery on the body: never red, never gold (the tell stays the
+   * only red on him).
+   */
+  part?: string;
+  partHit?: number;
 }
 
 const FIG = CF.fig;
@@ -615,6 +623,65 @@ export function drawJabber(g: Ctx, x: number, y: number, P: JabberPose): void {
   g.closePath();
   fillInk(g, '#3A3A42', 2.5);
   g.restore();
+  // his part of the record (scenery, drawn on his body — the tell below stays the only red)
+  const ph = dead ? 0 : clamp01(P.partHit ?? 0);
+  if (P.part && !dead) {
+    if (P.part === 'cowbell') {
+      const sw = Math.sin(P.time * 7 + P.seed) * 0.08 + 0.5 * ph;
+      g.save();
+      g.translate(26, -42);
+      g.rotate(sw);
+      g.fillStyle = INK;
+      g.fillRect(-2, 0, 4, 8);
+      g.beginPath();
+      g.moveTo(-7, 8);
+      g.lineTo(7, 8);
+      g.lineTo(12, 30);
+      g.lineTo(-12, 30);
+      g.closePath();
+      fillInk(g, '#5A5660', 2);
+      g.fillStyle = 'rgba(244,239,226,0.5)';
+      g.fillRect(-9, 26, 18, 3);
+      g.restore();
+      if (ph > 0.15) {
+        g.strokeStyle = `rgba(244,239,226,${ph})`;
+        g.lineWidth = 3;
+        for (let i = 0; i < 4; i++) {
+          const a = -0.6 + i * 0.45;
+          g.beginPath();
+          g.moveTo(44 + Math.cos(a) * 6, -20 + Math.sin(a) * 6);
+          g.lineTo(44 + Math.cos(a) * (16 + 14 * ph), -20 + Math.sin(a) * (16 + 14 * ph));
+          g.stroke();
+        }
+      }
+    } else if (P.part === 'shouts') {
+      if (ph > 0.1) {
+        g.save();
+        g.globalAlpha = Math.min(1, ph * 1.5);
+        g.font = 'italic bold 34px "Arial Black", Impact, sans-serif';
+        g.textAlign = 'center';
+        g.lineWidth = 6;
+        g.strokeStyle = INK;
+        g.strokeText('HEY!', 34, -150 - 10 * (1 - ph));
+        g.fillStyle = CF.cream;
+        g.fillText('HEY!', 34, -150 - 10 * (1 - ph));
+        g.restore();
+      }
+    } else if (ph > 0.05) {
+      // the STOMP: a dust ring + puffs at his boots
+      g.strokeStyle = `rgba(244,239,226,${0.8 * ph})`;
+      g.lineWidth = 4;
+      g.beginPath();
+      g.ellipse(0, -2, 36 + 34 * (1 - ph), 8 + 4 * (1 - ph), 0, 0, TAU);
+      g.stroke();
+      g.fillStyle = `rgba(233,216,180,${0.55 * ph})`;
+      for (let i = 0; i < 4; i++) {
+        g.beginPath();
+        g.arc((i - 1.5) * 22 * (1.5 - ph), -10 - (1 - ph) * 20, 8 + 6 * (1 - ph), 0, TAU);
+        g.fill();
+      }
+    }
+  }
   // wind-up tell: strain marks + "!" over the head
   if (wind > 0.05 && !dead) {
     const a = clamp01(wind * 1.6);
@@ -782,34 +849,52 @@ export function drawChaser(g: Ctx, frontX: number, top: number, t: number, yBott
 // ============================================================================ REWARD-ish: film splice (checkpoint)
 
 /** splice across the frame: a diagonal cut, cream tape with sprockets, "SC. n" in grease pencil. */
+/**
+ * CHECKPOINT = a film SPLICE marker (iteration 6: the full-height beam read like a laser gate — now a small standee): a
+ * 3-frame strip of film on a stand at the ground with a diagonal strip of splicing tape across it, and the clapper
+ * slate "SC. n" beside it. Reached = gold tape + a brief gold pop. (`y0`/`y1` kept for the signature: unused.)
+ */
 export function drawSplice(g: Ctx, x: number, y0: number, y1: number, reached: boolean, flash: number, scene: string, groundY: number): void {
-  const a = reached ? 0.14 + 0.5 * flash : 0.16;
-  g.fillStyle = `rgba(244,239,226,${a})`;
-  g.beginPath();
-  g.moveTo(x - 34, y0);
-  g.lineTo(x + 26, y0);
-  g.lineTo(x + 34, y1);
-  g.lineTo(x - 26, y1);
-  g.closePath();
-  g.fill();
-  // the cut
-  g.strokeStyle = `rgba(26,20,16,${reached ? 0.5 : 0.7})`;
-  g.lineWidth = 3;
-  g.beginPath();
-  g.moveTo(x - 6, y0);
-  g.lineTo(x + 8, y1);
-  g.stroke();
-  g.fillStyle = 'rgba(26,20,16,0.35)';
-  for (let yy = y0 - (((y0 % 44) + 44) % 44); yy < y1; yy += 44) {
-    const k = (yy - y0) / Math.max(1, y1 - y0);
-    g.fillRect(x - 30 + k * 8, yy, 9, 16);
-    g.fillRect(x + 20 + k * 8, yy, 9, 16);
+  void y0;
+  void y1;
+  const top = groundY - 170;
+  const fw = 58;
+  // the stand
+  g.fillStyle = INK;
+  g.fillRect(x - 4, groundY - 40, 8, 40);
+  g.fillRect(x - 22, groundY - 6, 44, 6);
+  // the strip of film: 3 frames with sprockets
+  g.save();
+  g.translate(x, top);
+  g.rotate(0.05);
+  roundRectPath(g, -fw / 2, 0, fw, 132, 4);
+  fillInk(g, '#2A2220', 3);
+  for (let i = 0; i < 3; i++) {
+    g.fillStyle = reached ? 'rgba(224,182,74,0.28)' : 'rgba(244,239,226,0.18)';
+    g.fillRect(-fw / 2 + 12, 6 + i * 42, fw - 24, 36);
   }
-  if (flash > 0.02) drawGlow(g, x, groundY - 200, CF.beamHaze, 260, 0.5 * flash);
+  g.fillStyle = 'rgba(244,239,226,0.75)';
+  for (let yy = 6; yy < 128; yy += 16) {
+    g.fillRect(-fw / 2 + 3, yy, 5, 8);
+    g.fillRect(fw / 2 - 8, yy, 5, 8);
+  }
+  // the splice: a diagonal strip of tape across the cut
+  g.rotate(-0.5);
+  g.fillStyle = reached ? REWARD.gold : 'rgba(244,239,226,0.9)';
+  g.fillRect(-fw * 0.75, 58, fw * 1.5, 16);
+  g.strokeStyle = INK;
+  g.lineWidth = 2;
+  g.strokeRect(-fw * 0.75, 58, fw * 1.5, 16);
+  g.restore();
+  if (flash > 0.02) {
+    drawGlow(g, x, top + 60, REWARD.glow, 150, 0.6 * flash);
+    star4(g, x, top + 60, 50 * flash, flash * 3, 'rgba(255,246,220,0.95)');
+  }
   // slate on a stand at the ground: "SC. n"
   g.save();
-  g.translate(x - 60, groundY - 110);
+  g.translate(x - 74, groundY - 86);
   g.rotate(-0.06);
+  g.scale(0.72, 0.72);
   roundRectPath(g, -58, -40, 116, 76, 6);
   fillInk(g, '#1E1A1A', 3);
   g.fillStyle = reached ? REWARD.gold : CF.cream;
@@ -824,7 +909,7 @@ export function drawSplice(g: Ctx, x: number, y0: number, y1: number, reached: b
   }
   g.restore();
   g.fillStyle = INK;
-  g.fillRect(x - 64, groundY - 74, 8, 74);
+  g.fillRect(x - 78, groundY - 58, 6, 58);
 }
 
 /** cigarette-burn changeover dot, top-right of the frame (screen space) */
@@ -1190,6 +1275,8 @@ export const SKINS: Record<string, Skin> = {
   lum: { danger: 'reward' },
   slam: { danger: 'neutral' },
   breakable: { danger: 'reward' },
+  /** iteration 6: the hidden film canisters (placeholder draw: render/canisterDraw.ts) */
+  canister: { danger: 'reward' },
   bounce: { danger: 'neutral' },
   lowSign: { danger: 'stumble' },
   platform: { danger: 'neutral' },
