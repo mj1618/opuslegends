@@ -77,6 +77,72 @@ DPR 1 and 2 with everything on; renderer JS avg 0.9–1.7 ms, p95 ≤ 2.4 ms.
 - Measured (M5 Pro, GPU, 1920×1080): 60 fps (p50 16.7 ms, p95 ≤ 18.4 ms) at DPR 1 and 2 in the chorus, the facade and
   the Lanes; renderer JS avg 0.9–1.7 ms, p95 ≤ 2.4 ms.
 
+## Iteration 4 (act 3 climax + act 2 support)
+- **Act 3 scenes** (lazily built by `Stage`, each authored around its own floor via `Stage.baseY`; ground styles → env:
+  felt→`poolroom`, rack→`casino`, roof→`roof`, penthouse→`penthouse`, filmstrip→`theatre`; sky presets poolroom / casino
+  (`velvet`) / sunset / dusk / penthouse (`throne`) / theatre (`houselights`)):
+  - `poolroom.ts` — green damask + walnut wainscot, cue racks, fight posters, a score abacus sliding on the beat, BILLIARDS
+    neon, background tables under swinging green lamps (light cones + smoke), players shooting on the kick, jukeboxes that
+    BOOM on the kick; floors ARE pool tables (`drawFeltFloor`: rail + diamond sights, pockets, turned legs); `drawBench`
+    (see-saw launch skin), `drawBarBell`, `drawBallRack`, `drawJukebox`.
+  - `casino.ts` — velvet drapes + gold pilasters, Big Jim's portrait, the JIMPERIAL CASINO bulb marquee, crystal
+    chandeliers that die one per crack (`state.dark`), roulette / slots / croupiers, a vignette that closes in; floors =
+    THE GOON HEAP (`drawRackFloor`), `drawChandelier` (also the pendulum skin), `drawChipTower`, `drawHeadGoon` (THE
+    BREAK), `drawRackFrame` (hangs in, SLAMS, bursts on the break).
+  - `roof.ts` — THE SUNSET ROOF (the widest shot): sky + slow god rays + corona, far skyline, a two-depth ROOFTOP SEA
+    toward the horizon (neon canyons waking with dusk, a multiply depth grade), the Jimperial's penthouse tower with two
+    glints, near water towers / billboards / chimney smoke, pigeons across the sun, an anamorphic flare. Light arc:
+    `sunset` (272) → `sunsetRose` (+8 beats) → `dusk` (+16), expanded from one `sky: sunset` cue (`Stage` LIGHT_ARC).
+    `drawSignLetter` (3-storey steel box letter, rose neon tubes, chasing bulbs; pivots about its bottom-LEFT corner and
+    lies as a bridge whose top is the pivot; tube pops + sparks + dust on the SLAM, dead grey tubes after),
+    `drawLetterLegs` (the posts), `drawRoofFloor`, `drawSkylight`.
+  - `penthouse.ts` — the throne room: one skylight shaft with dust, a panoramic window on the night city, curtains,
+    gold busts, the BJ monogram; `state.blaze` strobes the room on the reveal's beats, `state.crack` flashes on a lens
+    crack; `drawPenthouseFloor` (black + gold marble), `drawGlassWall`, `drawDecanter`.
+  - `finale.ts` — `makeFilmVoid` (inside the film), `drawAuditorium` (the PULL-OUT hall: gilded proscenium, red
+    curtains, house lights up, the audience doing a WAVE on the beat, popcorn on the snare), `drawMarqueeCutIn` (the usher
+    swaps BIG JIM for SLIM CHANCE), `drawIris` (9-blade aperture), `drawTheEnd` (black → the film snaps and flaps → THE END
+    burns in), `drawVictory` (a second iris opens on Slim on the throne, the ex-goons applauding), `drawFilmstripFloor`,
+    `drawIrisBlade`.
+- **Big Jim** (`bigjim.ts`, `drawBigJim(g, x, y, s, state)`; s = 1 ≈ 1150 px seat → pompadour, `JIM_NORM`): the fig velvet
+  pear with nap sheen + scene rim light, flared satin lapels with gold piping (the gauntlet's ledges), open shirt + chest rug +
+  a gold chain of medallions (snaps: `chainT`), curtain BELL SLEEVES with gold braid cuffs, anvil fists with danger-red
+  knuckle rings (`drawJimFist` = the slam-lift skin in the penthouse), a pompadour with a skunk streak, mutton chops, a
+  horseshoe moustache over a gold-toothed grin, a cigar, and the MIRRORED AVIATORS (`drawJimLens`: the sky reflected + a
+  tiny tangerine Slim that grows with `reflect`; crack 1 = spider crack, 2 = shattered with his tiny worried eye). Poses:
+  `bluff` (arms flung up, sleeve wings, blazing lenses, roar + shock rings), `roar`, `reel`, `panic`, per-arm `fists`
+  targets with rubber-hose two-bone IK (stretches up to 2.4x to reach the play band), `fistHidden`, `throne`. `JIM_PARTS`
+  = where his bound parts sit.
+- **In the game** (`render/act3Draw.ts`, `Act3Art`, reads `game.mech.act3`): Big Jim behind the play band with BOUND-PART
+  ALIGNMENT (on a lens / chain beat his whole body leans so that part sits exactly on its target: he ducks his face into
+  the play band on the HEY, the lens target keeps only its gold ring); fists = the gauntlet's slam lifts (arms reach
+  down to them); his backhand rides the Burn's lunges; framed in a film frame on screen for the finale; aura rays in the
+  reveal. The rack (goons piling in per tier, the frame, the scatter numbered like balls), the letters (legs, topple,
+  camera shake on each SLAM), the hush (sepia hold + changeover dot), the finale IRIS aiming at his face and SLAMMING
+  on 340, then the ending in SECONDS (`ENDING`: THE END until 3.0 s, victory, the poster waits until 6.2 s). The
+  renderer squeezes the whole film into the theatre screen for the PULL-OUT (`pullK`, `hall`). Poster: the real tiny
+  Big Jim (cracked lenses), snipes HELD OVER! / BROKE THE RACK! / LENSES CRACKED n/2, "THE COMPLETE PICTURE".
+- **Act-3 skins in render**: breakable looks balls / bell / chips / headGoon / skylight / letterNeon / fist / lapel / jaw /
+  lens / decanter / glasswall / chain / popcorn / finalHit (+ families per env for neutral hints); pendulums = green
+  felt lamp (pool room), crystal chandelier (casino), gold BJ medallion (penthouse); bounce pads = bench see-saws (pool
+  room, roof); his velvet SLEEVE is the penthouse's knee-slide sign (red cue tips = the stumble points).
+- **Act 2**: the climb's terrain above the street is see-through IRON FIRE ESCAPES (`drawFireEscape`: stair treads with a
+  stringer + handrail when a span touches a neighbour ≤ 45 px lower/higher, landings with railings, brackets and drop
+  ladders; long roofs keep the cornice + a lit brick wall with windows) so the wall and the city stay visible under you;
+  hook-ride skins (`mechDraw` `drawHook`: counterweight rope + pulley + sandbag, laundry line with pinned sheets / steep
+  zip cable, SPARKLE WINDOW CO. cradle; a gold grab ring the beat before); Big Jim's glint = the real rig in a 3x window
+  while the camera stops and tilts up (`Moments.glintK`); the window crash = a full-frame shatter (white pop, cracks
+  from the hero, shards flying at the lens). THE BLACKLIGHT LANES at full blast: glowing lane underbody with LANE LIGHTS
+  chasing on the 8ths, the ball return, a crowd of bowlers dancing behind a UV rail (arms up on HEY), disco-ball beams
+  sweeping + UV floor fog. The chorus gel/iris is dialled down on the sunset roof (`Moments.gelScale`).
+- **Projector sync** (`render/calibDraw.ts`): the latency tap test as an ACADEMY FILM LEADER — countdown numbers, the sweep
+  wedge per click, tap pips on the rim (12 o'clock = on time), sprocket strip with early/late marks.
+- Lab: tab **Act 3** (`act3=jim|roof|pool|casino|penthouse|finale`, `bluff= roar= crack=L,R reflect= chain= panic= fall=
+  dark= drop= burst= k= marquee= iris= end= win= hide=<layer ids> nofilm=1`). `gameshot.mjs --end --endwait=<ms>`;
+  the art tools' Vite servers run without HMR/watch (other agents edit the tree mid-run).
+- Measured (M5 Pro, GPU, 1920×1080): 60 fps in every act-3 scene and the reworked act 2 at DPR 1 and 2 (p50 16.7 ms,
+  p95 ≤ 18.4 ms); renderer JS avg 1.0–1.4 ms, p95 ≤ 2.0 ms (one ~25–30 ms spike when a scene is first baked on entry).
+
 ## Integration recipe (per frame)
 ```ts
 import { BeatInfo } from './core/beat';                    // fill from the conductor (tempo-map aware), see below
@@ -147,7 +213,8 @@ y, speed, from: 'edge'|'view', max, prefill }`; pinned actors on tiling anchors;
 - `theatre.ts` — `drawTheatre(ctx, beat, { standing 0..24, heroX, perfectT, enforcers, light, house })`: audience strip
   (streak meter, FULL HOUSE ≥ 20, kick stomp, popcorn on snare, HEY arms, Perfect ripple), projector haze, curtains.
 - `actors.ts` — PEDESTRIAN, TAXI, SEDAN, VAN, PIGEONS, LETTER, NEWSPAPER, BRAWLERS, BOTTLE, POOL_BALL, PATRON.
-- `lights.ts` — 'grindhouse' set: `cold golden neon bar facade facadeHigh blacklight blacklightHot poolroom velvet sunset dusk throne houselights`.
+- `lights.ts` — 'grindhouse' set: `cold golden neon bar facade facadeHigh blacklight blacklightHot poolroom velvet sunset sunsetRose dusk throne houselights`.
+- `bigjim.ts`, `poolroom.ts`, `casino.ts`, `roof.ts`, `penthouse.ts`, `finale.ts` — act 3, see "Iteration 4".
 - `jammers.ts`, `facade.ts`, `lanes.ts` — see "Iteration 3" above.
 
 `palette.ts` — `CF` (current theme; sacred: tangerine = hero, gold = reward, lacquer red = danger) and the legacy `PAL`.
@@ -166,7 +233,7 @@ lamp / giant 8-ball), breakables (bottle / glass / jug / crate / neon letter). T
 kind a generic silhouette in its class until bespoke art lands.
 
 ## Known weaknesses / next
-Big Jim exists only as the window glint (title/poster use type + a tiny silhouette); the facade's light-well gaps are fixed
+The title marquee still uses type for Big Jim (the rig could star there); the roof's sun can sit behind a far tower; the facade's light-well gaps are fixed
 by layer x (not aligned to level beats); window-pane breakables stand on a glazier's A-frame; the Bluffer is a single rigid puppet (no rig); the scene
 split at the doorway is a hard clip (fine behind the door frame, visible if the camera lingers); flying debris is
-screen-space (does not parallax); later acts (lanes, pool room, casino, roof) need their scenes.
+screen-space (does not parallax); scene splits between act-3 environments are hard clips (hidden by the KRAK flash / launch).

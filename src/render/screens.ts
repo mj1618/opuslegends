@@ -7,6 +7,7 @@ import type { BeatInfo } from '../art/core/beat';
 import { hit } from '../art/core/beat';
 import { drawGlow, star4 } from '../art/core/draw';
 import { TAU, clamp01, easeOut, hash } from '../art/core/math';
+import { drawBigJim } from '../art/grindhouse/bigjim';
 import { drawSlim, type SlimState } from '../art/grindhouse/slim';
 import { drawStreetGround } from '../art/grindhouse/street';
 import { drawTheatre } from '../art/grindhouse/theatre';
@@ -427,16 +428,9 @@ export function drawEndScreen(ctx: CanvasRenderingContext2D, g: Game, b: BeatInf
     ctx.fill();
   }
   drawGlow(ctx, cx, cy - 60, '#FFE9C2', 380, 0.5);
-  // tiny Big Jim, shrunk, sulking at Slim's feet
-  ctx.fillStyle = '#2E1428';
-  ctx.beginPath();
-  ctx.ellipse(cx + 170, ay + ah - 70, 40, 52, 0, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = CF.chrome;
-  ctx.beginPath();
-  ctx.ellipse(cx + 160, ay + ah - 108, 9, 6, 0, 0, TAU);
-  ctx.ellipse(cx + 180, ay + ah - 108, 9, 6, 0, 0, TAU);
-  ctx.fill();
+  // tiny Big Jim, shrunk, sulking at Slim's feet (the real rig: cracked lenses if you cracked them)
+  const J = g.mech.act3?.bigJim.state;
+  drawBigJim(ctx, cx + 190, ay + ah - 30, 0.17, { time: t, beat: b.beat, panic: 1, crack: J ? J.crack : [0, 0], reflect: 1, lod: 0, lift: [0.1, 0.1] });
   drawSlim(ctx, cx - 30, ay + ah - 40, { ...slim, pose: 'victory', scale: 3.0 });
   ctx.restore();
   ctx.strokeStyle = INK;
@@ -449,7 +443,7 @@ export function drawEndScreen(ctx: CanvasRenderingContext2D, g: Game, b: BeatInf
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = CF.fig;
   ctx.font = `bold 22px ${FONT}`;
-  ctx.fillText('EIGHTBALL PICTURES  ·  END OF REEL ONE', tx, py + 86);
+  ctx.fillText(g.mech.act3?.bigJim.present ? 'EIGHTBALL PICTURES  ·  THE COMPLETE PICTURE' : 'EIGHTBALL PICTURES  ·  END OF REEL ONE', tx, py + 86);
   ctx.font = `92px ${MARQUEE}`;
   ctx.fillStyle = '#8A2E5E';
   ctx.lineWidth = 10;
@@ -514,6 +508,35 @@ export function drawEndScreen(ctx: CanvasRenderingContext2D, g: Game, b: BeatInf
     ctx.restore();
     if (sk < 1) star4(ctx, px + pw - 250, py + ph - 88, 80 * (1 - sk), sk * 3, REWARD.shine);
   }
+  // act 3 SNIPES pasted across the key art (earned, not given)
+  const A = g.mech.act3;
+  const snipes: string[] = [];
+  if (A) {
+    if (g.crowd.peak >= 20 && g.stats.finished) snipes.push('HELD OVER!');
+    if (A.state.rack.broken === true) snipes.push('BROKE THE RACK!');
+    const L2 = A.bigJim.state.crack.filter((c) => c >= 2).length;
+    if (A.bigJim.present) snipes.push(`LENSES CRACKED ${L2}/2`);
+  }
+  snipes.forEach((sn, i) => {
+    const sk2 = easeOut(clamp01((appear - 0.8 - i * 0.18) / 0.2));
+    if (sk2 <= 0) return;
+    ctx.save();
+    ctx.translate(ax + aw * 0.5, ay + 70 + i * 86);
+    ctx.rotate(-0.12 + i * 0.07);
+    ctx.scale(1.4 - 0.4 * sk2, 1.4 - 0.4 * sk2);
+    ctx.globalAlpha = k * sk2;
+    ctx.fillStyle = i === 0 ? '#E0B64A' : '#F4EFE2';
+    ctx.fillRect(-250, -34, 500, 68);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 5;
+    ctx.strokeRect(-250, -34, 500, 68);
+    ctx.fillStyle = INK;
+    ctx.font = `44px ${MARQUEE}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(sn, 0, 3);
+    ctx.restore();
+  });
   ctx.restore();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';

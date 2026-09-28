@@ -54,6 +54,9 @@ import {
 } from './entityDraw';
 import { applyBeatReact } from './groove';
 import { drawMech } from './mechDraw';
+import { Act3Art, ENDING } from './act3Draw';
+import { drawJimFist } from '../art/grindhouse/bigjim';
+import { drawBench } from '../art/grindhouse/poolroom';
 import { MusicFeed } from './music';
 import { FONT, MARQUEE, drawCenterText, drawEndScreen, drawHud, drawRewind, drawTitleScreen, outlineText } from './screens';
 import { drawCalibration } from './calibDraw';
@@ -74,6 +77,7 @@ export class Renderer {
   readonly director = new Director();
   readonly feedback = new Feedback();
   readonly burn = new Burn();
+  readonly act3 = new Act3Art();
   readonly moments: Moments;
   /** level design tags ('mode' items: street, rooftops, launch, ...) sorted by beat — picks breakable families */
   private modes: { beat: number; mode: string }[] = [];
@@ -170,6 +174,18 @@ export class Renderer {
     this.lastFreeze = g.freezeFx;
 
     const acam: ArtCamera = { x: cam.rx, y: cam.ry, zoom: cam.rzoom };
+    // act 3's finale PULL-OUT: the whole film (world + film pass + the Burn) squeezed into a screen in the theatre
+    const pull = this.act3.pullK(g);
+    if (pull > 0.001) {
+      const sr = this.act3.screenRect(pull);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(sr.x, sr.y, sr.w, sr.h);
+      ctx.clip();
+      ctx.translate(sr.x, sr.y);
+      ctx.scale(sr.s, sr.s);
+    }
+    this.syncAct3(envHere);
     const w = this.stage.film.weave(b);
     ctx.save();
     ctx.translate(w.x, w.y);
@@ -192,6 +208,7 @@ export class Renderer {
       (x) => Number.isNaN(L.floorYAt(x)),
       (e) => this.stage.sceneCam(L, e as EnvKind, acam),
     );
+    this.moments.gelScale = envHere === 'roof' ? 0.15 : envHere === 'theatre' ? 0 : 1;
     this.moments.drawBehind(ctx, b);
     ctx.restore();
 
@@ -201,6 +218,7 @@ export class Renderer {
     this.sc.b = b;
     this.sc.time = this.clock;
     this.sc.wb = cold ? L.def.startBeat : g.worldBeat;
+    this.act3.behind(ctx, g, cam, v.x0, v.x1, this.stage.light(envHere), b, this.clock); // act 3: Big Jim (render/act3Draw.ts)
     this.drawLevel(ctx, v.x0, v.x1, v.y0, v.y1, b);
     // SLIM
     if (!(g.player.mode === 'dead' && g.fade > 0.5)) {
@@ -243,6 +261,8 @@ export class Renderer {
     this.moments.drawScreen(ctx, b, (x, y) => [VIEW_W / 2 + (x - cam.rx) * cam.rzoom, VIEW_H / 2 + (y - cam.ry) * cam.rzoom]);
     this.director.draw(ctx, b);
     this.feedback.drawScratches(ctx, hsx, hsy, cam.rzoom);
+    // act 3: the hush, the finale's iris, THE END, the victory (render/act3Draw.ts)
+    this.act3.screen(ctx, g, (x, y) => [VIEW_W / 2 + (x - cam.rx) * cam.rzoom, VIEW_H / 2 + (y - cam.ry) * cam.rzoom], hsx, hsy, b, this.clock, this.stage.light(envHere));
     ctx.restore();
 
     // (the Perfect replay burst is drawn by the Slim rig itself: s.perfect)
@@ -269,9 +289,13 @@ export class Renderer {
       );
     }
     if (g.phase === 'dying') drawRewind(ctx, Math.min(1, g.deathProgress * 1.4), this.clock);
-    // the theatre (outside the film): the audience strip is the streak meter
+    if (pull > 0.001) {
+      ctx.restore();
+      this.act3.hall(ctx, g, pull, b, this.clock);
+    }
+    // the theatre (outside the film): the audience strip is the streak meter (the pull-out's hall has its own audience)
     const enforcers = L.enemies.filter((e) => !e.alive && !e.heaved).length;
-    drawTheatre(ctx, b, {
+    if (pull < 0.3) drawTheatre(ctx, b, {
       standing: g.crowd.awake ? g.crowd.count : 0,
       heroX: hsx,
       perfectT: this.clock - this.perfectAt < 2 ? this.clock - this.perfectAt : undefined,
@@ -285,7 +309,10 @@ export class Renderer {
     if (g.scene === 'play' && g.phase !== 'coldOpen') this.feedback.drawCombo(ctx, g.groove.pulse(1, 0.25));
     if (g.scene === 'end') {
       if (this.endAt < 0) this.endAt = this.clock;
-      drawEndScreen(ctx, g, b, slimState, this.clock, this.clock - this.endAt);
+      // act 3's ending (THE END -> the victory iris) plays out in the theatre before the poster prints
+      const T = this.clock - this.act3.hitClock;
+      const hold = Number.isFinite(T) && T < ENDING.poster ? ENDING.poster - T : 0;
+      if (hold <= 0) drawEndScreen(ctx, g, b, slimState, this.clock, this.clock - this.endAt - (Number.isFinite(T) ? Math.max(0, ENDING.poster - (this.endAt - this.act3.hitClock)) : 0));
     } else this.endAt = -1;
     if (g.paused && !g.calib.active) drawCenterText(ctx, 'INTERMISSION', 'Enter / Space: resume  ·  X: re-sync the projector (audio lag)');
     drawCalibration(ctx, g);
@@ -303,6 +330,25 @@ export class Renderer {
       ctx.globalAlpha = 1;
     }
     g.debug.drawScreen(ctx);
+  }
+
+  /** act 3 scene state from the game (the casino's dying chandeliers + the hush, the penthouse's lens blaze / flares) */
+  private syncAct3(_env: EnvKind): void {
+    const A = this.game.mech.act3;
+    if (!A) return;
+    const wb = this.game.worldBeat;
+    const R = A.state.rack;
+    const cs = this.stage.casinoState;
+    cs.dark = R.active ? 3 - R.lights : cs.dark;
+    const hush = this.game.level.setPieces.find((s) => s.name === 'hush');
+    cs.hush = hush && wb >= hush.beat && wb < hush.beat + hush.beats ? 1 : 0;
+    cs.krak = Number.isNaN(R.breakBeat) || wb < R.breakBeat ? NaN : wb - R.breakBeat;
+    const J = A.bigJim.state;
+    const ps = this.stage.penthouseState;
+    ps.blaze = J.blaze;
+    let flare = 0;
+    for (const cb of J.crackBeat) if (!Number.isNaN(cb) && wb >= cb) flare = Math.max(flare, 1 - (wb - cb) / 0.6);
+    ps.crack = Math.max(0, flare);
   }
 
   // ------------------------------------------------------------------ world
@@ -368,7 +414,23 @@ export class Renderer {
       const s = f.solid;
       if (s.x + s.w < x0 - 40 || s.x > x1 + 40) continue;
       const slam = f.lift === 0 ? gr.pulse(1, 0.2) : 0;
-      drawSlamPlatform(ctx, s.x, s.y, s.w, s.h, f.lift, pitY, slam, b);
+      if (this.env(s.x) === 'penthouse' && g.mech.act3?.bigJim.state.visible > 0.3) {
+        // BIG JIM'S FIST is the lift: the back of his hand is the platform, red knuckle rings (lethal lift over the pit)
+        const k = Math.max(s.w, 180) / 220;
+        const top = s.y - f.lift * SLAM_LIFT_PX;
+        ctx.globalAlpha = f.lift > 0.02 ? 0.8 : 1;
+        drawJimFist(ctx, s.x + s.w / 2, top + 88 * k, k, (Math.round(s.x / 97) % 2) * 2 - 1, 'fist', Math.PI / 2, slam);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = f.lift > 0.02 ? 'rgba(244,239,226,0.5)' : '#F4EFE2';
+        ctx.fillRect(s.x, top - 4, s.w, 3);
+        if (slam > 0.05) {
+          ctx.strokeStyle = `rgba(255,246,232,${0.7 * slam})`;
+          ctx.lineWidth = 6;
+          ctx.beginPath();
+          ctx.ellipse(s.x + s.w / 2, top + 180 * k, s.w * (1.2 - slam * 0.4), 24, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      } else drawSlamPlatform(ctx, s.x, s.y, s.w, s.h, f.lift, pitY, slam, b);
     }
 
     // checkpoints: film splices ("SC. <bar>")
@@ -379,7 +441,7 @@ export class Renderer {
     }
 
     // finish
-    if (L.finishX > x0 - 300 && L.finishX < x1 + 300) {
+    if (L.finishX > x0 - 300 && L.finishX < x1 + 300 && this.env(L.finishX - 1) !== 'theatre') {
       const fy = L.floorYAt(L.finishX - 1);
       drawFinish(ctx, L.finishX, Number.isNaN(fy) ? 0 : fy, b);
     }
@@ -421,9 +483,27 @@ export class Renderer {
     }
 
     // breakables (reward: gold rim, glint the beat before), bounce pads (launch), low signs (stumble: slide under)
+    const jimOn = (g.mech.act3?.bigJim.state.visible ?? 0) > 0.5;
     for (const bk of L.breakables) {
       if (bk.x < x0 - 150 || bk.x > x1 + 150 || (bk.broken && bk.brokenT > 0.45)) continue;
       sc.env = this.env(bk.x);
+      if (jimOn && bk.look === 'lens' && !bk.broken) {
+        // his REAL lens sits on the target (act3Draw leans him in): only the reward ring + glint here
+        const glint = Math.max(0, 1 - Math.abs(wb - bk.beat + 1) / 0.3);
+        const now = Math.max(0, 1 - Math.abs(wb - bk.beat) / 0.35);
+        const near = Math.max(0, 1 - Math.abs(wb - bk.beat) / 1.6);
+        if (near > 0) {
+          ctx.globalAlpha = near;
+          ctx.strokeStyle = '#E0B64A';
+          ctx.lineWidth = 6 + 6 * now;
+          ctx.beginPath();
+          ctx.arc(bk.x, bk.y, bk.r * (1.5 - 0.3 * now), 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          if (glint > 0.05) drawGlow(ctx, bk.x, bk.y, '#FFD878', bk.r * 3, 0.5 * glint);
+        }
+        continue;
+      }
       drawBreakable(
         ctx,
         {
@@ -444,11 +524,17 @@ export class Renderer {
         sc,
       );
     }
-    for (const bp of L.bouncePads) if (bp.x > x0 - 300 && bp.x < x1 + 300) drawBouncePad(ctx, bp.x, bp.y, bp.w, bp.kick, this.env(bp.x), b);
+    for (const bp of L.bouncePads) {
+      if (bp.x < x0 - 300 || bp.x > x1 + 300) continue;
+      const e = this.env(bp.x);
+      if (e === 'poolroom' || e === 'roof') drawBench(ctx, bp.x, bp.y, Math.max(bp.w, 200), bp.kick, this.stage.light(e));
+      else drawBouncePad(ctx, bp.x, bp.y, bp.w, bp.kick, e, b);
+    }
     for (const sg of L.signs) {
       const r = sg.rect;
       if (r.x + r.w < x0 - 50 || r.x > x1 + 50) continue;
-      drawLowSign(ctx, r.x, r.y, r.w, r.h, sg.swing, sg.hit, b, y0);
+      if (this.env(r.x) === 'penthouse') drawSleeveSign(ctx, r.x, r.y, r.w, r.h, sg.hit, b, y0);
+      else drawLowSign(ctx, r.x, r.y, r.w, r.h, sg.swing, sg.hit, b, y0);
     }
 
     // tokens: each leaps on its own beat so rows ripple in time
@@ -472,7 +558,9 @@ export class Renderer {
     }
 
     // act-2 mechanics (thrown bottles, firebombs, rolling balls, Big Jim's glint): placeholder draws, render/mechDraw.ts
-    drawMech(ctx, g.mech, wb, x0, x1, this.clock, this.stage.light(this.env(g.player.x)), b);
+    drawMech(ctx, g.mech, wb, x0, x1, this.clock, this.stage.light(this.env(g.player.x)), b, { x: g.player.x, y: g.player.y });
+    // act 3: the BIG JIM letters, the call's rings (placeholder draws, render/act3Draw.ts)
+    this.act3.front(ctx, g, g.camera, x0, x1, this.stage.light(this.env(g.player.x)), b, this.clock);
 
     // Bluffers: flex on the swung "and", jab on the beat, WIND-UP TELL in the beat before their jab
     const off = gr.beat - Math.floor(gr.beat);
@@ -517,6 +605,7 @@ export class Renderer {
 
   }
 
+  // (act 3 skins that live here: small enough not to need a module)
   private drawPopups(ctx: CanvasRenderingContext2D): void {
     const g = this.game;
     if (!g.popups.length) return;
@@ -530,4 +619,64 @@ export class Renderer {
     ctx.textAlign = 'left';
     void FONT;
   }
+}
+
+/**
+ * Act 3's knee-slide under BIG JIM'S SLEEVE (a lowSign in the penthouse): his velvet cuff hangs across the lane, gold
+ * braid at the hem, the Bluffers' cue tips poking out under it = the red STUMBLE points. Chalk DUCK! on the velvet.
+ */
+function drawSleeveSign(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, hitK: boolean, b: BeatInfo, viewTop: number): void {
+  const sway = Math.sin(b.beat * Math.PI * 0.5) * 6;
+  const bot = y + h;
+  // the velvet drape from the top of the frame down to the hem
+  const gr = g.createLinearGradient(x, 0, x + w, 0);
+  gr.addColorStop(0, '#2E1428');
+  gr.addColorStop(0.35, '#8A4A76');
+  gr.addColorStop(0.7, '#5E2B4E');
+  gr.addColorStop(1, '#2E1428');
+  g.fillStyle = gr;
+  g.beginPath();
+  g.moveTo(x - 20, viewTop - 40);
+  g.lineTo(x + w + 20, viewTop - 40);
+  g.lineTo(x + w + sway, bot - 10);
+  for (let i = 6; i >= 0; i--) g.quadraticCurveTo(x + (i + 0.5) * (w / 6) + sway, bot + 14, x + i * (w / 6) + sway, bot - 10);
+  g.closePath();
+  g.fill();
+  g.lineWidth = 6;
+  g.strokeStyle = CF.filmBlack;
+  g.stroke();
+  g.strokeStyle = 'rgba(30,10,26,0.5)';
+  g.lineWidth = 8;
+  for (let i = 1; i < 5; i++) {
+    g.beginPath();
+    g.moveTo(x + (i / 5) * w, viewTop);
+    g.lineTo(x + (i / 5) * w + sway, bot - 16);
+    g.stroke();
+  }
+  // gold braid hem
+  g.strokeStyle = '#E0B64A';
+  g.lineWidth = 12;
+  g.beginPath();
+  g.moveTo(x + sway, bot - 14);
+  g.lineTo(x + w + sway, bot - 14);
+  g.stroke();
+  // cue tips poking out under the hem: red POINTS (stumble)
+  for (let i = 0; i < 5; i++) {
+    const cx = x + ((i + 0.5) / 5) * w + sway;
+    g.fillStyle = CF.filmBlack;
+    g.fillRect(cx - 4, bot - 12, 8, 18);
+    g.beginPath();
+    g.moveTo(cx - 7, bot + 4);
+    g.lineTo(cx, bot + 20);
+    g.lineTo(cx + 7, bot + 4);
+    g.closePath();
+    g.fillStyle = hitK ? '#6A5A48' : '#B3201B';
+    g.fill();
+  }
+  // chalk DUCK! on the velvet
+  g.font = `italic 44px ${MARQUEE}`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillStyle = 'rgba(244,239,226,0.85)';
+  g.fillText('DUCK!', x + w / 2 + sway, bot - 70);
 }

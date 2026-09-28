@@ -69,6 +69,8 @@ export class Moments {
   /** 0..1 the glint tilt-up; seconds since the window crash (-1 = none) */
   glintK = 0;
   crashT = -1;
+  /** set by the renderer: how much of the chorus gel the current scene takes (the sunset roof: very little) */
+  gelScale = 1;
   /** hero screen pos (set by the renderer each frame) */
   heroSx = 0;
   heroSy = 0;
@@ -258,7 +260,8 @@ export class Moments {
 
   /** SCREEN space, after the background layers, before the world: gel + searchlights behind the play band */
   drawBehind(g: CanvasRenderingContext2D, b: BeatInfo): void {
-    const s = this.shotK;
+    // the sunset roof IS the shot (act 3's drop): no gel / iris over the sky there
+    const s = this.shotK * this.gelScale;
     if (s > 0.01) {
       // theatrical gel over the background only (colour shift per 2-bar line: rose / violet)
       const line = Math.floor(b.beat / 8) % 2;
@@ -370,7 +373,7 @@ export class Moments {
     const hx = this.heroSx;
     const hy = this.heroSy;
     // --- chorus: key follow-spot from the top + a dark iris around the star
-    const s = Math.max(this.shotK, this.shotPunch);
+    const s = Math.max(this.shotK, this.shotPunch) * (0.35 + 0.65 * this.gelScale);
     if (s > 0.01) {
       g.save();
       const iris = g.createRadialGradient(hx, hy - 90, 180, hx, hy - 90, 1150);

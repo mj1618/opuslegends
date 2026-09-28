@@ -455,7 +455,7 @@ export function drawVictory(g: Ctx, t: number, b: BeatInfo, slim: (x: number, y:
   g.fill();
   g.restore();
   // the throne (smaller: Slim on top of it)
-  drawThrone(g, cx, cy + 270, 0.42, L);
+  drawThrone(g, cx, cy + 300, 0.55, L);
   // ex-goons applauding on either side (clap on the beat)
   const clap = Math.exp(-b.beatPhase * 5);
   for (let i = 0; i < 8; i++) {
@@ -487,7 +487,7 @@ export function drawVictory(g: Ctx, t: number, b: BeatInfo, slim: (x: number, y:
     if (clap > 0.7) star4(g, x - side * 30, y - 124, 16 * clap, 0.3, 'rgba(255,246,232,0.9)');
   }
   // SLIM on the throne
-  slim(cx, cy + 270 - 0.42 * 360, 1.35);
+  slim(cx, cy + 300 - 0.55 * 40, 2.3);
   // confetti in gold + cream
   for (let i = 0; i < 70; i++) {
     const u = (t * (0.18 + hash(i) * 0.12) + hash(i + 3)) % 1;

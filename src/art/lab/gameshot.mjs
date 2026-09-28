@@ -9,7 +9,7 @@
  *
  *   --gray   readability test: CSS grayscale(1) + blur(4px) on the canvas for every shot (DESIGN fun risk 6)
  *   --title  stay on the title screen (no autoplay start) and shoot it
- *   --end    run to the end screen and shoot it
+ *   --end    run to the end screen and shoot it (--endwait=<ms> after it appears, default 1500)
  *   --eval=<js> print page.evaluate(js) after the run
  */
 import { mkdirSync } from 'node:fs';
@@ -76,7 +76,7 @@ if (args.title) {
   if (args.eval) console.log('[eval]', JSON.stringify(await page.evaluate(String(args.eval))));
   if (args.end) {
     await page.waitForFunction(() => window.__game.state().scene === 'end', null, { timeout: 180000 });
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(Number(args.endwait ?? 1500));
     await shoot('end.png');
   }
 }
