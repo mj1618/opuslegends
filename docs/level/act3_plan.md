@@ -64,14 +64,9 @@ Both new mechanics use known verbs. After bar 65 there is **nothing new to learn
 2. **Big Jim as a boss rig (`bigJim` entity)** is one animated body bound to existing item types. There are no new
    verbs, but the rig must pose to the item beats.
 
-   | Body part | Existing item |
-   |---|---|
-   | Fists | `slam` lifts; the knuckle-crack is the rim-clack telegraph |
-   | Draped sleeve | a slick run, `lowSign` under the Bluffers' jabbing cue line |
-   | Gold-chain medallions | `pendulum`s |
-   | Lapels | `ledge` UP and gaps |
-   | **Aviators** | 2 `giant` breakables that crack on the HEY answers |
-   | Knuckle ring | spike-type stumble |
+   Fists = `slam` lifts (the knuckle-crack is the rim-clack telegraph) · draped sleeve = a slick run (`lowSign` under
+   the Bluffers' jabbing cue line) · gold-chain medallions = `pendulum`s · lapels = `ledge` UP and gaps · **aviators** =
+   2 `giant` breakables that crack on the HEY answers · knuckle ring = a spike-type stumble.
 
    He fills the background layer. Only the bound parts are in the play band, with red edges on the knuckles and the
    chrome lenses (fun risk 6).
@@ -99,7 +94,7 @@ and the Burn pulls 0.2.
 | The Burn (bar 5) | rises through the rack (lunge 269.70) → Big Jim's backhand (lunges 314.72, 330.70) → retired at 332: it eats his film frame |
 | Big Jim's glint (bar 46) | his lenses reflect a tangerine Slim that grows with the climb; it shatters on each crack |
 
-Resting (E3 clutter): firebombs, cradles and pinsetters.
+Resting (E3 clutter): firebombs, cradles, pinsetters.
 
 ## Bar by bar
 
@@ -161,12 +156,9 @@ Legend: **∪** tap hop · **–** held jump · **X** strike · **═** slide ·
 | 77–83 | 27 | 21 / 3 / 5 → 3 | 78% | 0.43 | 0.96/beat |
 | 84–86 | 9 | 9 / 0 / 0 | 100% | 0 | — |
 
-- Every lethal sits on a kick, a HUP or the fill.
-- Every stumble sits on a snare, a HEY or a kick.
-- Every strike is ≥ 0.66 beat from the next.
-- There is no air strike in a hop's descent before a gap.
-- The late side of every fit is ≥ +150 ms. The teeth come from the early side, the Burn and two-stumble combos
-  (277/278, 313.6 → the lunge).
+- Lethal only on a kick, a HUP or the fill; stumbles on a snare, a HEY or a kick; strikes ≥ 0.66 beat apart; no air
+  strike in a hop's descent before a gap; every fit's late side ≥ +150 ms. The teeth come from the early side, the
+  Burn and two-stumble combos (277/278, 313.6 → the lunge).
 - Novelty (B1) arrives at 61, 64, 65, 68, 69, 72, 73, 75, 77, 78, 80, 84: never more than 4 bars apart.
 - Verticality (B6) comes from the rack (+400), the M → terrace (+150) and climbing Big Jim himself (fists → sleeve →
   lapels → lenses, +300).
@@ -175,13 +167,10 @@ Legend: **∪** tap hop · **–** held jump · **X** strike · **═** slide ·
 
 ## Checkpoints (◆, count-in = the bar before)
 
-| ◆ | Why | Count-in plays |
-|---|---|---|
-| **256** | the rack start, a clean re-entry | bench chain + pickup |
-| **272** | the drop. Respawn on the apex pad and the launch fires on the downbeat, so **every chorus retry replays the drop**. If a pad respawn misbehaves, move it to 274 on the roof | bar 68's fill + the hush |
-| **284** | the second half of the sign (J-I-M) | bar 71 |
-| **304** | Big Jim's reveal, 0 threats | the glass crash |
-| **320** | between the lenses | lens 1 |
+- **256**: the rack start, a clean re-entry (the count-in plays the bench chain + pickup).
+- **272**: the drop. Respawn on the apex pad and the launch fires on the downbeat, so **every chorus retry replays the
+  fill, the hush and the drop**. If a pad respawn misbehaves, move it to 274 on the roof.
+- **284**: the second half of the sign (J-I-M) · **304**: Big Jim's reveal, 0 threats · **320**: between the lenses.
 
 `?start=` list for CLAUDE.md: 256, 272, 284, 304, 320.
 
@@ -220,23 +209,11 @@ sign. **No orange** near the play band: the sun is cream, the sky coral and rose
 
 **Lighting keyframes (beat → state):**
 
-| Beat | State |
-|---|---|
-| 240 | felt lamp pools, smoke |
-| 256 | casino, 3 chandeliers |
-| 259 / 263 / 267 | one light dies per cracked chandelier |
-| 268 | the gold head goon + the Burn's glow only |
-| 271.65 | white KRAK flash |
-| **272** | cream sun, coral sky, rim-lit Slim |
-| 280 | rose |
-| 288 | fig dusk rising |
-| 296 | the last rays on the gold busts |
-| 300 | penthouse dark with one skylight shaft |
-| 304–307 | lens blaze on every beat, red knuckles |
-| 317 / 325 | crack flares |
-| 332 | house lights up amber |
-| 336 | iris vignette |
-| 340 | black, then THE END, then the victory spotlight |
+240 felt lamp pools, smoke · 256 casino, 3 chandeliers · 259 / 263 / 267 one light dies per cracked chandelier ·
+268 the gold head goon + the Burn's glow only · 271.65 white KRAK flash · **272 cream sun, coral sky, rim-lit Slim** ·
+280 rose · 288 fig dusk rising · 296 the last rays on the gold busts · 300 penthouse dark, one skylight shaft ·
+304–307 lens blaze on every beat, red knuckles · 317 / 325 crack flares · 332 house lights up amber · 336 iris
+vignette · 340 black → THE END → the victory spotlight.
 
 **Camera:** 0.95 (pool room) → 0.88 with a tilt up (rack) → a slow push-in on the head goon at 268 → **0.72 at 272** →
 0.74 (287, 296) → 0.9 inside → a crash-zoom on 304 → 0.84 for the gauntlet (runway ≥ 1.2 s, E1) → the theatre
