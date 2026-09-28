@@ -6,12 +6,12 @@
 import { mtof } from './song';
 
 export class Sfx {
-  private ctx: AudioContext;
+  private ctx: BaseAudioContext;
   private out: AudioNode;
   private noise: AudioBuffer;
   enabled = true;
 
-  constructor(ctx: AudioContext, out: AudioNode) {
+  constructor(ctx: BaseAudioContext, out: AudioNode) {
     this.ctx = ctx;
     this.out = out;
     const n = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
@@ -195,15 +195,22 @@ export class Sfx {
     this.burst('bandpass', 700, 1500, 0.6, 0.12, 0.6);
   }
 
-  /** timing feedback: Perfect = pitched chime, Great = soft tick */
+  // (grade, miss, stumble-crowd, death-crowd and checkpoint sounds live in audio/stage.ts: StageAudio)
+
+  /** @deprecated StageAudio.onGrade plays the Perfect bell (kept so older call sites still compile) */
   perfect(midi: number): void {
     const f = mtof(midi);
     this.tone('sine', f, f, 0.25, 0.06, this.t, 0.001);
-    this.tone('sine', f * 2, f * 2, 0.15, 0.03, this.t, 0.001);
   }
 
+  /** @deprecated StageAudio.onGrade plays the Great bell */
   great(): void {
     this.tone('sine', 2640, 2640, 0.05, 0.025, this.t, 0.001);
+  }
+
+  /** @deprecated StageAudio.onCheckpoint plays the projector click */
+  checkpoint(rootMidi: number): void {
+    [0, 7, 12, 19].forEach((iv, i) => this.tone('triangle', mtof(rootMidi + iv), mtof(rootMidi + iv), 0.3, 0.12, this.t + i * 0.06));
   }
 
   /** the crowd wakes up (cold open) */
@@ -272,9 +279,6 @@ export class Sfx {
     this.tone('triangle', f * 0.996, f * 0.996, 0.3, 0.1, this.t, 0.002);
     this.tone('triangle', f * 1.004, f * 1.004, 0.3, 0.1, this.t, 0.002);
     this.tone('sine', f * 2, f * 2, 0.18, 0.05, this.t, 0.002);
-  }
-  checkpoint(rootMidi: number): void {
-    [0, 7, 12, 19].forEach((iv, i) => this.tone('triangle', mtof(rootMidi + iv), mtof(rootMidi + iv), 0.3, 0.12, this.t + i * 0.06));
   }
   death(): void {
     this.tone('sawtooth', 520, 70, 0.55, 0.14);

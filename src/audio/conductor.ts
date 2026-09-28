@@ -17,6 +17,7 @@
  * - `play(from)` (re)starts the song at any song time (negative = count-in before the audio),
  *   which is how checkpoints rewind the music in sync.
  */
+import { makeOverlayBus } from './booth';
 import { OVERLAY_RULES, overlayGain } from './mix';
 import type { SongDef } from './song';
 import type { TempoMap } from './tempoMap';
@@ -47,6 +48,11 @@ export class Conductor {
    * limiter's look-ahead, measured by AudioSystem.calibrate). getOutputTimestamp covers the device.
    */
   outputDelay = 0;
+  /**
+   * Delay of the music bus alone (the booth's film delay line, BOOTH.baseDelay) that the SFX bus doesn't
+   * have: SFX scheduled on the music grid (ctxTimeAtSongTime) are shifted by it so they land ON the music.
+   */
+  filmDelay = 0;
 
   playing = false;
   /** song time (s) for the current frame, latency-compensated */
@@ -243,9 +249,8 @@ export class Conductor {
   private bus(name: string): GainNode {
     let b = this.stemBus[name];
     if (!b) {
-      b = this.ctx.createGain();
-      b.gain.value = this.song.stemGains?.[name] ?? 1;
-      b.connect(this.out);
+      // the crowd-driven gain + the rule's zero-latency EQ / soft clip (audio/mix.ts OVERLAY_RULES)
+      b = makeOverlayBus(this.ctx, OVERLAY_RULES[name], this.out, this.song.stemGains?.[name] ?? 1);
       this.stemBus[name] = b;
     }
     return b;
@@ -260,26 +265,35 @@ export class Conductor {
     return (this.taps[name] ??= this.ctx.createGain());
   }
 
-  /** Set a stem's gain (linear), ramped over `rampSec` (the crowd drives the overlay stems). */
-  setStemGain(name: string, gain: number, rampSec = 0.25): void {
+  /** target gain per stem bus (the last value asked for; the bus may still be gliding there) */
+  private stemTarget: Record<string, number> = {};
+
+  /**
+   * Set a stem's gain (linear): glides from ctx time `when` (default now) with time constant rampSec / 4
+   * (setTargetAtTime: ~98 % there after rampSec). Events stack, so a move scheduled for the next beat
+   * never cancels one in flight (no clicks). `instant`: drop pending moves first (rewinds / spawns).
+   */
+  setStemGain(name: string, gain: number, rampSec = 0.25, when?: number, instant = false): void {
     const b = this.bus(name);
-    const t = this.ctx.currentTime;
-    b.gain.cancelScheduledValues(t);
-    b.gain.setValueAtTime(b.gain.value, t);
-    b.gain.linearRampToValueAtTime(gain, t + Math.max(0.005, rampSec));
+    const now = this.ctx.currentTime;
+    const t = when !== undefined && Number.isFinite(when) && when > now ? when : now;
+    if (instant) b.gain.cancelScheduledValues(now);
+    b.gain.setTargetAtTime(gain, t, Math.max(0.004, rampSec / 4));
+    this.stemTarget[name] = gain;
   }
 
   /**
    * Reward overlays follow the crowd meter (audio/mix.ts OVERLAY_RULES): sets every overlay stem
-   * this song has. `instant` = a short 50 ms ramp (spawns / rewinds), else each rule's musical ramp.
+   * this song has, gliding from ctx time `when` (StageAudio passes the next beat) over each rule's
+   * musical ramp. `instant` = a short 50 ms glide from now (spawns / rewinds).
    */
-  setCrowdLevel(crowd: number, instant = false): void {
+  setCrowdLevel(crowd: number, instant = false, when?: number): void {
     const spb = this.tempo.secondsPerBeatAt(this.beat);
     for (const name of Object.keys(this.song.stems ?? {})) {
       const g = overlayGain(name, crowd);
       if (g === undefined) continue;
-      if (!instant && Math.abs(this.stemGain(name) - g) < 1e-3) continue;
-      this.setStemGain(name, g, instant ? 0.05 : OVERLAY_RULES[name].rampBeats * spb);
+      if (!instant && Math.abs((this.stemTarget[name] ?? -1) - g) < 1e-4) continue;
+      this.setStemGain(name, g, instant ? 0.05 : OVERLAY_RULES[name].rampBeats * spb, instant ? undefined : when, instant);
     }
   }
 
@@ -294,7 +308,17 @@ export class Conductor {
    */
   ctxTimeAtSongTime(t: number): number {
     if (!this.playing) return NaN;
-    return this.startCtx + (t - this.startSong);
+    return this.startCtx + (t - this.startSong) + this.filmDelay;
+  }
+
+  /**
+   * The beat the audio GRAPH is rendering right now (ctx.currentTime; ahead of the audible `beat` by the
+   * output latency). Quantize scheduled sounds against this: the next grid point after it is still
+   * schedulable. NaN when not playing.
+   */
+  graphBeat(): number {
+    if (!this.playing) return NaN;
+    return this.tempo.timeToBeat(this.ctx.currentTime - this.filmDelay - this.startCtx + this.startSong);
   }
 
   // ---------------------------------------------------------------- events

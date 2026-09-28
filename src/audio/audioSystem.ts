@@ -1,23 +1,29 @@
 /**
  * Owns the AudioContext and the mixer:
  *
- *   music (record + overlay stems, MIX.music) ─┐
- *   sfx   (synth SFX, MIX.sfx)                 ─┴─> trim ─> LIMITER ─> master (mute) ─> destination
+ *   music (record + overlay stems, MIX.music) ─> BOOTH (film sound, audio/booth.ts) ─┐
+ *   sfx   (synth + sampled SFX, MIX.sfx) ─────────────────────────────────────────────┴─> trim ─> LIMITER
+ *                                                                        ─> soft clip ─> master (mute) ─> destination
  *
+ * `trim` = the headroom trim (MIX.headroomDb, -4 dB) and the cancelled limiter makeup gain.
  * The limiter is a DynamicsCompressorNode set up as a soft limiter (audio/mix.ts MIX.limiter): the
  * original record alone peaks above 0 dBFS, and record + overlays + SFX add up. Two properties of
  * the node are MEASURED at startup (calibrate(), an offline impulse), not assumed:
  *   - its look-ahead delay (~6 ms in Chromium/WebKit/Gecko): everything audible is that much later
- *     than the graph clock, so the Conductor subtracts it (conductor.outputDelay);
+ *     than the graph clock, so the Conductor subtracts it (conductor.outputDelay = `outputDelay`, which
+ *     also counts the booth's film delay line on the music bus, BOOTH.baseDelay);
  *   - its automatic makeup gain: `trim` cancels it, so below the threshold the mix is at unity.
  * The context is created eagerly but can only start running after a user gesture
  * (the title screen's "press to start"), unless the browser's autoplay policy allows it
  * (headless playtests launch chromium with --autoplay-policy=no-user-gesture-required).
  */
-import { MIX } from './mix';
+import { Booth } from './booth';
+import { BOOTH, MIX, dbToGain } from './mix';
 
 export class AudioSystem {
   readonly ctx: AudioContext;
+  /** the music bus's film-sound processor (the crowd reward; driven by audio/stage.ts) */
+  readonly booth: Booth;
   readonly master: GainNode;
   readonly music: GainNode;
   readonly sfx: GainNode;
@@ -32,10 +38,14 @@ export class AudioSystem {
   limiterMakeup = 1;
   private muted: boolean;
 
-  constructor(muted: boolean) {
-    const AC: typeof AudioContext =
-      window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    this.ctx = new AC({ latencyHint: 'interactive' });
+  /** `ctx`: an existing context (the offline mix lab renders this exact graph in an OfflineAudioContext) */
+  constructor(muted: boolean, ctx?: BaseAudioContext) {
+    if (ctx) this.ctx = ctx as AudioContext;
+    else {
+      const AC: typeof AudioContext =
+        window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      this.ctx = new AC({ latencyHint: 'interactive' });
+    }
     this.master = this.ctx.createGain();
     this.music = this.ctx.createGain();
     this.sfx = this.ctx.createGain();
@@ -43,7 +53,10 @@ export class AudioSystem {
     this.limiter = AudioSystem.makeLimiter(this.ctx);
     this.music.gain.value = MIX.music;
     this.sfx.gain.value = MIX.sfx;
-    this.music.connect(this.trim);
+    this.booth = new Booth(this.ctx);
+    this.music.connect(this.booth.input);
+    this.booth.output.connect(this.trim);
+    this.trim.gain.value = dbToGain(MIX.headroomDb);
     this.sfx.connect(this.trim);
     this.clip = AudioSystem.makeSoftClip(this.ctx);
     this.trim.connect(this.limiter);
@@ -127,11 +140,21 @@ export class AudioSystem {
       if (peak > 0) this.limiterDelay = Math.max(0, idx - at) / sr;
       if (tp > 0) {
         this.limiterMakeup = tp / amp;
-        this.trim.gain.value = 1 / this.limiterMakeup;
+        this.trim.gain.value = dbToGain(MIX.headroomDb) / this.limiterMakeup;
       }
     } catch (e) {
       console.warn('limiter calibration failed; assuming 6 ms / no makeup', e);
     }
+  }
+
+  /** graph delay from a music source to the speakers' input: the booth's film delay + the limiter look-ahead */
+  get outputDelay(): number {
+    return BOOTH.baseDelay + this.limiterDelay;
+  }
+
+  /** SFX scheduled on the music grid must be this much later than the music source's start time */
+  get filmDelay(): number {
+    return BOOTH.baseDelay;
   }
 
   get running(): boolean {

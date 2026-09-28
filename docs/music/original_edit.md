@@ -163,6 +163,12 @@ Each beat map's `audio.files` lists the stems next to `mix`, so `songFromBeatmap
 −9 dB, cowbell −14 dB. Each stem is true-peak limited to −1 dBTP. The per-section numbers are in the beat map's
 `audio.overlayLevels`. The record is −10.5 LUFS, so the record plus overlays can pass 0 dBFS; see section 5.
 
+**In the game** the crowd drives each stem's gain (`src/audio/mix.ts` OVERLAY_RULES): at FULL HOUSE the cowbell
+runs at +5 dB with a presence shelf and a soft clip on its bus, stomps+claps at 0 dB (+3 dB clap EQ), shouts at
+0 dB, after a −4 dB headroom trim on the whole mix. Measured in their own bands during their hits (offline render,
+`node src/audio/lab/mixlab.mjs`): cowbell −3.7 dB under the record, claps −2.1, stomps −4.9, shouts +5 (in the
+gaps). The record itself goes through the "projection booth" (thin/mono at a low crowd); see CLAUDE.md.
+
 ## 5. What the engine needs
 
 1. **The tempo map is already supported.** `TempoMap` takes the 476 per-beat points directly. `beatToTime` and

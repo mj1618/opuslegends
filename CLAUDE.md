@@ -39,7 +39,8 @@ World y grows DOWN; the base ground top is y = 0.
   (`getOutputTimestamp` → filtered ctx↔performance mapping), never from summed frame deltas.
   It supports a tempo map, beat/bar/cue callbacks, `play(fromSongTime)` (count-ins / checkpoint
   rewinds), tape-stop, and a user latency offset (`[` / `]`, stored in localStorage, `?latency=`).
-  `conductor.outputDelay` = our master limiter's look-ahead (measured at load), subtracted from song time.
+  `conductor.outputDelay` = our graph's delay (the booth's 6 ms film delay line + the master limiter's look-ahead,
+  measured at load: `AudioSystem.outputDelay`), subtracted from song time.
 - **Tempo map everywhere**: the original recording is a live band with one tempo point per beat
   (161.5 → 166.6 BPM, 476 beats; the edit 344). `TempoMap` (`audio/tempoMap.ts`, binary search) converts
   beat ↔ time; nothing may assume a single BPM. Negative beats (count-ins) extrapolate the first tempo.
@@ -59,12 +60,31 @@ World y grows DOWN; the base ground top is y = 0.
   ~0.93-beat hop (~92 px); hold 1 beat = ~1.96-beat jump (~250 px), at any tempo.
 - **Timing judge** (`game/judge.ts`): each hop/strike PRESS is graded against the nearest intended
   action (Perfect ±45 / Great ±90 / Good ±135 ms, early +12). Grades drive score, feedback and the
-  crowd (`game/crowd.ts`, streak meter → overlay stem gains via `audio/mix.ts`) — never physics.
-- **Mix** (`audio/audioSystem.ts`, `audio/mix.ts`): music (record at unity + overlay stems) and SFX (+6 dB)
-  → trim → soft limiter (DynamicsCompressor, −2.5 dB) → tanh soft clip (safety, −0.2 dBFS ceiling) →
-  master. The record alone peaks +0.75 dBFS; record + all overlays +5.6 → out −0.2 dBFS, 0 overs.
-  Overlay stems follow the crowd (`OVERLAY_RULES`, dB curves over the count): shouts −6 dB→full at 12,
-  stomps+claps join at 4 (−12 dB)→full at 12, cowbell from 12 (−8 dB)→full at BIG CATCH (20).
+  crowd (`game/crowd.ts`, skill meter → the music reward via `audio/stage.ts`) — never physics.
+- **Mix** (`audio/audioSystem.ts`, `audio/mix.ts`): music (record at unity + overlay stems) → **projection
+  booth** (`audio/booth.ts`) ┐ + SFX (+6 dB) → trim (**−4 dB headroom**, cancels the limiter makeup) → soft
+  limiter (DynamicsCompressor, −2.5 dB) → tanh soft clip (safety, −0.2 dBFS ceiling) → master. The headroom
+  keeps the hot record (peaks +0.75 dBFS, −10.5 LUFS) under the limiter so overlays + SFX add on top without
+  pumping. Overlay stem buses carry zero-latency EQ + soft clip (`OVERLAY_RULES.eq/clip`).
+- **The music is the reward** (`audio/stage.ts` StageAudio, levels in `audio/mix.ts` BOOTH / OVERLAY_RULES /
+  GRADE_SFX). Game wires it with `StageAudio.forGame(audio, conductor)` + `stage.listen(game.events)`; API:
+  `setCrowd(value, instant?)`, `onGrade(grade, beat, combo?)`, `onMiss(beat)`, `onStumble()`, `onDeath()`,
+  `onCheckpoint()`. Crowd moves are quantized to the NEXT BEAT and glide over ~1 beat (setTargetAtTime; filters
+  swept in cents via `detune`). Low crowd (3) = the booth: record band-limited 320 Hz–3.4 kHz (4th-order), a
+  1.7 kHz horn honk, width 0.2, −3 dB, projector wow+flutter (delay line), clatter + crackle bed; open at 14;
+  FULL HOUSE (20) = width ×1.15, overlays up (shouts 0 dB, stomps+claps 0 dB, cowbell +5 dB with presence EQ +
+  clip), a cheer swell on the next downbeat and audience swells into vocal gaps. Grades: Perfect = jukebox bell
+  on a chord tone (ping-pongs up the chord with the combo), Great = softer/duller bell, Good = silent; a missed
+  REWARD = dull thunk on the next swung 8th + the film "snags" (music low-pass dip + 3 % pitch sag); stumble =
+  record-scratch warble + audience "ooh"; death = tape-stop + groan; checkpoint = projector click on the beat.
+  The film delay line rests at 6 ms: `AudioSystem.outputDelay` (= film + limiter) is the clock's
+  `conductor.outputDelay`, and `conductor.ctxTimeAtSongTime` adds `filmDelay` so beat-scheduled SFX land on the
+  music. Measured (offline render of the real graph, chorus 1): booth −18.6 LUFS → crowd 10 −15.1 → open −14.3 →
+  FULL HOUSE −13.2 (−12.5 with a bell on every beat); overlays vs the record in their own band during their hits:
+  cowbell −3.7 dB (700 Hz), claps −2.1 (2 kHz), stomps −4.9 (125 Hz), shouts +5 (they own the gaps); Perfect
+  bell −7 LU under the music (+2 dB in its band), Great −11, miss −6, stumble ooh −9, FULL HOUSE cheer −8; limiter
+  at FULL HOUSE: 1.9 % of 10 ms blocks > 0.5 dB GR, max 1.35 dB, beat-locked GR modulation 0.18 dB (no pumping);
+  true peak ≤ −0.17 dBTP. Re-measure after any mix change: `node src/audio/lab/mixlab.mjs` (below).
 - **Rewinds / count-ins**: a checkpoint rewinds the music 1 bar (`Tun.flow.countInBeats`) with a 35 ms
   pre-rolled fade-in (full gain on the downbeat, no click); stick clicks (`Sfx.sticks`) tick the
   count-in on the recording's own grid (the edit has no pickup: the first count-in is sticks only).
@@ -104,7 +124,11 @@ src/
                           songFromBeatmap(beatmap.json), collectibleNote(), analyzeBeatAlignment()
            lanes.ts       typed lanes: song.lane('snare').between(a, b) / at / next / active / where …
            songs.ts       song catalog: jimEdit (bundled beat map), ?song= selection, licensed-file fallback
-           mix.ts         mix levels: overlay-stem curves over the crowd count, SFX/limiter settings
+           mix.ts         mix levels: overlay-stem curves over the crowd, booth + grade-SFX levels, limiter
+           booth.ts       projection-booth film-sound processor on the music bus + overlay bus EQ/clip
+           stage.ts       StageAudio: crowd -> booth/overlays/cheers, grade/miss/stumble/death/checkpoint sounds
+           samples.ts     sampled one-shots (assets/audio/sfx, tools/music/sfx.py) with onset alignment
+           lab/mixlab.*   offline render of the real audio graph (OfflineAudioContext in headless Chromium)
            placeholderSong.ts  164 BPM E shuffle synth track in the real form (pickup + 32 bars,
                           chorus stab/HEY grid), rendered in 2-bar chunks, + 'shouts' & 'bonus' stems
            sfx.ts         synthesized SFX            audioSystem.ts  AudioContext, buses, master limiter
@@ -190,5 +214,11 @@ Presentation cues on beats: `{type:'fx', beat, fx:'flash'|'shake'|'zoom'|'bgPuls
 - Art/perf probe on the real GPU at 1920x1080 (no build): `node src/art/lab/gameshot.mjs --out=<dir> [--start=<beat>]
   [--secs=20] [--every=2000] [--gray] [--title] [--end] [--dpr=2] [--query=miss=40]` → PNGs + live fps + renderer JS ms.
   `--gray` = the greyscale+blur readability test. Measured: 60 fps at 1080p DPR 1 and 2, renderer JS ~1-1.7 ms/frame.
+- **Mix lab** (ears for agents; needs the licensed recording): `node src/audio/lab/mixlab.mjs [--only=full,booth]
+  [--out=<dir>]` renders the REAL graph (AudioSystem + Conductor stems + StageAudio) offline for scripted scenarios
+  (booth / mid / FULL HOUSE / components / a booth→FULL HOUSE journey with misses + a stumble / a tone click test),
+  writes 4-ch float WAVs (master + pre-limiter) to `playtest/out-audio/mixlab/`, then `tools/music/mix_report.py`
+  prints `report.json`: LUFS + true peak, limiter GR and its beat-locked modulation (pumping), booth spectrum/width,
+  overlays + bells vs the record in their bands, each SFX vs the music, HF clicks.
 - Review screenshots with the Read tool on the PNGs. Headless software rendering at DPR 2 runs ~30 fps;
   that's SwiftShader fill-rate, not the game (JS render cost is ~0.05 ms/frame; 60 fps with GPU).

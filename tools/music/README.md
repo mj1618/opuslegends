@@ -32,6 +32,7 @@ and `ffmpeg` with libvorbis and libmp3lame. The system python already has these.
 
 ```
 render.py              CLI: score -> mix -> master -> encode -> beatmap -> analysis
+mix_report.py          analysis of the GAME's mix (offline renders from src/audio/lab/mixlab.mjs)
 sfx.py                 one-shots for the game (same voices as the song, in its key) + assets/audio/sfx/manifest.json
 check_grid.py          verifies a render against its gameplay grid (stops, empty stem bars, stems sum, shout onsets)
 build_original.py      the ORIGINAL recording: per-beat tempo map, lanes, the level edit, reward overlays
@@ -386,6 +387,16 @@ perceptual attack (50 % envelope): start the file `onsetSec` early to land it on
 50 ms). **`mixGainDb`** is a suggested playback gain against the −14 LUFS master. Loops are exactly periodic.
 
 `flags` lists anything outside targets.
+
+## Game mix analysis (`mix_report.py`)
+
+The game's own audio graph (record + overlay stems through the projection booth, SFX, headroom trim, limiter) is
+rendered offline by `node src/audio/lab/mixlab.mjs` (headless Chromium, OfflineAudioContext, the real TS classes).
+`mix_report.py <dir>` analyses those renders: BS.1770 loudness and true peak, limiter gain reduction and its
+beat-locked modulation (pumping), booth spectrum and stereo width, each overlay stem vs the record in the stem's
+own band during its lane events, grade bells and every theatre SFX vs the music, and HF clicks on a tone. It
+needs the licensed recording; nothing it writes is committed. Target numbers are in CLAUDE.md ("The music is
+the reward").
 
 ## The original recording (`build_original.py`)
 
