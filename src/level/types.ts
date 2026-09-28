@@ -49,11 +49,22 @@ export interface BeatReactSpec {
 
 export type FxKind = 'flash' | 'shake' | 'zoom' | 'bgPulse' | 'shot';
 /** lighting presets (act 1: 42nd Street golden hour -> neon dusk/night -> the honky-tonk bar's lamplight) */
-export type SkyPreset = 'golden' | 'neon' | 'honkytonk' | 'facade' | 'lanes';
+export type SkyPreset = 'golden' | 'neon' | 'honkytonk' | 'facade' | 'lanes' | ActThreeSky;
+/** act 3 (docs/level/act3_plan.md "Lighting keyframes"): the Pool Room's felt lamps, the Velvet Casino's chandeliers, the
+ * roof at SUNSET (cream sun, coral sky: the level's first warm palette since bar 17), dusk rising, Big Jim's dark
+ * penthouse (one skylight shaft), the theatre (house lights up, the pull-out) */
+export type ActThreeSky = 'poolroom' | 'casino' | 'sunset' | 'dusk' | 'penthouse' | 'theatre';
 /** walkable-surface look per reel */
-export type GroundStyle = 'street' | 'timber' | 'facade' | 'lanes';
+export type GroundStyle = 'street' | 'timber' | 'facade' | 'lanes' | 'felt' | 'rack' | 'roof' | 'penthouse' | 'filmstrip';
 /** skin hint for breakables (the renderer / art may ignore it) */
-export type BreakableLook = 'bottle' | 'glass' | 'crate' | 'neon' | 'jug' | 'window' | 'pin';
+export type BreakableLook = 'bottle' | 'glass' | 'crate' | 'neon' | 'jug' | 'window' | 'pin' | ActThreeLook;
+/**
+ * act 3 looks: balls (a racked triangle of pool balls) · bell (brass bar bell) · chips (casino chip tower) · headGoon (the
+ * rack's gold head goon: THE BREAK) · letterNeon (a BIG JIM letter's neon tubes) · fist / lapel / jaw (the
+ * walkdown's four blows ON Big Jim) · lens (his aviators: the gauntlet's two cracks) · decanter · chain (his gold chain
+ * snaps) · popcorn (a bucket thrown from the front row) · finalHit (the power shot as the iris slams)
+ */
+export type ActThreeLook = 'balls' | 'bell' | 'chips' | 'headGoon' | 'letterNeon' | 'fist' | 'lapel' | 'jaw' | 'lens' | 'decanter' | 'chain' | 'popcorn' | 'finalHit';
 /**
  * Act 2 (iteration 3, docs/level/act2_plan.md). Presentation-only set-piece cues read by the renderer from
  * `level.def.items` / `game.mech.setPieces` (the builder ignores them):
@@ -66,7 +77,47 @@ export type BreakableLook = 'bottle' | 'glass' | 'crate' | 'neon' | 'jug' | 'win
  *   zipDrop      (iteration 4) the chorus drop: Slim hooks the cable on the chorus downbeat and zips DOWN into the Lanes'
  *                big window (`h` = the drop in px); the camera rides with him
  */
-export type SetPieceName = 'climb' | 'bigJimGlint' | 'windowCrash' | 'lanes' | 'facadeReveal' | 'zipDrop' | ActOneSetPiece;
+export type SetPieceName = 'climb' | 'bigJimGlint' | 'windowCrash' | 'lanes' | 'facadeReveal' | 'zipDrop' | ActOneSetPiece | ActThreeSetPiece;
+/**
+ * Act 3 set-pieces (docs/level/act3_plan.md; runtime state in game/mech/act3.ts = `game.mech.act3`):
+ *   poolRoom      the breakdown valley: felt lamps, jukeboxes, goons at the tables
+ *   callResponse  the goons STOMP a 1-bar call (the Black Betty stomp 1 · &2 · 3) — you answer it the next bar
+ *   rack          the Velvet Casino: the goon heap piles up one tier per downbeat ahead of you
+ *   hush          the record drops into the projection booth for one beat under the break (StageAudio may duck it)
+ *   rackBreak     THE BREAK SHOT (the fill's &4 tom): KRAK — the goons scatter like balls into the pockets
+ *   drop          chorus 4's downbeat: the rack's recoil flings Slim through the skylight onto the roof at sunset
+ *   signFalls     the BIG JIM sign topples, one letter per downbeat (`topple` items carry the letters)
+ *   bigJimRise    Big Jim rises behind the letters
+ *   walkdownJim   the hook-A walkdown = four blows ON Big Jim (fist, fist, lapel, jaw)
+ *   penthouse     crash in through his glass wall
+ *   bigJimReveal  the BLUFF DISPLAY on the held B (tag 4): arms flung wide, lenses blazing, the roar
+ *   gauntlet      the final exam: climb Big Jim himself (fists = lifts, sleeve = slide, lapels = ledges, lenses)
+ *   lensCrack     a lens cracks on a HEY answer (`h` = 0 left / 1 right)
+ *   pullOut       the camera leaves the film: screen, curtains, the audience; the Burn eats Big Jim's frame
+ *   marqueeSwap   the usher hangs SLIM CHANCE in the big letters
+ *   irisOut       the iris closes blade by blade and SLAMS shut on Big Jim's face on the final hit (340)
+ *   theEnd        THE END burns in; a second iris opens on Slim's victory pose on the throne
+ */
+export type ActThreeSetPiece =
+  | 'poolRoom'
+  | 'callResponse'
+  | 'rack'
+  | 'hush'
+  | 'rackBreak'
+  | 'drop'
+  | 'signFalls'
+  | 'bigJimRise'
+  | 'walkdownJim'
+  | 'penthouse'
+  | 'bigJimReveal'
+  | 'gauntlet'
+  | 'lensCrack'
+  | 'pullOut'
+  | 'marqueeSwap'
+  | 'irisOut'
+  | 'theEnd';
+/** Big Jim's pose keys (act 3's boss rig, game/mech/bigJim.ts interpolates between `bigJim` items) */
+export type BigJimPose = 'hidden' | 'rise' | 'brace' | 'reeling' | 'knockedBack' | 'throne' | 'bluff' | 'fight' | 'reel' | 'swing' | 'defeated' | 'framed';
 /**
  * Act 1 set-pieces (iteration 3 wow moments; Game also emits every setPiece item as a `setPiece` event and
  * exposes `game.setPiece` while it lasts): 'bigLaunch' (bar 9: the launch onto the neon roofs, apex on the
@@ -125,8 +176,8 @@ export type LevelItem =
   | { type: 'sky'; beat: number; preset: SkyPreset }
   /** ground look from `beat` on (by world x) */
   | { type: 'ground'; beat: number; style: GroundStyle }
-  /** the chaser (the Burn) rises on this beat */
-  | { type: 'chaser'; beat: number }
+  /** the chaser (the Burn) rises on this beat; `off` = it RETIRES on this beat instead (act 3: 332, the finale can't kill) */
+  | { type: 'chaser'; beat: number; off?: boolean }
   /** scansion marks (∪ – on the ground) on/off from `beat`; bar lines stay on */
   | { type: 'marks'; beat: number; on: boolean }
   /** HUD hint shown from `beat` for `beats` (first-appearance tutorial text) */
@@ -150,12 +201,13 @@ export type LevelItem =
    */
   | { type: 'lowSign'; from: number; to: number; action?: IntendedAction }
   /**
-   * crowd (streak meter) cap from `beat` on — keeps FULL HOUSE for the chorus.
+   * crowd (streak meter) cap from `beat` on — keeps FULL HOUSE for the chorus. `floor` (act 3's finale): from `beat`
+   * on the crowd can't drop below it (the whole house on its feet for the final hit, whatever happened before).
    * THE DROP (game.ts chorusDrop): a cap rising to FULL HOUSE (≥ Tun.crowd.bigCatchAt) is EARNED by a clean Hup-Hup-HEY
    * ending in the 8 beats before it, or by every action on the `earn` beats graded Great+ (e.g. act 3's break shot):
    * earned → FULL HOUSE lands ON `beat`
    */
-  | { type: 'crowd'; beat: number; cap: number; earn?: number[] }
+  | { type: 'crowd'; beat: number; cap: number; floor?: number; earn?: number[] }
   /** design tag: traversal mode from `beat` (street, rooftops, launch, lifts, bar-top, …) — rubric B6 */
   | { type: 'mode'; beat: number; mode: string }
   /** design tag: the lane the level follows from `beat` (kick, vocal, fills, shouts, …) — rubric B7 */
@@ -187,7 +239,24 @@ export type LevelItem =
    */
   | { type: 'hook'; beat: number; style: HookStyle; path: [number, number][]; action?: IntendedAction }
   /** presentation-only set-piece cue (see SetPieceName) */
-  | { type: 'setPiece'; beat: number; name: SetPieceName; beats?: number; h?: number; ahead?: number };
+  | { type: 'setPiece'; beat: number; name: SetPieceName; beats?: number; h?: number; ahead?: number }
+  /**
+   * TOPPLING LETTER (act 3, Sign Falls; runtime game/mech/letters.ts): one of the BIG JIM sign's letters, `tall` px of
+   * rose neon on steel legs standing on the roof at `from` (the pivot). It pivots forward ON `beat` (a downbeat), falls
+   * over one beat and lands as a BRIDGE over [from, to] at `h` px above the street ON beat + 1 (the backbeat: SLAM).
+   * Presentation only: the bridge's collision is an ordinary `floor` item over the same span (the letter always lands
+   * ≥ 1 beat before the hero's grid position reaches it). `by`: what knocks it over ('frame' = the rack's flying frame,
+   * 'shot' = your strike on `beat`, else it just goes). `index` = the letter's position in the sign (0..5).
+   */
+  | { type: 'topple'; beat: number; letter: string; index: number; from: number; to: number; h: number; by?: 'frame' | 'shot' }
+  /**
+   * BIG JIM pose key (act 3's boss, game/mech/bigJim.ts): from `beat` he blends into `pose` over `beats` (default 1).
+   * `x` = the beat his seat is centred on (world x = x × ppb) — or `ahead`: he TRACKS the hero, his seat `ahead` beats in
+   * front of the music line (the gauntlet: you climb him for 24 beats) — `h` = his seat's height above the street,
+   * `scale` 1 = ~1150 px from seat to pompadour (each field carries over from the previous key when omitted). Everything he does to the play band is ordinary level items (fists = slam lifts,
+   * sleeve = low sign, medallions = pendulums, lapels = ledges, lenses = giant breakables).
+   */
+  | { type: 'bigJim'; beat: number; pose: BigJimPose; beats?: number; x?: number; ahead?: number; h?: number; scale?: number };
 
 export interface LevelDef {
   id: string;

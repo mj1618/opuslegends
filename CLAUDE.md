@@ -156,6 +156,12 @@ the chorus; `mode` / `follows` items are design tags read by `npm run rubric` (d
 pit must not follow a hop within ~0.5 beat or the jump buffer hides its early side), `slamRun(first, n, top)`
 narrower lift tops, `giantKeg` (walkdown: 2x, 80 ms hitstop), high breakables inside a launch ride its arc, and
 `setPiece` items ('bigLaunch', 'chorusShot', 'walkdown', act 2's names) for the art/audio.
+**Act 3 (iteration 4):** `topple` (a BIG JIM letter pivots on its downbeat, lands as a bridge on the backbeat; collision
+= the ordinary floor under it), `bigJim` pose keys (fixed `x` or tracking `ahead`; his parts are ordinary items: fists =
+slam lifts, sleeve = low sign, medallions = pendulums, lenses/blows = giant breakables), `chaser { off }` (the Burn
+retires: the finale can't kill), `crowd { floor }` (FULL HOUSE for everyone on the final hit). Placeholder draws:
+`render/act3Draw.ts` (Big Jim behind, letters + call rings in front, the iris/THE END in screen space). The finish
+sits at 340.5 so a strike ON 340 connects; Slim then runs into the throne (a `block`) and stops for the victory pose.
 **`node playtest/slack.mjs`** measures every lethal action's timing window with the real controller (headless,
 ~2 s), checks every strike target is reachable on its beat and every hop leaves the ground on its beat, and
 predicts deaths per bot profile — run it after any geometry change, then confirm with real bots. It runs the act-2
@@ -209,7 +215,12 @@ src/
                           (flights, ledge hops, storey jumps, alleys jumped UP, the rope hoist), the roof + stop-time (the
                           laundry-line hook, Big Jim's glint, the cradle hoist), the Heave across the well, THE DROP (a
                           1,000 px zip on the chorus downbeat) into the Blacklight Lanes. Plan: docs/level/act2_plan.md
-           index.ts       gameLevel = act 1 + act 2 on one world x (THE level Game plays; the act seam lives here)
+           act3.ts        act 3, bars 61-86 (beats 240-340.5): the Pool Room call-and-response valley, the Rack (a lethal
+                          staircase into the fill, HUP HUP + the BREAK SHOT on 271.65), Sign Falls on chorus 4 (the BIG JIM
+                          letters topple one per downbeat: `topple` items), the walkdown as four blows on Big Jim, the
+                          gauntlet up Big Jim himself (`bigJim` pose items), the can't-die iris finale + final hit on 340.
+                          `act3Items(h0)` starts on act 2's last floor height. Plan: docs/level/act3_plan.md
+           index.ts       gameLevel = acts 1-3 on one world x (THE level Game plays; the act seams live here)
   game/    game.ts        owns everything: frame loop, time model, run flow (cold open → count-in → run →
                           stumble / death → checkpoint rewind → finish), mechanics, interactions, report
            player.ts      controller: run+surge, hop (beats), strike, stumble (constants in tunables.ts)
@@ -219,7 +230,9 @@ src/
            stats.ts       timing/frame stats         entities.ts  runtime records   jumpProfile.ts  jump arcs
            mech/          act-2 mechanics from level items the builder doesn't know: thrownBottle.ts, rollingBall.ts,
                           hook.ts (hook rides), index.ts (Mechanics: step/reset/beat telegraphs, set-piece cues, hook rides,
-                          ledge scramble ≤ 150 px, fall-out)
+                          ledge scramble ≤ 150 px, fall-out);
+                          act 3: act3.ts (`game.mech.act3`: call/rack/iris state, the Burn's retirement, the crowd floor),
+                          letters.ts (toppling letters), bigJim.ts (the boss rig state, fields = art BigJimState)
   render/  renderer.ts    frame orchestration (read-only on game state)      camera.ts  follow, shake, zoom punch,
                           FRAMING (render-only zoom x1.14 so Slim is ~155 px at 1080p, lead 0.25), musicZoom/hitZoom
            music.ts       MusicFeed: song lanes (kick/snare/fills/hooks/shouts/energy...) + sections -> art BeatInfo
@@ -271,7 +284,7 @@ Presentation cues on beats: `{type:'fx', beat, fx:'flash'|'shake'|'zoom'|'bgPuls
   Esc pause, `[`/`]` latency offset, `` ` `` / F1 debug overlay.
   Gamepad: A hop, X/B/RT strike, stick/dpad.
 - URL params: `?debug=1` overlay (fps, song/beat, clock, hitboxes, beat grid, green dashed *music line*,
-  intended-action markers) · `?start=<beat>` start mid-level (checkpoints: 32, 64, 80, 96, 112, 120; act 2: 132, 164, 196, 220, 236) · `?coldopen=0` ·
+  intended-action markers) · `?start=<beat>` start mid-level (checkpoints: 32, 64, 80, 96, 112, 120; act 2: 132, 164, 196, 220, 236; act 3: 256, 272, 284, 304, 320) · `?coldopen=0` ·
   `?autoplay=1` bot plays via the controller · `?jitter=<ms>` / `?late=<p>` / `?sloppy=1` sloppy bot ·
   `?judge=1` timing-grade popups · `?mute=1` · `?latency=<ms>` · `?song=edit|full|placeholder` · `?miss=37,28` bot deliberately skips those
   actions once (stumble/death/respawn test) · `?skip=none|stumble` bot ALWAYS skips rewards (lazy) / stumble

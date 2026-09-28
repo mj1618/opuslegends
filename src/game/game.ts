@@ -215,7 +215,7 @@ export class Game {
     this.level = buildLevel(this.levelDef, this.tempo, this.song);
     // the level's audio cues: act 3's hush + world sounds, act 2's mechanic voices (audio/cues.ts)
     this.stage.useLevel(this.levelDef, this.song);
-    this.mech = new Mechanics(this.level, this.mechHost());
+    this.mech = new Mechanics(this.level, this.mechHost(), this.song);
     this.judge = new Judge(this.level.actions, this.tempo);
     this.background = new Background(params.seed);
     this.renderer = new Renderer(this, makeSprites());
@@ -1058,6 +1058,14 @@ export class Game {
     const p = this.player;
     const c = this.chaser;
     if (beatW < L.chaserBeat) return;
+    // act 3: the Burn retires for the finale (the level's `chaser { off }` beat): it can't kill after it
+    if (this.mech.act3.burnRetired(beatW)) {
+      c.active = false;
+      c.x = -Infinity;
+      c.danger = 0;
+      c.lunge = 0;
+      return;
+    }
     const dBeats = dt / this.tempo.secondsPerBeatAt(beatW);
     if (!c.active) {
       c.active = true;
@@ -1311,6 +1319,9 @@ export class Game {
   private levelProps(beatW: number, hurt: Rect): void {
     const p = this.player;
     const L = this.level;
+    // act 3's finale: the whole house on its feet for the final hit (the level's `crowd { floor }`)
+    const floor = this.mech.act3.crowdFloor(beatW);
+    if (floor > 0 && this.crowd.value < floor) this.crowd.set(floor);
     this.crowd.setCap(crowdCapAt(L, beatW < this.dropCapBeat ? this.dropCapBeat : beatW));
     for (const b of L.bouncePads) {
       if (b.used || Math.abs(p.x - b.x) > b.w / 2) continue;

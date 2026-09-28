@@ -18,7 +18,9 @@
 import { overlaps, type Rect } from '../../engine/math';
 import type { RuntimeLevel } from '../../level/build';
 import type { SetPieceName } from '../../level/types';
+import type { SongDef } from '../../audio/song';
 import type { Player } from '../player';
+import { Act3 } from './act3';
 import { Tun } from '../tunables';
 import { HOOK, type HookRide, hookY } from './hook';
 import { BALL, type RollingBall, ballX } from './rollingBall';
@@ -74,9 +76,13 @@ export class Mechanics {
   /** scrambles this attempt (stats / debug) */
   scrambles = 0;
 
-  constructor(level: RuntimeLevel, host: MechHost) {
+  /** act 3's set-pieces (the call and response, the rack, the BIG JIM letters, Big Jim, the iris): mech/act3.ts */
+  readonly act3: Act3;
+
+  constructor(level: RuntimeLevel, host: MechHost, song?: SongDef) {
     this.L = level;
     this.host = host;
+    this.act3 = new Act3(level, song);
     const ppb = level.ppb;
     const floorAt = (x: number) => {
       const y = level.floorYAt(x);
@@ -153,6 +159,7 @@ export class Mechanics {
 
   /** re-arm everything at/after `beat` (checkpoint rewinds); what's behind stays spent */
   reset(beat: number): void {
+    this.act3.reset(beat);
     for (const b of this.bottles) {
       b.state = b.beat >= beat - 0.5 ? 'idle' : 'out';
       b.t = 0;
@@ -178,6 +185,7 @@ export class Mechanics {
    * Kinematics run in every phase so the throws stay on their beats through count-ins.
    */
   step(dt: number, wb: number, p: Player, running: boolean, right: boolean): void {
+    this.act3.step(wb);
     const hurt = p.hurtbox(this.hurt);
     const striking = running && p.strikeActive;
     const box = striking ? p.strikeBox(this.box) : null;

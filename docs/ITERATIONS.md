@@ -264,3 +264,45 @@ Parallel: (a) act 3 build per act3_plan + review; (b) act 2 rework: real vertica
 set-pieces; (c) gameplay fixes: Burn respawn distance, crowd start 8, latency calibration in the cold open, act-1
 chorus early-press slack, crowd continuity + Hup-Hup-HEY → FULL HOUSE, hop-led blocks, poster count; (d) art: act-3
 environments + Big Jim rig + letters + iris, lit bowling alley, glint/window-crash camera moments; (e) audio: act-3 SFX.
+
+## Iteration 4 — act 3 notes (level design, edit bars 61-86)
+Plan + "As shipped" deviations: `docs/level/act3_plan.md`. Code: `src/level/act3.ts` (new; `act3Items(h0)` starts on
+act 2's last floor height via `level/index.ts`), `game/mech/act3.ts`, `letters.ts`, `bigJim.ts` (new: `game.mech.act3`),
+plus small hooks in `mech/index.ts`, `game.ts` and `types.ts` (`topple`, `bigJim`, `chaser { off }`, `crowd { floor }`,
+act-3 sky/ground/look/set-piece names). The art agent now owns `render/act3Draw.ts`. It started as my placeholder.
+- **The shape.** 61–64 is the POOL ROOM call and response, the level's real valley with 0 threats: the goons stomp the
+  Black Betty call and you answer it on its rhythm. 65–68 is THE RACK: a +500 px climb whose lethal count ramps
+  0 → 1 → 1 → 2 per bar into the fill, then HUP · HUP · THE BREAK SHOT on the &4 tom (271.65). The audio derives the
+  hush from it, and a clean break earns FULL HOUSE on the drop.
+- **69–76, SIGN FALLS at sunset.** The rack's recoil launch is the drop (camera 0.72). The BIG JIM letters topple one
+  per downbeat and land as bridges ≥ 1 beat ahead of you. Your shot topples the second I. A post run crosses the
+  light-well, and the chorus peak is the lethal combination on the M. The third walkdown is four giant blows ON Big
+  Jim. Then you crash through his glass wall.
+- **77–83, the REVEAL (0 threats) and the GAUNTLET** (no chalk marks). You climb Big Jim: his fists are lethal lifts,
+  then a slide up his sleeve, then two HUP-HUP-HEYs that crack his left and right lenses. His backhands ride the fill
+  lunges, and his knuckle-ring swing has a 1-beat wind-up.
+- **84–86, the FINALE (can't die: the Burn retires on 332).** The pull-out into the theatre, sprockets rising on the
+  pickup, iris blades per beat. The crowd is floored to FULL HOUSE from 338. The FINAL HIT (340) is the HEY of the last
+  Hup-Hup-HEY: a giant struck as the iris slams. Then THE END, Slim stops at the throne for the victory pose, and the
+  poster prints.
+- **Measured** (bots from ◆236, dist-act3):
+  - Full-level autoplay from the cold open: PASS (0 deaths, act-3 execution ≤ 4 ms).
+  - `npm run rubric -- --bars=61-86` with the bot reports: **gate 11/11** (reward 76%, lethal 0.5 / 0.63 / 0.4 adj per
+    block, C1 ρ = 1, C2 1 valley, D1 ≥ 1/beat in chorus 4 and the outro).
+  - Every lethal window is ≥ −85 / +150 ms (slack.mjs; list in the plan).
+  - Skilled ±40: 0 deaths ×6. Sloppy ±85 + 10% late: 0, 0, 1, 0, 0, 0, 0, 0 (≈ 0.1 per run). ±130: 1, 0, 4, 0, 3, 0
+    (mostly the Rack, ◆256). Uncalibrated-late: 0–1 (at 276, before its late side was raised to +165).
+  - ±160 + 20% late can't finish. Reckless is caught at 281 → 286 (stumbles matter). Lazy is caught by the Burn in the
+    Pool Room (skipping every reward feeds it).
+- **Misses vs the plan's targets.** Sloppy 1–2 and ±130 3–5 deaths are NOT reachable under the fairness rules. A
+  uniform ±85 bot never presses outside −85, and its 10% late tail only fails a window whose late side is ≤ +150
+  (~1% per lethal). Any more teeth would have to come from tighter windows, which the review forbids. The phrase HUPs
+  and the post run have lenient early sides (the jump buffer after the previous hop). Non-gate rubric fails: B5 (strike
+  leads chorus 4), E3 (5 threats in view at the post run + M), C4 (the outro block is not a sawtooth).
+- **Tools.** `slack.mjs` now models the FALL-OUT rule (high pits used to look survivable at ±300 ms) and never starts a
+  sweep mid-launch. The rubric derives `fillAccents` from `fills[].accents` (the edit's beat map has no such lane).
+  Both fixes rode along in other agents' commits.
+- **Lessons.** A `gap` beats any `floor` in the builder: split the pit around posts. Static posts ≤ ~0.4 beat apart
+  are WALKABLE (26 px ledge assist), so step each one up 24 px. Set-pieces only fire while running, so cue anything
+  after the finish from state (the iris is a function of the beat). Presentation must read one consistent state
+  (a letter's `landedBeats`, not a separately computed beat).

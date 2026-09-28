@@ -257,3 +257,41 @@ set-piece names; breakable looks `balls`, `bell`, `chips`, `bust`, `lens`.
     11/11.
   - Autoplay from the cold open must reach 340.
   - Run the mix lab on the hush and the final-hit stack (true peak ≤ −0.17 dBTP).
+
+## As shipped (iteration 4)
+
+Code: `src/level/act3.ts` (`act3Items(h0)` + standalone `act3Level`), joined by `level/index.ts` on act 2's last floor
+height (the seam drops act 2's `finish`, keeps its 240 flash). Runtime: `game/mech/act3.ts` (`game.mech.act3`),
+`letters.ts`, `bigJim.ts`. Deviations from the tables above, and why:
+
+- **61–64 is the review's CALL AND RESPONSE** (not bench chains): in bars 61 and 63 the goons stomp the Black Betty call
+  (1 · &2 · 3) while you hit the claps (2, 4); in 62 and 64 you answer on the call's rhythm (X ∪ X, then ∪ X –). Each
+  call stomp lights a gold ring where the answer lands one bar later. 0 threats. One bench see-saw (248 → 250), and a
+  held jump onto the rack on 254 lands on ◆256.
+- **The Rack ramps 0 → 1 → 1 → 2 lethal per bar** (262 held gap UP, 266 gap UP, 268 frame gap, 270.70 = the second HUP).
+  The break shot on 271.65 is a Hup-Hup-HEY: a clean one earns FULL HOUSE on the drop (`crowd { earn }`). The audio
+  derives the hush from the strike on the fill's last tom.
+- **Sign Falls letters land ≥ 1 beat before the hero reaches their span.** B 274.3–276.1, I 278–280.6, G 282.8–286,
+  J 286–287.3 (its hook = the see-saw), I 290.3–292.7 (its legs = the POSTS, each 24 px higher so the ledge assist can't
+  walk them), M 295.6–297.5 on the terrace. Their collision is ordinary floor.
+- **Bar 70 has ONE Bluffer** (277). The second HEY (278) is a big neon, because of the review's "≤ 1 stumble per bar".
+  The reckless bot is still caught at 281 → 286.
+- **The walkdown (296–299) is four giant blows on Big Jim** (fist, fist, lapel, jaw). He rises behind the letters from
+  290. The glass wall (300) is a giant `glass` that you crash through.
+- **The gauntlet (304–332) has no chalk marks.** His first fist slams onto his knee (a reward hop). 309 and 310 are
+  lethal. The slide goes up his sleeve (313.62), then two HUP-HUP-HEYs: 315 ∪, 316 gap UP, 317 LEFT LENS, and
+  323 knuckle ring (the wind-up is his swing pose), 324 gap UP, 325 RIGHT LENS. His backhands ride the Burn's fill
+  lunges.
+- **Finale (332–340): the Burn retires (`chaser { off }`).** The crowd floor is 20 from 338 (FULL HOUSE for everyone on
+  the final hit). The final hit on 340 is a giant struck as the HEY of the last Hup-Hup-HEY. The `finish` sits at 340.5
+  so that strike connects. Slim then runs into the throne (a `block`) and stops for the victory pose. The iris state
+  (blades 336–339, SLAM on 340, THE END on 341, reopen on 342) is a function of the beat.
+- **Checkpoints** are 256, 272 (the respawn fires the drop launch on release), 284, 304 and 320.
+
+**Lethal windows** (`node playtest/slack.mjs --level=src/level/act3.ts#act3Level --from=240`), all ≥ −85 / +150 ms:
+- 262 −90/+150 · 266 −90/+155 · 268 −85/+155 · 270.7 −255/+155 (buffered after the first HUP)
+- 276 −185/+165 · 280 −85/+155 · 282 −95/+150 · posts 290 / 291 / 292 −90/+200, −225/+195, −225/+220 · 294 −90/+195
+- fists 309 −190/+150, 310 −190/+210 · 316 −255/+160 · 324 −190/+155
+
+The early side is only tight where no hop comes in the half-beat before. Inside the HUP-HUP phrases the jump buffer
+catches early presses.
