@@ -25,6 +25,7 @@ import { CF } from '../palette';
 import { type ArtCamera, SEA_Y, VIEW_H, VIEW_W, layerView, pushLayer } from '../world/camera';
 import { type Lighting, type LightingDirector, lit } from '../world/lighting';
 import { ParallaxScene, type SceneFrame, stripLayer } from '../world/parallax';
+import { type JammerColours, drawJammer } from './jammers';
 import './lights';
 
 const H = hex;
@@ -37,7 +38,10 @@ export function makeLanes(light: LightingDirector): ParallaxScene {
     id: 'lanes-room',
     pass: 'back',
     draw: (g, _cam, f) => {
-      g.fillStyle = css(lit(f.L, H('#1A1030'), 0.5, 0.3));
+      const gr = g.createLinearGradient(0, 0, 0, VIEW_H);
+      gr.addColorStop(0, css(lit(f.L, H('#1A1030'), 0.5, 0.3)));
+      gr.addColorStop(1, css(lit(f.L, H('#34205A'), 0.7, 0.3)));
+      g.fillStyle = gr;
       g.fillRect(0, 0, VIEW_W, VIEW_H);
     },
   });
@@ -147,6 +151,10 @@ export function makeLanes(light: LightingDirector): ParallaxScene {
     props: (g, v, f, layer) => deckProps(g, v, f, layer),
   });
   scene.add(mid);
+  // THE BOWLERS: a crowd behind the rail dancing on the backbeat, arms up on the HEYs (they're the Lanes' audience)
+  scene.add({ id: 'lanes-crowd', pass: 'back', draw: (g, cam, f) => bowlers(g, cam, f) });
+  // disco-ball BEAMS: big coloured cones sweeping the room, bursting on the kick
+  scene.add({ id: 'lanes-beams', pass: 'back', draw: (g, cam, f) => beams(g, cam, f) });
   scene.add({ id: 'lanes-front', pass: 'front', draw: (g, cam, f) => discoBall(g, cam, f) });
   scene.add({
     id: 'lanes-haze',
@@ -255,6 +263,91 @@ function wallProps(g: Ctx, v: import('../world/camera').LayerView, f: SceneFrame
   });
 }
 
+function bowlers(g: Ctx, cam: ArtCamera, f: SceneFrame): void {
+  const v = layerView(cam, 0.72);
+  const L = f.L;
+  const b = f.b;
+  const SP = 150;
+  const floor = SEA_Y - 250;
+  pushLayer(g, v);
+  // the rail + a UV glow strip along it
+  g.fillStyle = css(lit(L, H('#1E1234'), 0.8, 0.2));
+  g.fillRect(v.x0 - 50, floor - 20, v.x1 - v.x0 + 100, 200);
+  const cols = [UV.cyan, UV.pink, '#B9A0E0', '#F4F070', '#6A4AE0'];
+  const heyUp = Math.max(hit(b, 'hey', 0.5), 0);
+  for (let k = Math.floor(v.x0 / SP) - 1; k <= Math.floor(v.x1 / SP) + 1; k++) {
+    const x = k * SP + (hash(k) - 0.5) * 50;
+    const row = k % 2 ? 0 : 1;
+    const s = 1.0 + hash(k + 3) * 0.25 - row * 0.12;
+    const C: JammerColours = {
+      body: css(lit(L, H('#140A22'), 0.5, 0.15)),
+      skin: css(lit(L, H('#7A5A6A'), 0.6, 0.15)),
+      rim: uv(L, cols[k % 5], 0.8),
+      vest: uv(L, cols[(k + 2) % 5], 0.75),
+    };
+    drawJammer(g, x, floor - row * 26, s, Math.floor(hash(k * 5) * 5), b, C, k % 3 ? 1 : -1);
+    if (heyUp > 0.05) {
+      // arms (and a bowling pin) up on the HEY
+      g.strokeStyle = C.rim;
+      g.lineWidth = 7;
+      g.lineCap = 'round';
+      g.beginPath();
+      g.moveTo(x - 10, floor - row * 26 - 95 * s);
+      g.lineTo(x - 22, floor - row * 26 - (95 + 60 * heyUp) * s);
+      g.moveTo(x + 10, floor - row * 26 - 95 * s);
+      g.lineTo(x + 22, floor - row * 26 - (95 + 60 * heyUp) * s);
+      g.stroke();
+    }
+  }
+  g.fillStyle = css(lit(L, H('#0E0818'), 0.8, 0.1));
+  g.fillRect(v.x0 - 50, floor - 30, v.x1 - v.x0 + 100, 40);
+  g.fillStyle = uv(L, UV.cyan, 0.85);
+  g.fillRect(v.x0 - 50, floor - 34, v.x1 - v.x0 + 100, 5);
+  g.fillStyle = uv(L, UV.pink, 0.6);
+  g.fillRect(v.x0 - 50, floor + 4, v.x1 - v.x0 + 100, 3);
+  g.restore();
+}
+
+function beams(g: Ctx, cam: ArtCamera, f: SceneFrame): void {
+  const b = f.b;
+  const L = f.L;
+  const v = layerView(cam, 1.05);
+  const SP = 2600;
+  const kick = hit(b, 'kick', 0.2);
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  const cols = [UV.cyan, UV.pink, '#F4F070', '#B9A0E0'];
+  for (let k = Math.floor(v.x0 / SP) - 1; k <= Math.floor(v.x1 / SP) + 1; k++) {
+    const bx = (k * SP + 900 - v.cx) * v.z + VIEW_W / 2;
+    const by = (v.y0 + 110 - v.cy) * v.z + VIEW_H / 2;
+    if (bx < -1600 || bx > VIEW_W + 1600) continue;
+    for (let i = 0; i < 6; i++) {
+      const a = Math.PI / 2 + Math.sin(b.beat * 0.4 + i * 1.3 + k) * 0.9;
+      const len = 1500;
+      const w = 0.07;
+      const gr = g.createLinearGradient(bx, by, bx + Math.cos(a) * len, by + Math.sin(a) * len);
+      const c = cols[(i + Math.floor(b.beat)) % 4];
+      gr.addColorStop(0, css(mix(H(c), [255, 255, 255], 0.2), (0.16 + 0.14 * kick) * L.lamps));
+      gr.addColorStop(1, css(H(c), 0));
+      g.fillStyle = gr;
+      g.beginPath();
+      g.moveTo(bx, by);
+      g.lineTo(bx + Math.cos(a - w) * len, by + Math.sin(a - w) * len);
+      g.lineTo(bx + Math.cos(a + w) * len, by + Math.sin(a + w) * len);
+      g.closePath();
+      g.fill();
+    }
+  }
+  // UV floor fog glowing at the lane line
+  const fy = VIEW_H / 2 + (SEA_Y - 170 - layerView(cam, 1).cy) * cam.zoom;
+  const fg = g.createLinearGradient(0, fy - 260, 0, fy + 40);
+  fg.addColorStop(0, 'rgba(120,60,200,0)');
+  fg.addColorStop(1, `rgba(120,60,200,${0.16 + 0.1 * kick})`);
+  g.fillStyle = fg;
+  g.fillRect(0, fy - 260, VIEW_W, 300);
+  g.restore();
+}
+
 function spots(g: Ctx, cam: ArtCamera, f: SceneFrame): void {
   const b = f.b;
   const on = 0.5 + 0.5 * hit(b, 'kick', 0.15);
@@ -267,7 +360,7 @@ function spots(g: Ctx, cam: ArtCamera, f: SceneFrame): void {
     const rr = 0.35 + hash(i + 3) * 0.6;
     const x = VIEW_W / 2 + Math.cos(a) * VIEW_W * 0.55 * rr - ((cam.x * 0.35) % 400) * 0;
     const y = VIEW_H * 0.36 + Math.sin(a) * VIEW_H * 0.3 * rr;
-    g.globalAlpha = (0.1 + 0.08 * on) * f.L.lamps;
+    g.globalAlpha = (0.16 + 0.14 * on) * f.L.lamps;
     g.fillStyle = cols[i % 4];
     g.beginPath();
     g.ellipse(x, y, 18, 11, a, 0, TAU);
@@ -388,13 +481,41 @@ export function drawLanesFloor(g: Ctx, rect: { x: number; y: number; w: number; 
     g.fill();
     for (const d of [-120, -80]) g.fillRect(px + d, y + 22, 5, 5);
   }
-  // gutter trim + dark body
+  // gutter trim + the lane's glowing UNDERBODY (no black void: the Lanes are the chorus showpiece)
   g.fillStyle = uv(L, UV.pink, 0.85);
   g.fillRect(x, y + 46, w, 4);
-  g.fillStyle = css(lit(L, H('#120C1E'), 0.5, 0));
+  const ub = g.createLinearGradient(0, y + 50, 0, y + 420);
+  ub.addColorStop(0, css(lit(L, H('#3A1E6A'), 0.9, 0)));
+  ub.addColorStop(0.45, css(lit(L, H('#221040'), 0.8, 0)));
+  ub.addColorStop(1, '#0A0612');
+  g.fillStyle = ub;
   g.fillRect(x, y + 50, w, hh - 50);
-  g.fillStyle = uv(L, UV.cyan, 0.35);
-  g.fillRect(x, y + 90, w, 2);
+  // chasing LANE LIGHTS along the fascia: a run of bulbs that sweeps on the 8ths (+ flares on the kick)
+  const ch = b ? Math.floor(b.beat * 2) : 0;
+  const kick = b ? hit(b, 'kick', 0.14) : 0;
+  for (let px = Math.ceil(x / 32) * 32; px < x + w - 8; px += 32) {
+    const i = Math.round(px / 32);
+    const on = ((i - ch) % 8 + 8) % 8 < 2;
+    g.fillStyle = on ? uv(L, i % 16 < 8 ? UV.cyan : UV.pink, 1) : 'rgba(80,60,120,0.5)';
+    g.fillRect(px, y + 62, 14, 8);
+    if (on) drawGlow(g, px + 7, y + 66, i % 16 < 8 ? UV.cyan : UV.pink, 40 + 30 * kick, 0.35);
+  }
+  g.fillStyle = uv(L, UV.cyan, 0.5 + 0.4 * kick);
+  g.fillRect(x, y + 92, w, 3);
+  // the ball-return track below, balls riding it on the bass
+  g.fillStyle = css(lit(L, H('#140A24'), 0.9, 0));
+  g.fillRect(x, y + 118, w, 26);
+  const bass = b ? b.beat * 0.8 : 0;
+  for (let px = Math.floor((x - 400) / 400) * 400; px < x + w; px += 400) {
+    const bx = px + ((bass * 160) % 400);
+    if (bx < x + 14 || bx > x + w - 14) continue;
+    g.fillStyle = uv(L, Math.round(px / 400) % 2 ? UV.pink : '#6A4AE0', 0.9);
+    g.beginPath();
+    g.arc(bx, y + 131, 11, 0, TAU);
+    g.fill();
+  }
+  g.fillStyle = uv(L, UV.pink, 0.3);
+  g.fillRect(x, y + 150, w, 2);
   // walkable-top rule: black edge + cream lip
   g.fillStyle = CF.filmBlack;
   g.fillRect(x, y - 1, w, 5);

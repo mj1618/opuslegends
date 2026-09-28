@@ -52,7 +52,7 @@ export const PAL = {
 } as const;
 
 export type DangerClass = 'lethal' | 'stumble' | 'reward' | 'neutral';
-export type EnvKind = 'street' | 'bar' | 'facade' | 'lanes';
+export type EnvKind = 'street' | 'bar' | 'facade' | 'lanes' | 'poolroom' | 'casino' | 'roof' | 'penthouse' | 'theatre';
 
 /** per-frame context every skin gets */
 export interface SkinCtx {
@@ -207,7 +207,71 @@ export function drawPendulum(g: Ctx, p: PendulumView, c: SkinCtx): void {
   g.translate(x, y);
   g.rotate(ang);
   const goldRim = 0.5 + 0.5 * Math.max(p.glint, p.bottom);
-  if (p.big) {
+  if (c.env === 'casino') {
+    // a CRYSTAL CHANDELIER (act 3's rack: each crack kills a light) — the gilt bowl is the target
+    g.restore();
+    const pin = { x: x - Math.sin(ang) * r * 1.4, y: y - Math.cos(ang) * r * 1.4 };
+    g.save();
+    g.translate(pin.x, pin.y);
+    g.rotate(ang);
+    const k = r / 36;
+    g.fillStyle = '#C9A040';
+    for (const [ty, tw] of [
+      [0, 44],
+      [26, 66],
+      [52, 40],
+    ] as [number, number][]) {
+      g.beginPath();
+      g.ellipse(0, ty * k, tw * k, 9 * k, 0, 0, TAU);
+      fillInk(g, '#C9A040', 2.5);
+      for (let i = -2; i <= 2; i++) {
+        g.fillStyle = '#FFF3D0';
+        g.beginPath();
+        g.ellipse((i / 2) * tw * 0.85 * k, (ty - 12) * k, 3.5 * k, 7 * k, 0, 0, TAU);
+        g.fill();
+        g.strokeStyle = 'rgba(244,239,226,0.7)';
+        g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo((i / 2) * tw * k, (ty + 6) * k);
+        g.lineTo((i / 2) * tw * k, (ty + 26) * k);
+        g.stroke();
+      }
+    }
+    g.strokeStyle = REWARD.gold;
+    g.lineWidth = 4;
+    g.globalAlpha = goldRim;
+    g.beginPath();
+    g.ellipse(0, 26 * k, 74 * k, 16 * k, 0, 0, TAU);
+    g.stroke();
+    g.globalAlpha = 1;
+    drawGlow(g, 0, 26 * k, '#FFF3D0', r * 3, 0.4 + 0.3 * hit(c.b, 'hat', 0.06));
+  } else if (c.env === 'penthouse') {
+    // a gold MEDALLION off Big Jim's chain ("BJ"), spinning on its link
+    const R = r * (p.big ? 1.3 : 1.05);
+    const spin = 0.55 + 0.45 * Math.abs(Math.cos(c.b.beat * Math.PI * 0.5 + p.seed));
+    g.save();
+    g.scale(spin, 1);
+    g.beginPath();
+    g.arc(0, 0, R, 0, TAU);
+    fillInk(g, REWARD.gold, 3);
+    g.strokeStyle = REWARD.dark;
+    g.lineWidth = 3;
+    g.beginPath();
+    g.arc(0, 0, R * 0.78, 0, TAU);
+    g.stroke();
+    g.fillStyle = REWARD.dark;
+    g.font = `bold ${Math.round(R * 0.8)}px "Arial Black", Impact, sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(p.big ? 'BJ' : '$', 0, 2);
+    g.restore();
+    g.fillStyle = REWARD.shine;
+    g.globalAlpha = goldRim;
+    g.beginPath();
+    g.ellipse(-R * 0.35 * spin, -R * 0.4, R * 0.22 * spin, R * 0.12, -0.6, 0, TAU);
+    g.fill();
+    g.globalAlpha = 1;
+  } else if (p.big) {
     // giant 8-ball chandelier
     const R = r * 1.25;
     g.beginPath();
@@ -233,7 +297,7 @@ export function drawPendulum(g: Ctx, p: PendulumView, c: SkinCtx): void {
     g.fill();
     g.fillStyle = REWARD.dark;
     g.fillRect(-6, -R - 10, 12, 12);
-  } else if (c.env === 'bar') {
+  } else if (c.env === 'bar' || c.env === 'poolroom') {
     // green-shade pool-hall lamp: the bulb under the shade is the target
     const w = r * 2.6;
     g.beginPath();

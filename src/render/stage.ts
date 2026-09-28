@@ -23,8 +23,13 @@ import { TAU, hash } from '../art/core/math';
 import { drawBarFloor, makeBar } from '../art/grindhouse/bar';
 import './../art/grindhouse/lights';
 import { type StreetScene, drawStreetGround, makeStreet } from '../art/grindhouse/street';
-import { drawFacadeLedge, makeFacade } from '../art/grindhouse/facade';
+import { drawFireEscape, makeFacade } from '../art/grindhouse/facade';
 import { drawLanesFloor, makeLanes } from '../art/grindhouse/lanes';
+import { drawFeltFloor, makePoolRoom } from '../art/grindhouse/poolroom';
+import { type CasinoState, drawRackFloor, makeCasino } from '../art/grindhouse/casino';
+import { drawRoofFloor, makeRoof } from '../art/grindhouse/roof';
+import { type PenthouseState, drawPenthouseFloor, makePenthouse } from '../art/grindhouse/penthouse';
+import { drawFilmstripFloor, makeFilmVoid } from '../art/grindhouse/finale';
 import { FilmPass } from '../art/fx/film';
 import { CF } from '../art/palette';
 import type { ArtCamera } from '../art/world/camera';
@@ -35,24 +40,65 @@ import { Tun } from '../game/tunables';
 import { type RuntimeLevel, groundStyleAt } from '../level/build';
 import { DANGER } from './entityDraw';
 
-export type Env = 'street' | 'bar' | 'facade' | 'lanes';
+export type Env = 'street' | 'bar' | 'facade' | 'lanes' | 'poolroom' | 'casino' | 'roof' | 'penthouse' | 'theatre';
+const ENVS: Env[] = ['street', 'bar', 'facade', 'lanes', 'poolroom', 'casino', 'roof', 'penthouse', 'theatre'];
 
 /** level sky preset -> grindhouse light key */
-const SKY_TO_LIGHT: Record<string, string> = { golden: 'golden', neon: 'neon', honkytonk: 'bar', bar: 'bar', facade: 'facade', lanes: 'blacklight', blacklight: 'blacklight' };
+const SKY_TO_LIGHT: Record<string, string> = {
+  golden: 'golden',
+  neon: 'neon',
+  honkytonk: 'bar',
+  bar: 'bar',
+  facade: 'facade',
+  lanes: 'blacklight',
+  blacklight: 'blacklight',
+  // act 3
+  poolroom: 'poolroom',
+  casino: 'velvet',
+  sunset: 'sunset',
+  dusk: 'dusk',
+  penthouse: 'throne',
+  theatre: 'houselights',
+};
+/**
+ * Act 3's roof ARC (docs/level/act3_plan.md lighting keyframes): one `sky: sunset` cue on the drop expands into the
+ * sun going down over the six letters — cream sun, coral (272) -> rose, the neon waking (+8 beats: 280) -> fig dusk
+ * rising (+16: 288). Musical time, so rewinds replay it exactly.
+ */
+const LIGHT_ARC: Record<string, [number, string][]> = { sunset: [[8, 'sunsetRose'], [16, 'dusk']] };
 /** which scene's lighting director a light key drives (anything else = the street) */
 const KEY_ENV: Record<string, Env> = {
   bar: 'bar',
-  poolroom: 'bar',
-  velvet: 'bar',
-  throne: 'bar',
-  houselights: 'bar',
   facade: 'facade',
   facadeHigh: 'facade',
   blacklight: 'lanes',
   blacklightHot: 'lanes',
+  // act 3
+  poolroom: 'poolroom',
+  velvet: 'casino',
+  sunset: 'roof',
+  sunsetRose: 'roof',
+  dusk: 'roof',
+  throne: 'penthouse',
+  houselights: 'theatre',
 };
 /** level ground style -> environment */
-const GROUND_ENV: Record<string, Env> = { street: 'street', timber: 'bar', bar: 'bar', facade: 'facade', lanes: 'lanes' };
+const GROUND_ENV: Record<string, Env> = {
+  street: 'street',
+  timber: 'bar',
+  bar: 'bar',
+  facade: 'facade',
+  lanes: 'lanes',
+  felt: 'poolroom',
+  rack: 'casino',
+  roof: 'roof',
+  penthouse: 'penthouse',
+  filmstrip: 'theatre',
+};
+/** scenes authored around their own floor (Stage.baseY): everything above the street */
+const RAISED: Env[] = ['lanes', 'poolroom', 'casino', 'roof', 'penthouse', 'theatre'];
+/** each environment's resting light key (before any cue) */
+const DEFAULT_KEY: Record<Env, string> = { street: 'golden', bar: 'bar', facade: 'facade', lanes: 'blacklight', poolroom: 'poolroom', casino: 'velvet', roof: 'sunset', penthouse: 'throne', theatre: 'houselights' };
 
 const H = hex;
 
@@ -65,7 +111,10 @@ export class Stage {
   private lights: Record<Env, LightingDirector>;
   /** act-2 scenes are built lazily (their caches only exist once the act is reached) */
   private scenes: Partial<Record<Env, ParallaxScene>> = {};
-  private lastBlend: Record<Env, string> = { street: '', bar: '', facade: '', lanes: '' };
+  private lastBlend = Object.fromEntries(ENVS.map((e) => [e, ''])) as Record<Env, string>;
+  /** act 3 scene state (set by the renderer from game.mech.act3 each frame) */
+  readonly casinoState: CasinoState = { dark: 0, hush: 0, krak: NaN };
+  readonly penthouseState: PenthouseState = { blaze: 0, crack: 0 };
   /** set by the renderer: the cold open keeps the street in the dark theatre light */
   coldOpen = false;
   /** set by the renderer: chorus (the Lanes go 'blacklightHot') */
@@ -74,7 +123,7 @@ export class Stage {
   climb = 0;
   private resScale = 0;
   private cuesKey: unknown = null;
-  private cues: Record<Env, { beat: number; key: string }[]> = { street: [], bar: [], facade: [], lanes: [] };
+  private cues = Object.fromEntries(ENVS.map((e) => [e, []])) as unknown as Record<Env, { beat: number; key: string }[]>;
 
   /** @param resScale backing-store px per logical px (set BEFORE the scenes bake, so nothing re-bakes on frame 1) */
   constructor(resScale = 1) {
@@ -82,7 +131,7 @@ export class Stage {
     useLights('grindhouse');
     this.streetLight = new LightingDirector('golden');
     this.barLight = new LightingDirector('bar');
-    this.lights = { street: this.streetLight, bar: this.barLight, facade: new LightingDirector('facade'), lanes: new LightingDirector('blacklight') };
+    this.lights = Object.fromEntries(ENVS.map((e) => [e, e === 'street' ? this.streetLight : e === 'bar' ? this.barLight : new LightingDirector(DEFAULT_KEY[e])])) as Record<Env, LightingDirector>;
     this.street = makeStreet(this.streetLight);
     this.bar = makeBar(this.barLight);
     this.scenes.street = this.street;
@@ -124,12 +173,15 @@ export class Stage {
   update(dt: number, L: RuntimeLevel, beat: number): void {
     if (this.cuesKey !== L) {
       this.cuesKey = L;
-      this.cues = { street: [], bar: [], facade: [], lanes: [] };
+      this.cues = Object.fromEntries(ENVS.map((e) => [e, []])) as unknown as Record<Env, { beat: number; key: string }[]>;
       for (const c of L.skyCues) {
         const key = SKY_TO_LIGHT[c.preset] ?? c.preset;
         if (!LIGHTS[key]) continue;
-        this.cues[KEY_ENV[key] ?? 'street'].push({ beat: c.beat, key });
+        const env = KEY_ENV[key] ?? 'street';
+        this.cues[env].push({ beat: c.beat, key });
+        for (const [d, k2] of LIGHT_ARC[key] ?? []) if (LIGHTS[k2]) this.cues[env].push({ beat: c.beat + d, key: k2 });
       }
+      for (const e of ENVS) this.cues[e].sort((a, b) => a.beat - b.beat);
     }
     const pick = (cues: { beat: number; key: string }[], dflt: string): [string, string, number] => {
       let from = cues[0]?.key ?? dflt;
@@ -150,6 +202,7 @@ export class Stage {
     // act 2: the facade chills as you climb; the Lanes run hot in the chorus
     if (this.scenes.facade) this.apply('facade', ['facade', 'facadeHigh', Math.max(0, Math.min(1, (this.climb - 200) / 1400))]);
     if (this.scenes.lanes) this.apply('lanes', ['blacklight', 'blacklightHot', Math.max(0, Math.min(1, this.chorus))]);
+    for (const e of ['poolroom', 'casino', 'roof', 'penthouse', 'theatre'] as Env[]) if (this.scenes[e]) this.apply(e, pick(this.cues[e], DEFAULT_KEY[e]));
     for (const e of Object.keys(this.scenes) as Env[]) this.scenes[e]?.update(dt);
   }
 
@@ -176,7 +229,21 @@ export class Stage {
   private scene(e: Env): ParallaxScene {
     let sc = this.scenes[e];
     if (!sc) {
-      sc = e === 'facade' ? makeFacade(this.lights.facade) : e === 'lanes' ? makeLanes(this.lights.lanes) : this.street;
+      const Ld = this.lights[e];
+      if (e === 'facade') sc = makeFacade(Ld);
+      else if (e === 'lanes') sc = makeLanes(Ld);
+      else if (e === 'poolroom') sc = makePoolRoom(Ld);
+      else if (e === 'casino') {
+        const c = makeCasino(Ld);
+        c.state = this.casinoState;
+        sc = c;
+      } else if (e === 'roof') sc = makeRoof(Ld);
+      else if (e === 'penthouse') {
+        const p = makePenthouse(Ld);
+        p.state = this.penthouseState;
+        sc = p;
+      } else if (e === 'theatre') sc = makeFilmVoid(Ld);
+      else sc = this.street;
       this.scenes[e] = sc;
     }
     return sc;
@@ -194,10 +261,10 @@ export class Stage {
       this.basesKey = L;
       this.bases.clear();
       for (const bd of this.boundaries(L)) {
-        if (bd.to !== 'lanes' || this.bases.has('lanes')) continue;
+        if (!RAISED.includes(bd.to) || this.bases.has(bd.to)) continue;
         let y = NaN;
         for (let dx = 40; dx < 4000 && Number.isNaN(y); dx += 40) y = L.floorYAt(bd.x + dx);
-        this.bases.set('lanes', Number.isNaN(y) ? 0 : Math.min(0, y));
+        this.bases.set(bd.to, Number.isNaN(y) ? 0 : Math.min(0, y));
       }
     }
     return this.bases.get(env) ?? 0;
@@ -249,7 +316,8 @@ export class Stage {
     const Lt = this.light(env);
     const groundSy = VIEW_H / 2 + (0 - cam.y) * cam.zoom;
     const top = groundSy - 620 * cam.zoom;
-    const rgb = lit(Lt, H(env === 'bar' ? '#1E140E' : env === 'lanes' ? '#120C1E' : env === 'facade' ? '#1A1020' : '#2A1E24'), 0.35);
+    const WASH: Partial<Record<Env, string>> = { bar: '#1E140E', lanes: '#120C1E', facade: '#1A1020', poolroom: '#0E1A12', casino: '#1A0A16', roof: '#2A1024', penthouse: '#120812', theatre: '#0D0A08' };
+    const rgb = lit(Lt, H(WASH[env] ?? '#2A1E24'), 0.35);
     const bar = env !== 'street';
     const g = ctx.createLinearGradient(0, top, 0, groundSy);
     g.addColorStop(0, css(rgb, 0));
@@ -275,8 +343,13 @@ export class Stage {
       if (n.x0 < x0 - 100 || f.x1 > x1 + 100) continue;
       drawLethalPit(ctx, f.x1, n.x0, Math.min(f.y, n.y), pitY, y1, b);
     }
-    for (const f of fl) {
+    for (let fi = 0; fi < fl.length; fi++) {
+      const f = fl[fi];
       if (f.x1 < x0 || f.x0 > x1) continue;
+      const pv = fl[fi - 1];
+      const nx = fl[fi + 1];
+      const prevY = pv && f.x0 - pv.x1 < 4 ? pv.y : NaN;
+      const nextY = nx && nx.x0 - f.x1 < 4 ? nx.y : NaN;
       const a = Math.max(f.x0, x0 - 40);
       const z = Math.min(f.x1, x1 + 40);
       const depth = Math.max(40, Math.min(1400, y1 - f.y + 40));
@@ -288,11 +361,16 @@ export class Stage {
         const rect = { x: sa, y: f.y, w: sz - sa, h: depth };
         const style = { light: this.light(env), capL: sa === f.x0, capR: sz === f.x1 };
         if (env === 'bar') drawBarFloor(ctx, rect, style);
-        else if (env === 'facade') drawFacadeLedge(ctx, rect, style);
+        else if (env === 'facade') drawFireEscape(ctx, rect, style, prevY, nextY);
         else if (env === 'lanes') drawLanesFloor(ctx, rect, style, b);
+        else if (env === 'poolroom') drawFeltFloor(ctx, rect, style);
+        else if (env === 'casino') drawRackFloor(ctx, rect, style, b);
+        else if (env === 'roof') drawRoofFloor(ctx, rect, style);
+        else if (env === 'penthouse') drawPenthouseFloor(ctx, rect, style);
+        else if (env === 'theatre') drawFilmstripFloor(ctx, rect, style, b);
         else drawStreetGround(ctx, rect, { ...style, version: this.streetLight.version });
       }
-      if (f.y > 20 && this.envAt(L, (f.x0 + f.x1) / 2) !== 'facade') drawPuddle(ctx, f.x0, f.x1, f.y, b);
+      if (f.y > 20 && this.envAt(L, (f.x0 + f.x1) / 2) === 'street') drawPuddle(ctx, f.x0, f.x1, f.y, b);
     }
   }
 
@@ -300,6 +378,8 @@ export class Stage {
   drawDoorways(ctx: CanvasRenderingContext2D, L: RuntimeLevel, x0: number, x1: number, b: BeatInfo): void {
     for (const bd of this.boundaries(L)) {
       if (bd.x < x0 - 400 || bd.x > x1 + 400) continue;
+      // act 3's later changes are launches / crashes / the pull-out, not doors
+      if (bd.to === 'roof' || bd.to === 'penthouse' || bd.to === 'theatre' || bd.to === 'casino') continue;
       const fy = L.floorYAt(bd.x + 1);
       drawDoorway(ctx, bd.x, Number.isNaN(fy) ? 0 : fy, bd.to, this.light(bd.to), b);
     }
@@ -408,7 +488,8 @@ function drawDoorway(ctx: CanvasRenderingContext2D, x: number, y: number, to: En
   ctx.fillRect(x - 90, top - 30, 300, 5);
   // neon sign over the door: flickers with the hats, blazes on the kick
   const on = 0.7 + 0.3 * hit(b, 'kick', 0.12);
-  const word = to === 'bar' ? 'HONKY-TONK' : to === 'facade' ? 'FIRE EXIT' : to === 'lanes' ? 'LANES' : '42ND ST';
+  const WORDS: Partial<Record<Env, string>> = { bar: 'HONKY-TONK', facade: 'FIRE EXIT', lanes: 'LANES', poolroom: 'BILLIARDS', casino: 'CASINO', roof: 'ROOF', penthouse: 'PRIVATE', theatre: 'EXIT' };
+  const word = WORDS[to] ?? '42ND ST';
   ctx.save();
   ctx.font = 'italic 54px "Impact", "Haettenschweiler", "Arial Narrow Bold", sans-serif';
   ctx.textAlign = 'center';

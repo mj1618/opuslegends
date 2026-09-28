@@ -34,7 +34,7 @@ export function drawJamLine(
   camFor: (env: string) => ArtCamera = () => cam,
 ): void {
   const envC = envAtWorld(cam.x);
-  if (envC === 'facade') return;
+  if (envC === 'facade' || envC === 'theatre' || envC === 'penthouse') return;
   const v = layerView(camFor(envC), F);
   pushLayer(g, v);
   const want = chorus ? 1 : Math.max(0.25, Math.min(0.85, (energy - 0.35) * 1.4));

@@ -18,19 +18,29 @@ import { drawBigJimGlint, drawThrowWindow } from '../art/grindhouse/facade';
 import { drawRollingBall } from '../art/grindhouse/lanes';
 import { CF } from '../art/palette';
 import type { Lighting } from '../art/world/lighting';
-import { BALL, FIRE, type Mechanics } from '../game/mech';
+import { BALL, FIRE, HOOK, type Mechanics, hookY } from '../game/mech';
 import { bottleArc, bottleProgress } from '../game/mech/thrownBottle';
 import { DANGER, REWARD } from './entityDraw';
 
 const INK = '#1A1410';
 const pt = { x: 0, y: 0 };
 
-export function drawMech(g: CanvasRenderingContext2D, m: Mechanics, wb: number, x0: number, x1: number, clock: number, L?: Lighting, b?: BeatInfo): void {
+export function drawMech(g: CanvasRenderingContext2D, m: Mechanics, wb: number, x0: number, x1: number, clock: number, L?: Lighting, b?: BeatInfo, hero?: { x: number; y: number }): void {
+  // ------------------------------------------------------------ hook rides (rope hoist / laundry line / zip cable / cradle)
+  for (const h of m.hooks ?? []) if (h.x1 > x0 - 600 && h.x0 < x1 + 600) drawHook(g, h, m.hook === h ? hero : undefined, wb, clock);
   // ------------------------------------------------------------ the pre-chorus window crash (behind the entities)
   if (L && b) for (const c of m.setPieces) if (c.name === 'windowCrash' && wb > c.beat - 6 && wb < c.beat + 3) drawCrashWindow(g, c.x + 160, c.floorY, wb - c.beat, L, b, clock);
   // ------------------------------------------------------------ Big Jim's glint
   const glint = m.active('bigJimGlint', wb);
-  if (glint && L && b) drawBigJimGlint(g, glint.cue.x, glint.cue.y, glint.k, L, b);
+  if (glint && L && b) {
+    // 3x: the camera tilts up to it (render/moments.ts) — the window is a real reveal, not a detail
+    g.save();
+    g.translate(glint.cue.x, glint.cue.y);
+    g.scale(3, 3);
+    g.translate(-glint.cue.x, -glint.cue.y);
+    drawBigJimGlint(g, glint.cue.x, glint.cue.y, glint.k, L, b);
+    g.restore();
+  }
   // ------------------------------------------------------------ thrown bottles
   for (const bt of m.bottles) {
     if (bt.state === 'out' || bt.wx < x0 - 400 || Math.min(bt.tx, bt.x) > x1 + 500) continue;
@@ -295,4 +305,161 @@ function drawCrashWindow(g: CanvasRenderingContext2D, x: number, floorY: number,
   g.closePath();
   g.fill();
   void L;
+}
+
+/**
+ * HOOK RIDES (act 2, game/mech/hook.ts): strike ON the beat to hook the cue over it and ride. Reward language on the
+ * grab point (a gold ring + glint the beat before, like every strike target); the rigging itself is terrain-neutral
+ * ink + rope. rope = a counterweight hoist off a pulley beam · line = a sagging laundry line (sheets pinned on it), or a
+ * steep ZIP CABLE when it drops far · cradle = a window-washer's gondola on two cables from a davit arm.
+ */
+function drawHook(g: CanvasRenderingContext2D, h: import('../game/mech').HookRide, hero: { x: number; y: number } | undefined, wb: number, clock: number): void {
+  const hang = HOOK.hang;
+  const p = h.pts;
+  const [gx, gy] = p[0];
+  const [ex, ey] = p[p.length - 1];
+  const riding = !!hero && h.state === 'riding';
+  const hx = riding ? hero!.x : gx;
+  const hy = (riding ? hookY(h, hero!.x) : gy) - hang;
+  g.lineCap = 'round';
+  if (h.style === 'rope') {
+    // pulley beam above the top of the hoist, rope down to the hands, a counterweight sandbag on the far side
+    const px = ex + 40;
+    const py = Math.min(ey, gy) - hang - 170;
+    g.fillStyle = INK;
+    g.fillRect(px - 120, py - 16, 240, 18);
+    g.beginPath();
+    g.arc(px, py + 6, 20, 0, TAU);
+    g.fill();
+    g.fillStyle = '#8A8478';
+    g.beginPath();
+    g.arc(px, py + 6, 9, 0, TAU);
+    g.fill();
+    g.strokeStyle = '#C9A878';
+    g.lineWidth = 6;
+    g.beginPath();
+    g.moveTo(px - 18, py + 6);
+    g.lineTo(riding ? hx : gx, riding ? hy : gy - hang + 60);
+    g.stroke();
+    // counterweight: goes DOWN while you go up
+    const u = riding ? Math.max(0, Math.min(1, (hx - gx) / Math.max(1, ex - gx))) : 0;
+    const cy = py + 120 + (1 - u) * 60 + u * 520;
+    g.beginPath();
+    g.moveTo(px + 18, py + 6);
+    g.lineTo(px + 18, cy);
+    g.stroke();
+    g.fillStyle = '#6A5A48';
+    g.beginPath();
+    g.ellipse(px + 18, cy + 30, 30, 38, 0, 0, TAU);
+    g.fill();
+    g.strokeStyle = INK;
+    g.lineWidth = 4;
+    g.stroke();
+  } else if (h.style === 'line') {
+    const steep = Math.abs(ey - gy) > 300;
+    g.strokeStyle = INK;
+    g.lineWidth = steep ? 7 : 4;
+    g.beginPath();
+    for (let i = 0; i < p.length; i++) {
+      const [x, y] = p[i];
+      if (i === 0) g.moveTo(x - 80, y - hang - 6);
+      g.lineTo(x, y - hang);
+    }
+    g.lineTo(ex + 80, ey - hang - 6);
+    g.stroke();
+    if (steep) {
+      g.strokeStyle = '#8A8478';
+      g.lineWidth = 3;
+      g.stroke();
+      // anchor posts
+      g.fillStyle = INK;
+      g.fillRect(gx - 86, gy - hang - 60, 12, 120);
+    } else {
+      // laundry: sheets + shirts pinned along the line, flapping (pastel, never gold / red)
+      const cols = ['#E9D8B4', '#B9A0E0', '#8FC8C8', '#F4EFE2', '#C9A0B0'];
+      for (let x = gx + 60; x < ex - 40; x += 110) {
+        if (riding && Math.abs(x - hx) < 60) continue;
+        const y = hookY(h, x) - hang;
+        const fl = Math.sin(clock * 5 + x * 0.02) * 6;
+        g.fillStyle = cols[Math.floor(Math.abs(x) / 110) % cols.length];
+        g.beginPath();
+        g.moveTo(x - 30, y);
+        g.lineTo(x + 30, y);
+        g.lineTo(x + 26 + fl, y + 70);
+        g.lineTo(x - 30 + fl, y + 64);
+        g.closePath();
+        g.fill();
+        g.strokeStyle = 'rgba(26,20,16,0.6)';
+        g.lineWidth = 2;
+        g.stroke();
+      }
+    }
+  } else {
+    // CRADLE: a gondola on two cables from a davit arm high above; the platform rides under the hero
+    const cx = riding ? hx : gx;
+    const floor = riding ? hookY(h, hero!.x) : gy;
+    const top = Math.min(gy, ey) - hang - 420;
+    g.fillStyle = INK;
+    g.fillRect(cx - 140, top - 14, 320, 16);
+    g.strokeStyle = '#8A8478';
+    g.lineWidth = 4;
+    g.beginPath();
+    g.moveTo(cx - 90, top);
+    g.lineTo(cx - 90, floor - 90);
+    g.moveTo(cx + 90, top);
+    g.lineTo(cx + 90, floor - 90);
+    g.stroke();
+    // the gondola: rail + deck (the walkable top is the deck)
+    g.strokeStyle = INK;
+    g.lineWidth = 6;
+    g.beginPath();
+    g.moveTo(cx - 110, floor - 90);
+    g.lineTo(cx + 110, floor - 90);
+    g.moveTo(cx - 110, floor - 90);
+    g.lineTo(cx - 110, floor);
+    g.moveTo(cx + 110, floor - 90);
+    g.lineTo(cx + 110, floor);
+    g.stroke();
+    g.fillStyle = '#5A6068';
+    g.fillRect(cx - 116, floor, 232, 16);
+    g.fillStyle = '#F4EFE2';
+    g.fillRect(cx - 116, floor - 3, 232, 3);
+    g.fillStyle = '#2E7F86';
+    g.fillRect(cx - 110, floor - 40, 220, 26);
+    g.fillStyle = '#F4EFE2';
+    g.font = 'bold 18px "Arial Black", Impact, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('SPARKLE WINDOW CO.', cx, floor - 27);
+  }
+  // the grab point: reward language (a gold ring tightening + a glint the beat before)
+  if (!riding && h.state !== 'done') {
+    const d = wb - h.beat;
+    if (d > -2 && d < 0.5) {
+      const k = Math.max(0, Math.min(1, (d + 2) / 2));
+      const hyG = gy - hang;
+      g.strokeStyle = REWARD.gold;
+      g.lineWidth = 5 + 4 * k;
+      g.globalAlpha = 0.5 + 0.5 * k;
+      g.beginPath();
+      g.arc(gx, hyG, 70 - 40 * k, 0, TAU);
+      g.stroke();
+      g.globalAlpha = 1;
+      if (d > -1.2 && d < 0.1) star4(g, gx + 20, hyG - 20, 30 * (1 - Math.abs(d + 0.5)), clock, 'rgba(255,232,150,0.95)');
+    }
+  }
+  // riding: the cue hooked over the line/rope above his hands
+  if (riding) {
+    g.strokeStyle = '#E7C48A';
+    g.lineWidth = 7;
+    g.beginPath();
+    g.moveTo(hero!.x - 30, hy + 40);
+    g.lineTo(hero!.x + 30, hy - 12);
+    g.stroke();
+    g.strokeStyle = INK;
+    g.lineWidth = 3;
+    g.beginPath();
+    g.arc(hero!.x + 30, hy, 12, Math.PI, TAU * 0.9);
+    g.stroke();
+  }
 }

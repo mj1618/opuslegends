@@ -66,6 +66,9 @@ export class Moments {
   private shotPunch = 0;
   private wordN = -1;
   private lastShotCue = -1;
+  /** 0..1 the glint tilt-up; seconds since the window crash (-1 = none) */
+  glintK = 0;
+  crashT = -1;
   /** hero screen pos (set by the renderer each frame) */
   heroSx = 0;
   heroSy = 0;
@@ -81,6 +84,59 @@ export class Moments {
       /* no beat map: no walkdowns */
     }
     for (let i = 0; i < 64; i++) this.debris.push({ on: false, x: 0, y: 0, vx: 0, vy: 0, rot: 0, vr: 0, kind: 0, t: 0, s: 1 });
+  }
+
+  /** the WINDOW CRASH over the whole frame: a white pop, radial cracks from the hero, big shards flying at the lens */
+  private drawShatter(g: CanvasRenderingContext2D, t: number): void {
+    const cx = this.heroSx + 120;
+    const cy = this.heroSy - 90;
+    if (t < 0.12) {
+      g.fillStyle = `rgba(230,240,255,${0.55 * (1 - t / 0.12)})`;
+      g.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
+    const a = Math.max(0, 1 - t / 1.1);
+    // radial crack lines (the pane between us and the camera)
+    if (t < 0.5) {
+      g.strokeStyle = `rgba(240,248,255,${0.8 * (1 - t / 0.5)})`;
+      g.lineWidth = 3;
+      for (let i = 0; i < 14; i++) {
+        const ang = (i / 14) * TAU + hash(i) * 0.3;
+        let x = cx;
+        let y = cy;
+        g.beginPath();
+        g.moveTo(x, y);
+        for (let k = 0; k < 5; k++) {
+          x += Math.cos(ang + (hash(i * 5 + k) - 0.5) * 0.5) * 220;
+          y += Math.sin(ang + (hash(i * 5 + k) - 0.5) * 0.5) * 220;
+          g.lineTo(x, y);
+        }
+        g.stroke();
+      }
+    }
+    // shards flying toward the lens (growing), UV-tinted edges
+    for (let i = 0; i < 22; i++) {
+      const ang = hash(i + 40) * TAU;
+      const sp = 500 + hash(i + 41) * 1400;
+      const x = cx + Math.cos(ang) * sp * t;
+      const y = cy + Math.sin(ang) * sp * t + 500 * t * t;
+      const s = (18 + hash(i + 42) * 50) * (1 + t * 2.5);
+      g.save();
+      g.translate(x, y);
+      g.rotate(t * (4 + i) + i);
+      g.globalAlpha = a;
+      g.fillStyle = i % 3 ? 'rgba(210,230,245,0.55)' : 'rgba(63,240,224,0.5)';
+      g.beginPath();
+      g.moveTo(-s, -s * 0.4);
+      g.lineTo(s * 0.8, -s * 0.2);
+      g.lineTo(-s * 0.1, s);
+      g.closePath();
+      g.fill();
+      g.strokeStyle = 'rgba(255,255,255,0.9)';
+      g.lineWidth = 2;
+      g.stroke();
+      g.restore();
+    }
+    g.globalAlpha = 1;
   }
 
   private rand(): number {
@@ -140,8 +196,24 @@ export class Moments {
       }
     }
     // --- camera: pull out + look up on the launch, punch in on smashes
-    cam.momentZoom = -0.16 * this.launchK + this.punch - 0.04 * this.shotPunch;
-    cam.momentY = -150 * this.launchK;
+    // act 2's BIG JIM GLINT (stop-time): the camera stops and tilts UP to his window for the hole in the music;
+    // the WINDOW CRASH: a full-frame shatter + punch as the Heave goes through the glass
+    let glintK = 0;
+    this.crashT = -1;
+    for (const sp of L.setPieces) {
+      if (sp.name === 'bigJimGlint') {
+        const u = (wb - sp.beat) / Math.max(1, sp.beats);
+        if (u > -0.3 && u < 1.2) glintK = Math.max(glintK, u < 0 ? (u + 0.3) / 0.3 : u < 0.75 ? 1 : 1 - (u - 0.75) / 0.45);
+      } else if (sp.name === 'windowCrash') {
+        const d = wb - sp.beat;
+        if (d >= 0 && d < 3) this.crashT = d * feed.info.spb;
+      }
+    }
+    glintK = glintK * glintK * (3 - 2 * glintK);
+    this.glintK = glintK;
+    if (this.crashT >= 0 && this.crashT < 0.05) this.punch = Math.max(this.punch, 0.08);
+    cam.momentZoom = -0.16 * this.launchK + this.punch - 0.04 * this.shotPunch - 0.1 * glintK;
+    cam.momentY = -150 * this.launchK - 460 * glintK;
     this.punch *= Math.exp(-dt / 0.1);
     this.freeze *= Math.exp(-dt / 0.14);
     this.shotPunch *= Math.exp(-dt / 0.5);
@@ -294,6 +366,7 @@ export class Moments {
    * the giant-smash flash / lines / comic stamp. `toScreen` maps world -> screen.
    */
   drawScreen(g: CanvasRenderingContext2D, b: BeatInfo, toScreen: (x: number, y: number) => [number, number]): void {
+    if (this.crashT >= 0 && this.crashT < 1.1) this.drawShatter(g, this.crashT);
     const hx = this.heroSx;
     const hy = this.heroSy;
     // --- chorus: key follow-spot from the top + a dark iris around the star

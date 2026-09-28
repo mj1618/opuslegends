@@ -32,6 +32,7 @@ import { type ArtCamera, HORIZON_Y, layerView, pushLayer } from '../world/camera
 import { type Lighting, type LightingDirector, atmos, lit } from '../world/lighting';
 import { ParallaxScene, type SceneFrame, skyLayer, stripLayer } from '../world/parallax';
 import { type JammerColours, drawJammer } from './jammers';
+import { JIM_NORM, drawBigJim } from './bigjim';
 import './lights';
 
 const H = hex;
@@ -635,40 +636,112 @@ export function drawBigJimGlint(g: Ctx, x: number, y: number, k: number, L: Ligh
   gr.addColorStop(1, '#2E1428');
   g.fillStyle = gr;
   g.fillRect(-w / 2, -h / 2, w, h);
-  // Big Jim: a pear-shaped velvet mass filling the window
-  g.fillStyle = '#140810';
-  g.beginPath();
-  g.moveTo(-w / 2 + 4, h / 2);
-  g.bezierCurveTo(-w / 2 - 10, 10, -60, -30, -38, -50);
-  g.bezierCurveTo(-30, -110, 30, -110, 38, -50);
-  g.bezierCurveTo(60, -30, w / 2 + 10, 10, w / 2 - 4, h / 2);
-  g.closePath();
-  g.fill();
-  // gold chain
-  g.strokeStyle = CF.gold;
-  g.lineWidth = 4;
-  g.beginPath();
-  g.arc(0, -20, 34, 0.35, Math.PI - 0.35);
-  g.stroke();
-  // the aviators (chrome) + the GLINT on the kick / stab
+  // BIG JIM himself (the real rig, small): backlit in his window, a slow smug lean, lenses blazing on the stab
   const glint = Math.max(hit(b, 'piano', 0.2), hit(b, 'kick', 0.1) * 0.6);
-  for (const s of [-1, 1]) {
-    g.fillStyle = CF.chrome;
-    g.beginPath();
-    g.ellipse(s * 20, -66, 17, 12, s * 0.1, 0, TAU);
-    g.fill();
-    g.fillStyle = 'rgba(255,255,255,0.7)';
-    g.beginPath();
-    g.ellipse(s * 20 - 5, -70, 6, 3, -0.4, 0, TAU);
-    g.fill();
-  }
-  g.fillStyle = CF.chrome;
-  g.fillRect(-4, -68, 8, 3);
+  g.save();
+  g.beginPath();
+  g.rect(-w / 2, -h / 2, w, h);
+  g.clip();
+  drawBigJim(g, 0, h / 2 + 60, 0.26, { time: b.time, beat: b.beat, blaze: glint, reflect: 0.2, light: L, lod: 0, lift: [0.9, 0.2] });
+  g.restore();
+  // window mullions over him
+  g.fillStyle = '#1A0E16';
+  g.fillRect(-4, -h / 2, 8, h);
   g.restore();
   const flash = 0.5 + 0.5 * glint;
-  drawGlow(g, x + 20, y - 66, '#FFFFFF', 90 + 60 * glint, 0.5 * flash * a);
-  star4(g, x + 26, y - 72, 40 + 50 * glint, b.beat * 0.4, `rgba(255,255,255,${0.9 * a})`);
-  star4(g, x - 14, y - 72, 22 + 30 * glint, -b.beat * 0.3, `rgba(255,255,255,${0.7 * a})`);
+  const ly = y + h / 2 + 60 - 1100 * 0.26 * JIM_NORM;
+  drawGlow(g, x + 22, ly, '#FFFFFF', 90 + 60 * glint, 0.5 * flash * a);
+  star4(g, x + 26, ly - 4, 40 + 50 * glint, b.beat * 0.4, `rgba(255,255,255,${0.9 * a})`);
+  star4(g, x - 22, ly - 4, 22 + 30 * glint, -b.beat * 0.3, `rgba(255,255,255,${0.7 * a})`);
+}
+
+/**
+ * The CLIMB's terrain above the street (iteration 4): see-through IRON FIRE ESCAPES so the wall (and the street far
+ * below) stays visible under you. `prevY`/`nextY` = the neighbouring spans' tops when they touch this one: a short span
+ * with a small rise to its neighbour is a STAIR TREAD (stringer + handrail following the flight), a wider one a
+ * LANDING (grating, fascia, a railing behind, brackets back to the wall). Long spans (roofs) keep the stone cornice.
+ */
+export function drawFireEscape(g: Ctx, rect: { x: number; y: number; w: number; h: number }, style: { light: Lighting; capL?: boolean; capR?: boolean }, prevY: number, nextY: number): void {
+  const L = style.light;
+  const { x, y, w } = rect;
+  if (y > -40 || w > 900) return drawFacadeLedge(g, rect, style);
+  const iron = css(lit(L, H('#2A2630'), 0.8, 0));
+  const ironHi = css(lit(L, H('#6A6478'), 1, 0));
+  const riseP = Number.isNaN(prevY) ? NaN : prevY - y; // >0 = we're higher than the span on our left
+  const tread = w < 170 && ((riseP > 2 && riseP < 45) || (!Number.isNaN(nextY) && y - nextY > 2 && y - nextY < 45));
+  if (tread) {
+    // stringer: a diagonal beam from the previous tread up to this one
+    const r = Number.isNaN(riseP) || riseP <= 0 ? 24 : riseP;
+    g.strokeStyle = CF.filmBlack;
+    g.lineWidth = 14;
+    g.beginPath();
+    g.moveTo(x - w * 0.2, y + 14 + r);
+    g.lineTo(x + w, y + 14);
+    g.stroke();
+    g.strokeStyle = iron;
+    g.lineWidth = 8;
+    g.stroke();
+    // handrail following the flight + a baluster
+    g.strokeStyle = ironHi;
+    g.lineWidth = 4;
+    g.beginPath();
+    g.moveTo(x - w * 0.2, y - 64 + r);
+    g.lineTo(x + w, y - 64);
+    g.moveTo(x + w * 0.5, y - 2);
+    g.lineTo(x + w * 0.5, y - 64 + r * 0.4);
+    g.stroke();
+    // the tread plate
+    g.fillStyle = iron;
+    g.fillRect(x, y, w, 10);
+  } else {
+    // landing: railing behind, grating, fascia, brackets to the wall
+    g.strokeStyle = ironHi;
+    g.lineWidth = 4;
+    g.beginPath();
+    g.moveTo(x, y - 70);
+    g.lineTo(x + w, y - 70);
+    for (let px = x + 8; px < x + w; px += 36) {
+      g.moveTo(px, y - 70);
+      g.lineTo(px, y);
+    }
+    g.stroke();
+    g.fillStyle = iron;
+    g.fillRect(x, y, w, 14);
+    g.fillStyle = 'rgba(0,0,0,0.55)';
+    for (let px = x + 6; px < x + w - 4; px += 12) g.fillRect(px, y + 3, 4, 8);
+    g.fillStyle = css(lit(L, H('#3A3440'), 0.9, 0));
+    g.fillRect(x, y + 14, w, 8);
+    g.strokeStyle = CF.filmBlack;
+    g.lineWidth = 7;
+    g.beginPath();
+    for (let px = x + 30; px < x + w - 10; px += 170) {
+      g.moveTo(px, y + 20);
+      g.lineTo(px + 60, y + 100);
+      g.lineTo(px + 60, y + 20);
+    }
+    g.stroke();
+    // a drop ladder hanging from the landing's far end
+    if (w > 260) {
+      g.strokeStyle = iron;
+      g.lineWidth = 5;
+      g.beginPath();
+      const lx = x + w - 60;
+      g.moveTo(lx, y + 20);
+      g.lineTo(lx, y + 170);
+      g.moveTo(lx + 30, y + 20);
+      g.lineTo(lx + 30, y + 170);
+      for (let ry = y + 40; ry < y + 170; ry += 26) {
+        g.moveTo(lx, ry);
+        g.lineTo(lx + 30, ry);
+      }
+      g.stroke();
+    }
+  }
+  // walkable-top rule: black edge + cream lip
+  g.fillStyle = CF.filmBlack;
+  g.fillRect(x, y - 1, w, 5);
+  g.fillStyle = '#F4EFE2';
+  g.fillRect(x, y - 3, w, 3);
 }
 
 /** play-layer floor on the facade: iron fire-escape landing on a stone cornice, the building wall below */
@@ -677,7 +750,7 @@ export function drawFacadeLedge(g: Ctx, rect: { x: number; y: number; w: number;
   const { x, y, w } = rect;
   const hh = Math.min(rect.h, 1400);
   // the wall below the ledge (the building's own face at play depth)
-  g.fillStyle = css(lit(L, H('#4A2820'), 0.55, 0.02));
+  g.fillStyle = css(lit(L, H('#6B3A2E'), 0.8, 0.02));
   g.fillRect(x, y + 34, w, hh - 34);
   let pat = patterns.get(g);
   if (!pat) {
@@ -686,6 +759,15 @@ export function drawFacadeLedge(g: Ctx, rect: { x: number; y: number; w: number;
   }
   g.fillStyle = pat;
   g.fillRect(x, y + 34, w, hh - 34);
+  // lit windows down the wall below (the building goes on down: you're HIGH)
+  for (let wy = y + 150; wy < y + hh - 40; wy += 290)
+    for (let wx = Math.ceil((x + 60) / 250) * 250; wx < x + w - 80; wx += 250) {
+      const on = hash(wx * 0.37 + wy * 0.11) < 0.45;
+      g.fillStyle = on ? css(lit(L, H('#F2D8A0'), 1, 0), 0.25 + 0.6 * L.lamps) : 'rgba(20,12,20,0.85)';
+      g.fillRect(wx, wy, 70, 110);
+      g.fillStyle = 'rgba(20,12,20,0.9)';
+      g.fillRect(wx + 33, wy, 4, 110);
+    }
   // shadow cast by the ledge
   const sh = g.createLinearGradient(0, y + 34, 0, y + 140);
   sh.addColorStop(0, 'rgba(8,4,10,0.6)');

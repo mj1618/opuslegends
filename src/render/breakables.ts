@@ -22,8 +22,15 @@ import { TAU, clamp01, easeOut } from '../art/core/math';
 import { CF } from '../art/palette';
 import { blobPath } from '../art/rig/parts';
 import { REWARD, type SkinCtx, fillInk, roundRectPath } from './entityDraw';
+import { drawJimBust, drawJimLens } from '../art/grindhouse/bigjim';
+import { drawBallRack, drawBarBell } from '../art/grindhouse/poolroom';
+import { drawChipTower, drawHeadGoon } from '../art/grindhouse/casino';
+import { drawSkylight } from '../art/grindhouse/roof';
+import { drawDecanter, drawGlassWall } from '../art/grindhouse/penthouse';
 
 const INK = CF.filmBlack;
+/** a neutral light for act-3 props drawn with lit(): key white, ambient mid */
+const LIT_NONE = { key: [255, 255, 255], amb: [150, 140, 150], haze: [0, 0, 0], hazeK: 0, bgDesat: 0, parchment: 0 };
 
 export interface BreakableView {
   x: number;
@@ -60,6 +67,12 @@ const FAMILIES: Record<string, { small: string[]; big: string[] }> = {
   bar: { small: ['bottle', 'neon', 'bottle', 'jug'], big: ['keg', 'jukebox'] },
   facade: { small: ['pane', 'pot', 'pane'], big: ['pane'] },
   lanes: { small: ['pin'], big: ['pin'] },
+  // act 3
+  poolroom: { small: ['bell', 'balls', 'bottle'], big: ['jukebox'] },
+  casino: { small: ['chips', 'bottle'], big: ['chips'] },
+  roof: { small: ['letterNeon', 'skylight'], big: ['skylight'] },
+  penthouse: { small: ['decanter', 'bell'], big: ['glasswall'] },
+  theatre: { small: ['popcorn'], big: ['finalHit'] },
 };
 
 /** looks that are section-neutral hints (re-skinned per family) */
@@ -67,8 +80,9 @@ const NEUTRAL = new Set(['bottle', 'crate', 'glass', 'jug']);
 
 /** the look to draw: an explicit family look wins; neutral hints are re-skinned by section */
 export function pickLook(look: string, env: string, mode: string, big: boolean, seed: number): string {
+  if (look === 'glass' && env === 'penthouse') return 'glasswall';
   if (!NEUTRAL.has(look) && LOOKS[look]) return look;
-  const fam = env === 'bar' ? 'bar' : env === 'facade' ? 'facade' : env === 'lanes' ? 'lanes' : /roof/.test(mode) ? 'rooftops' : 'street';
+  const fam = FAMILIES[env] && env !== 'street' && env !== 'rooftops' ? env : /roof/.test(mode) ? 'rooftops' : 'street';
   if (fam === 'bar' && (look === 'glass' || look === 'jug') && !big) return look; // authored bar glassware stays
   const f = FAMILIES[fam];
   const list = big ? f.big : f.small;
@@ -575,6 +589,166 @@ const LOOKS: Record<string, Look> = {
 
 /** the level's name for a window pane */
 LOOKS.window = LOOKS.pane;
+
+// ---------------------------------------------------------------- act 3 (art/grindhouse: poolroom, casino, roof, penthouse, bigjim)
+const at = (fn: (g: Ctx) => void, support: Support, shard: string): Look => ({ support, shard, draw: (g) => fn(g) });
+LOOKS.balls = at((g) => drawBallRack(g, 30), 'stand', '#E0B64A');
+LOOKS.bell = at((g) => drawBarBell(g, 30), 'post', '#E0B64A');
+LOOKS.chips = {
+  support: 'none',
+  shard: '#2E7F86',
+  draw(g, c, seed) {
+    // a teetering chip tower (drawn from its base at +30)
+    drawChipTower(g, 0, 30, 0.6, { ...LIT_NONE, lamps: 1 } as never, seed);
+    void c;
+  },
+};
+LOOKS.headGoon = { support: 'none', shard: '#E0B64A', draw: (g, c) => drawHeadGoon(g, 30, c.time, 0) };
+LOOKS.skylight = at((g) => drawSkylight(g, 30, 0), 'none', '#F4EFE2');
+LOOKS.letterNeon = {
+  support: 'post',
+  shard: '#FF5C9A',
+  draw(g, c, seed) {
+    // a rose NEON star tube in a steel bracket (buzzes on the hats)
+    const buzz = hit(c.b, 'hat', 0.05);
+    g.beginPath();
+    g.rect(-30, -30, 60, 60);
+    fillInk(g, '#2A1A26', 3);
+    g.save();
+    g.rotate(seed * 0.7);
+    g.beginPath();
+    for (let i = 0; i <= 10; i++) {
+      const a = (i / 10) * TAU - Math.PI / 2;
+      const rr = i % 2 ? 11 : 24;
+      g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    g.closePath();
+    g.lineWidth = 9;
+    g.strokeStyle = 'rgba(255,92,154,0.45)';
+    g.stroke();
+    g.lineWidth = 4;
+    g.strokeStyle = buzz > 0.5 ? '#FFFFFF' : '#FFC2DA';
+    g.stroke();
+    g.restore();
+    drawGlow(g, 0, 0, '#FF5C9A', 60, 0.4 + 0.3 * buzz);
+  },
+};
+LOOKS.fist = {
+  support: 'none',
+  shard: '#E0B64A',
+  draw(g) {
+    // a GOLD knuckle-duster fist (his punch, coming at you)
+    g.beginPath();
+    g.roundRect(-34, -28, 68, 56, 16);
+    fillInk(g, '#E0B64A', 3);
+    for (let i = 0; i < 4; i++) {
+      g.beginPath();
+      g.arc(-24 + i * 16, -28, 9, Math.PI, TAU);
+      fillInk(g, '#FFE08A', 2);
+    }
+    g.fillStyle = '#8A6A1E';
+    g.fillRect(-30, -6, 60, 5);
+    g.beginPath();
+    g.ellipse(-18, 14, 20, 9, -0.2, 0, TAU);
+    fillInk(g, '#C9A040', 2);
+  },
+};
+LOOKS.lapel = {
+  support: 'none',
+  shard: '#E0B64A',
+  draw(g) {
+    // his gold "$" lapel pin, the size of a manhole
+    g.beginPath();
+    g.arc(0, 0, 30, 0, TAU);
+    fillInk(g, '#E0B64A', 3);
+    g.strokeStyle = '#8A6A1E';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.arc(0, 0, 23, 0, TAU);
+    g.stroke();
+    label(g, '$', 0, 2, 34, '#8A6A1E');
+  },
+};
+LOOKS.jaw = at((g) => drawJimBust(g, 34, 0, 0), 'none', '#E0B64A');
+LOOKS.lens = {
+  support: 'none',
+  shard: '#DCE8F0',
+  draw(g, c) {
+    drawJimLens(g, 0, 0, 0.42, -1, { crack: 0, crackT: NaN, reflect: 0.6, reflectX: 0, blaze: 0, time: c.time });
+  },
+};
+LOOKS.decanter = at((g) => drawDecanter(g, 30), 'stool', '#DCE8F0');
+LOOKS.glasswall = { support: 'none', shard: '#DCE8F0', draw: (g, c) => drawGlassWall(g, 30, c.time) };
+LOOKS.chain = {
+  support: 'none',
+  shard: '#E0B64A',
+  draw(g) {
+    g.strokeStyle = '#1A1410';
+    g.lineWidth = 9;
+    g.beginPath();
+    g.arc(0, -16, 30, 0.1 * Math.PI, 0.9 * Math.PI);
+    g.stroke();
+    g.strokeStyle = '#E0B64A';
+    g.lineWidth = 5;
+    g.setLineDash([8, 4]);
+    g.stroke();
+    g.setLineDash([]);
+    g.beginPath();
+    g.arc(0, 18, 16, 0, TAU);
+    fillInk(g, '#E0B64A', 3);
+    label(g, 'BJ', 0, 19, 12, '#8A6A1E');
+  },
+};
+LOOKS.popcorn = {
+  support: 'none',
+  shard: '#FFF6E8',
+  draw(g) {
+    // a striped popcorn bucket (cream + rose: no danger red), overflowing
+    g.beginPath();
+    g.moveTo(-22, -16);
+    g.lineTo(22, -16);
+    g.lineTo(16, 30);
+    g.lineTo(-16, 30);
+    g.closePath();
+    fillInk(g, '#FFF6E8', 3);
+    g.fillStyle = '#E8577A';
+    for (let i = -1; i <= 1; i++) {
+      g.beginPath();
+      g.moveTo(i * 14 - 4, -16);
+      g.lineTo(i * 14 + 4, -16);
+      g.lineTo(i * 11 + 3, 30);
+      g.lineTo(i * 11 - 3, 30);
+      g.fill();
+    }
+    g.fillStyle = '#FFF0B8';
+    for (let i = 0; i < 7; i++) {
+      g.beginPath();
+      g.arc(-18 + i * 6, -20 - (i % 2) * 6, 7, 0, TAU);
+      g.fill();
+    }
+  },
+};
+LOOKS.finalHit = {
+  support: 'none',
+  shard: '#FFE08A',
+  draw(g, c) {
+    // THE FINAL HIT: a gold starburst with HEY! (the last thing you hit in the picture)
+    const p = 1 + 0.1 * hit(c.b, 'kick', 0.2);
+    g.save();
+    g.scale(p, p);
+    g.beginPath();
+    for (let i = 0; i <= 16; i++) {
+      const a = (i / 16) * TAU;
+      const rr = i % 2 ? 22 : 40;
+      g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    g.closePath();
+    fillInk(g, '#E0B64A', 3);
+    label(g, 'HEY!', 0, 2, 16, '#1A1410');
+    g.restore();
+  },
+};
+LOOKS.jukebox ??= LOOKS.keg;
 
 // ------------------------------------------------------------------ supports
 
