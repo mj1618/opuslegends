@@ -120,7 +120,7 @@ DPR 1 and 2 with everything on; renderer JS avg 0.9–1.7 ms, p95 ≤ 2.4 ms.
   reveal. The rack (goons piling in per tier, the frame, the scatter numbered like balls), the letters (legs, topple,
   camera shake on each SLAM), the hush (sepia hold + changeover dot), the finale IRIS aiming at his face and SLAMMING
   on 340, then the ending in SECONDS (`ENDING`: THE END until 3.0 s, victory, the poster waits until 6.2 s). The
-  renderer squeezes the whole film into the theatre screen for the PULL-OUT (`pullK`, `hall`). Poster: the real tiny
+  renderer squeezed the whole film into the theatre screen for the PULL-OUT (iteration 5: replaced by the full-frame curtain frame, see below; `drawAuditorium` stays in the lab). Poster: the real tiny
   Big Jim (cracked lenses), snipes HELD OVER! / BROKE THE RACK! / LENSES CRACKED n/2, "THE COMPLETE PICTURE".
 - **Act-3 skins in render**: breakable looks balls / bell / chips / headGoon / skylight / letterNeon / fist / lapel / jaw /
   lens / decanter / glasswall / chain / popcorn / finalHit (+ families per env for neutral hints); pendulums = green
@@ -142,6 +142,46 @@ DPR 1 and 2 with everything on; renderer JS avg 0.9–1.7 ms, p95 ≤ 2.4 ms.
   the art tools' Vite servers run without HMR/watch (other agents edit the tree mid-run).
 - Measured (M5 Pro, GPU, 1920×1080): 60 fps in every act-3 scene and the reworked act 2 at DPR 1 and 2 (p50 16.7 ms,
   p95 ≤ 18.4 ms); renderer JS avg 1.0–1.4 ms, p95 ≤ 2.0 ms (one ~25–30 ms spike when a scene is first baked on entry).
+
+## Iteration 5 (polish: review iter4 fixes 1, 8, 9 + the visual halves of 4 and 5)
+- **THE FINALE LANDS** (`render/act3Draw.ts`, `art/grindhouse/finale.ts`, `ENDING` in seconds from the final hit): the film
+  stays FULL-FRAME through 340 — no more squeeze into a small screen: from the `pullOut` cue (332) red velvet swags + a
+  gold-fringed valance creep over the frame's edges (`drawCurtainFrame`) and the MEANWHILE marquee cut-in slides in top
+  LEFT (clear of Big Jim's frame); the iris before the hit is a vignette whose blades only creep in at the corners. ON 340:
+  the renderer FREEZES the strike (a copy of the finished film frame, taken on the finalHit's contact, ~0.1 s; a late or
+  missing swing freezes by 0.22 s), pushes in on it (+16 %, sepia warming), a light burst at the target
+  (`drawFinalBurst`: white-out, gold rays, shock ring), Big Jim flattened into a pancake in his film frame with KO stars,
+  the house ERUPTS in front of the screen (`drawEruption`: jumping silhouettes, popcorn, confetti cannons, deterministic in
+  T), and the iris SLAMS shut on Slim by 0.6 s. THE END burns in faster (black 0.1 s, burn 0.35-1.25 s), dips to black,
+  then a clean cut (no double exposure) to the VICTORY (`drawVictory`: the iris opens on Slim at 2.7x on Big Jim's throne,
+  a gold/rose sunburst, the follow-spot, a slow push-in, the marquee over the throne now reading SLIM CHANCE in chasing
+  bulbs); the poster at 6.6 s. The HUD fades out on 332 and stays off through the poster; no game flash over the burst.
+- **The drop's reveal** (`Renderer.drawRevealCurtain`): the casino's velvet drape hangs at the roof's edge (the ground
+  cue's x) and hides the sunset until the roof's `sunset` sky cue (272), then flies up in 0.6 beat. **Landed letters** are
+  walkable floor: a riveted steel deck with the terrain cream lip along the bridge, the tubes blow on the SLAM and relight
+  at half power (no more dead dashed outlines).
+- **HUD** (`screens.ts drawHud(…, A)`, `feedback.ts`): two quiet clusters on soft dark plates (left: tokens, targets, the
+  audience meter; right: metronome + the combo right under it); "BAR n" only with the debug overlay (1-based); ONE grade
+  stamp at a time (the newest knocks the old one away in 90 ms), stamps shrink at combo 8 / 24.
+- **Pool Room call and response** (`Act3Art.drawCallGoons / drawCallRings`): a foreground goon per call stomp (1 · &2 · 3,
+  from the `stomps` lane inside each `callResponse` window) stands 0.9 beat ahead of Slim under his own lamp cone, knee
+  up, STOMP (dust + shock ring), then leaps back out of the lane; each stomp fires a gold shot to the spot the answer lands
+  on one bar later, where a gold ring waits and closes like an approach circle onto the target (bell ring / felt ellipse)
+  ON its beat, then bursts. The level's call push-ins (`cam`) frame it.
+- **Mid-act visual beats** (`render/beats.ts` VisualBeats, from the level's `setPiece` cues — `doorKick signDrop spotlights
+  brawl houseLights lightChase streetReveal searchlights tenants` — with a default schedule for any it lacks, + `rain`
+  37-42): the honky-tonk doors kicked open (lamp flare + splinters), the BEER sign snapping a chain and CRASHING on its
+  cue, house lights down to three follow-spots tracking Slim with the audience standing into the light, a backlit bar
+  brawl behind the counter (haymakers on the beat, chairs/bottles on the HEYs via `Director.brawl`), the house lights
+  back up; the facade's windows lighting one per beat ahead of Slim, rain + lightning on the climb, the street far below
+  (traffic streaks + a siren wash), moon + searchlights on the roof, tenants throwing their windows open to yell.
+  Deterministic in the world beat (rewind-safe); gated to their environment.
+- **Pre-warm** (`Stage.prewarm`, `Renderer.warm`): during the title / cold open / count-in / pauses, one step per frame
+  builds + draws every scene and its floor into a throwaway canvas, allocates the freeze buffer, then draws the whole
+  level's play layer window by window. The 20-25 ms first-draw spike (the honky-tonk's first low sign at 66.7) is gone;
+  worst in-play frame on a full run ≤ ~8 ms JS.
+- Tools (not committed, `playtest/out-art-tools/`): `beatshots.mjs` = beat-exact canvas captures of the real game +
+  per-frame renderer ms (`--beats= --after=<s after 340> --expr= --init=`), `sheet.py` contact sheets.
 
 ## Integration recipe (per frame)
 ```ts
@@ -236,4 +276,6 @@ kind a generic silhouette in its class until bespoke art lands.
 The title marquee still uses type for Big Jim (the rig could star there); the roof's sun can sit behind a far tower; the facade's light-well gaps are fixed
 by layer x (not aligned to level beats); window-pane breakables stand on a glazier's A-frame; the Bluffer is a single rigid puppet (no rig); the scene
 split at the doorway is a hard clip (fine behind the door frame, visible if the camera lingers); flying debris is
-screen-space (does not parallax); scene splits between act-3 environments are hard clips (hidden by the KRAK flash / launch).
+screen-space (does not parallax); scene splits between act-3 environments are hard clips (hidden by the KRAK flash / launch,
+the drop's curtain); the mid-act beats' background figures are screen-space (no true parallax); the victory throne still
+carries Big Jim's BJ crest under the marquee.

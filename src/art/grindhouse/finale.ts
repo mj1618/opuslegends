@@ -10,7 +10,9 @@
  *   drawIris(g, cx, cy, r, rot, a)     the projector IRIS: black with a 9-blade polygonal aperture of radius r
  *   drawTheEnd(g, t, b)                black -> the film SNAPS and flaps -> THE END burns in (cigarette-burn edges)
  *   drawVictory(g, t, b, slim)         a second iris opens on Slim's victory pose on the throne of pool tables, the
- *                                      ex-goons applauding (the renderer passes a Slim drawer)
+ *                                      ex-goons applauding, a sunburst, the SLIM CHANCE marquee (the renderer passes a Slim drawer)
+ *   drawCurtainFrame(g, k, b)          iteration 5: the full-frame finale's theatre (curtain swags + valance over the edges)
+ *   drawFinalBurst(g, T, x, y)         the final hit's light burst · drawEruption(g, T, b) the house on its feet (confetti)
  *   drawFilmstripFloor(g, rect, style) the finale's floor: the level flattened into a FILM STRIP (sprocket holes,
  *                                      frame lines, tiny frames of the reels you played)
  *   drawIrisBlade(g, x, y, w, ang, L)  one iris blade as a tilted platform (blackened steel, a cream lip)

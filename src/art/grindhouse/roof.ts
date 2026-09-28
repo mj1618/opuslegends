@@ -201,7 +201,7 @@ export function makeRoof(light: LightingDirector): ParallaxScene {
         });
         layer.eachAnchor(v, 'smoke', 200, (a, x) => {
           for (let i = 0; i < 4; i++) {
-            const u = (f.b.time * 0.25 + i / 4 + a.s * 0.37) % 1;
+            const u = (((f.b.time * 0.25 + i / 4 + a.s * 0.37) % 1) + 1) % 1;
             g.fillStyle = css(lit(L, H('#C9A0B0'), 1, 0.3), 0.18 * (1 - u));
             g.beginPath();
             g.arc(x + u * 70 + Math.sin(u * 5 + i) * 10, a.y - u * 160, 14 + u * 36, 0, TAU);

@@ -257,7 +257,9 @@ export class Stage {
    * resolution, so its layers bake and its lighting composes before the run reaches it (the ~25 ms first-bake spike moves
    * to the title / cold open / count-in). Returns true when every scene is warm.
    */
-  prewarm(L: RuntimeLevel, b: BeatInfo): boolean {
+  prewarm(L: RuntimeLevel, b0: BeatInfo): boolean {
+    // (a positive clock: the cold open / count-in run at negative song time, which some layers' `%` phases don't expect)
+    const b: BeatInfo = { ...b0, time: Math.abs(b0.time) + 8, beat: Math.abs(b0.beat) + 8 };
     if (!this.warmQ) this.warmQ = ENVS.filter((e) => e !== 'street');
     const e = this.warmQ.shift();
     if (!e) {

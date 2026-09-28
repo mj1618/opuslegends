@@ -162,7 +162,8 @@ narrower lift tops, `giantKeg` (walkdown: 2x, 80 ms hitstop), high breakables in
 = the ordinary floor under it), `bigJim` pose keys (fixed `x` or tracking `ahead`; his parts are ordinary items: fists =
 slam lifts, sleeve = low sign, medallions = pendulums, lenses/blows = giant breakables), `chaser { off }` (the Burn
 retires: the finale can't kill), `crowd { floor }` (FULL HOUSE for everyone on the final hit). Placeholder draws:
-`render/act3Draw.ts` (Big Jim behind, letters + call rings in front, the iris/THE END in screen space). The finish
+`render/act3Draw.ts` (Big Jim behind, letters + call goons/rings, the iris; after the final hit the renderer freezes the
+strike and act3Draw plays the ending in seconds: burst, iris slam, THE END, victory — `ENDING`; HUD hidden from 332). The finish
 sits at 340.5 so a strike ON 340 connects; Slim then runs into the throne (a `block`) and stops for the victory pose.
 **`node playtest/slack.mjs`** measures every lethal action's timing window with the real controller (headless,
 ~2 s), checks every strike target is reachable on its beat and every hop leaves the ground on its beat, and
@@ -241,6 +242,8 @@ src/
            stage.ts       42nd St + Honky-Tonk parallax scenes, lighting keyframes from level `sky` cues (musical
                           time), env split by `ground` cues (doorway), floors / puddles / LETHAL PITS, film pass
            slimDriver.ts  player state -> Slim rig pose (run phase from distance, strike/heave/stumble/dead/respawn/victory)
+           beats.ts       mid-act visual beats (door kick, sign crash, spotlights, brawl, window chase, rain, tenants…) from
+                          the level's setPiece cues (defaults for missing ones)
            director.ts    THE WORLD REACTS: chorus zoom-out, accent punches + flashes, flying bottles/balls, dust
            entityDraw.ts  entity SKINS + danger palette (DANGER/REWARD) + SKINS registry / drawKind fallback
            screens.ts     title marquee, HUD, count-in leader, rewind, end-of-reel poster

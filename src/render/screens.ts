@@ -125,7 +125,13 @@ export function drawTitleScreen(ctx: CanvasRenderingContext2D, g: Game, b: BeatI
   ctx.fillStyle = CF.fig;
   ctx.font = `italic 22px ${FONT}`;
   ctx.fillText('— you don’t mess around with him —', mx, my + 410);
-  // prompt
+  // prompt: on a dark lobby-card plate so it reads over the street
+  ctx.fillStyle = 'rgba(13,10,8,0.62)';
+  roundRect(ctx, mx - 560, VIEW_H * 0.66 - 50, 1120, 200, 14);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(224,182,74,0.45)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = `46px ${MARQUEE}`;
@@ -157,8 +163,8 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo, A =
   ctx.globalAlpha = A;
   const pop = 1 + 0.12 * gr.pulse(1, 0.2);
   // soft dark backing so the counters stay legible over neon signs
-  drawGlow(ctx, 170, 120, '#0D0A08', 300, 0.5, false);
-  drawGlow(ctx, VIEW_W - 180, 110, '#0D0A08', 230, 0.5, false);
+  hudPlate(ctx, 28, 26, g.crowd.awake && g.crowd.bigCatch ? 620 : 420, g.stats.deaths > 0 || g.stats.stumbles > 0 ? 250 : 220, 1);
+  hudPlate(ctx, VIEW_W - 330, 26, 302, 180, -1);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   // tokens
@@ -301,6 +307,17 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo, A =
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
   void b;
+}
+
+/** a soft dark plate behind a HUD cluster (fades out toward the play field: `dir` 1 = fades right, -1 = fades left) */
+function hudPlate(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, dir: 1 | -1): void {
+  const gr = ctx.createLinearGradient(dir > 0 ? x : x + w, 0, dir > 0 ? x + w : x, 0);
+  gr.addColorStop(0, 'rgba(13,10,8,0.5)');
+  gr.addColorStop(0.7, 'rgba(13,10,8,0.38)');
+  gr.addColorStop(1, 'rgba(13,10,8,0)');
+  ctx.fillStyle = gr;
+  roundRect(ctx, x, y, w, h, 18);
+  ctx.fill();
 }
 
 /** Academy countdown leader: a circle, a sweeping wedge, the number; "HEY!" on 1 */

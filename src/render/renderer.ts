@@ -470,8 +470,9 @@ export class Renderer {
     fc.translate(VIEW_W / 2, VIEW_H / 2);
     fc.scale(0.8, 0.8);
     fc.translate(-(x0 + 1200), -cy);
-    this.sc.b = b;
-    this.drawLevel(fc, x0, x1, cy - 700, cy + 700, b);
+    const bw: BeatInfo = { ...b, time: Math.abs(b.time) + 8 };
+    this.sc.b = bw;
+    this.drawLevel(fc, x0, x1, cy - 700, cy + 700, bw);
     fc.restore();
   }
 
