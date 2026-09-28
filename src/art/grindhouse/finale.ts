@@ -177,7 +177,7 @@ export function drawAuditorium(g: Ctx, sr: { x: number; y: number; w: number; h:
 }
 
 /**
- * THE MARQUEE SWAP (a comic cut-in, top right): outside at night, the Jimperial's marquee. An usher on a ladder pulls
+ * THE MARQUEE SWAP (a comic cut-in, top left: clear of Big Jim's frame on the right): outside at night, the Jimperial's marquee. An usher on a ladder pulls
  * down B-I-G J-I-M letter by letter; SLIM CHANCE goes up in the big letters (k 0..1).
  */
 export function drawMarqueeCutIn(g: Ctx, k: number, b: BeatInfo, t: number): void {
@@ -186,11 +186,12 @@ export function drawMarqueeCutIn(g: Ctx, k: number, b: BeatInfo, t: number): voi
   const outK = clamp01((k - 1.1) / 0.3);
   const w = 760;
   const h = 420;
-  const x = VIEW_W - w - 70 + outK * 900;
-  const y = 70 - (1 - inK) * 520;
+  const x = 150 - (1 - inK) * 1000 - outK * 1000;
+  const y = 90;
   g.save();
   g.translate(x + w / 2, y + h / 2);
-  g.rotate(0.03);
+  g.rotate(-0.03);
+  g.scale(0.82, 0.82);
   g.translate(-w / 2, -h / 2);
   // panel
   g.fillStyle = INK;
@@ -356,15 +357,15 @@ export function drawIris(g: Ctx, cx: number, cy: number, r: number, rot: number,
 }
 
 /**
- * THE END: t = seconds since the final hit. 0-0.35 black; the film SNAPS (a white flash + the tail flapping through the
- * gate: flickering white frames, a scratch storm); ~1.2 s THE END burns in from its centre with cigarette-burn edges.
+ * THE END: t = seconds since the iris shut. 0-0.1 black; the film SNAPS (the tail flapping through the gate: flickering
+ * white frames, a scratch storm); 0.35-1.25 s THE END burns in from its centre with cigarette-burn edges.
  */
 export function drawTheEnd(g: Ctx, t: number, b: BeatInfo): void {
   g.fillStyle = '#050403';
   g.fillRect(0, 0, VIEW_W, VIEW_H);
-  if (t < 0.35) return;
+  if (t < 0.1) return;
   // the film tail flapping in the gate: stuttering light + sprocket holes whipping past
-  const flap = clamp01((t - 0.35) / 0.9);
+  const flap = clamp01((t - 0.1) / 0.75);
   if (flap < 1) {
     const on = Math.floor(t * 24) % 3 === 0 ? 1 : 0;
     g.fillStyle = `rgba(248,241,220,${0.12 * on * (1 - flap)})`;
@@ -386,7 +387,7 @@ export function drawTheEnd(g: Ctx, t: number, b: BeatInfo): void {
     }
   }
   // THE END burns in: a growing burn hole revealing cream lettering, charred edge
-  const burn = clamp01((t - 1.0) / 1.2);
+  const burn = clamp01((t - 0.35) / 0.9);
   if (burn > 0) {
     const R = easeOut(burn) * 900;
     g.save();
@@ -428,81 +429,331 @@ export function drawTheEnd(g: Ctx, t: number, b: BeatInfo): void {
 }
 
 /**
- * VICTORY: a second iris opens (t = seconds since it starts opening) on SLIM'S VICTORY POSE on the throne of pool tables,
- * a spotlight, the ex-goons applauding on the beat. `slim(x, y, scale)` draws the hero (the renderer owns the rig state).
+ * VICTORY (the last shot of the trailer): a second iris opens (t = seconds since it starts opening) on SLIM'S VICTORY
+ * POSE on Big Jim's throne of pool tables — a slow push-in, a gold sunburst behind him, a follow-spot, the theatre's
+ * marquee lit over the throne with HIS name now (SLIM CHANCE, bulbs chasing: the marquee swap paid off), the ex-goons
+ * applauding on the beat, confetti. `slim(x, y, scale)` draws the hero (the renderer owns the rig state).
  */
 export function drawVictory(g: Ctx, t: number, b: BeatInfo, slim: (x: number, y: number, s: number) => void, L?: Lighting): void {
   const cx = VIEW_W / 2;
   const cy = VIEW_H / 2 + 60;
-  // the stage behind: fig dark, a cream spotlight cone
-  const bg = g.createRadialGradient(cx, cy - 100, 60, cx, cy, 1100);
-  bg.addColorStop(0, '#4A2440');
-  bg.addColorStop(1, '#0B0508');
+  const kick = hit(b, 'kick', 0.12);
+  // the stage behind: a warm fig room, brighter than the film's night (a triumphant key)
+  const bg = g.createRadialGradient(cx, cy - 160, 60, cx, cy, 1200);
+  bg.addColorStop(0, '#8A3E6A');
+  bg.addColorStop(0.45, '#4A2040');
+  bg.addColorStop(1, '#0E0610');
   g.fillStyle = bg;
   g.fillRect(0, 0, VIEW_W, VIEW_H);
+  // slow push-in on the hero
+  const push = 1 + 0.07 * easeOut(clamp01(t / 5));
+  g.save();
+  g.translate(cx, cy + 200);
+  g.scale(push, push);
+  g.translate(-cx, -(cy + 200));
+  // SUNBURST: gold + fig rays turning slowly behind the throne, flaring on the kick
+  const sx = cx;
+  const sy = cy - 40;
   g.save();
   g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 24; i++) {
+    const a = t * 0.12 + (i / 24) * TAU;
+    g.fillStyle = i % 2 ? `rgba(224,182,74,${0.13 + 0.05 * kick})` : `rgba(232,86,155,${0.06 + 0.03 * kick})`;
+    g.beginPath();
+    g.moveTo(sx, sy);
+    g.arc(sx, sy, 1500, a - 0.07, a + 0.07);
+    g.closePath();
+    g.fill();
+  }
+  drawGlow(g, sx, sy, '#FFE9C2', 620, 0.45 + 0.15 * kick);
+  // the follow-spot from the booth
   const cone = g.createLinearGradient(0, 0, 0, VIEW_H);
-  cone.addColorStop(0, 'rgba(248,241,220,0.35)');
-  cone.addColorStop(1, 'rgba(248,241,220,0.05)');
+  cone.addColorStop(0, 'rgba(248,241,220,0.4)');
+  cone.addColorStop(1, 'rgba(248,241,220,0.08)');
   g.fillStyle = cone;
   g.beginPath();
-  g.moveTo(cx - 80, -20);
-  g.lineTo(cx + 80, -20);
-  g.lineTo(cx + 420, VIEW_H);
-  g.lineTo(cx - 420, VIEW_H);
+  g.moveTo(cx - 70, -20);
+  g.lineTo(cx + 70, -20);
+  g.lineTo(cx + 380, VIEW_H);
+  g.lineTo(cx - 380, VIEW_H);
   g.closePath();
   g.fill();
   g.restore();
-  // the throne (smaller: Slim on top of it)
+  // the throne (his now), the ex-goons applauding on either side (clap on the beat)
   drawThrone(g, cx, cy + 300, 0.55, L);
-  // ex-goons applauding on either side (clap on the beat)
   const clap = Math.exp(-b.beatPhase * 5);
   for (let i = 0; i < 8; i++) {
     const side = i < 4 ? -1 : 1;
     const j = i % 4;
-    const x = cx + side * (420 + j * 120);
-    const y = VIEW_H - 40 - (j % 2) * 30;
-    g.fillStyle = '#2A1026';
+    const x = cx + side * (440 + j * 125);
+    const y = VIEW_H - 150 - (j % 2) * 26;
+    g.fillStyle = '#3A1634';
     g.beginPath();
-    g.ellipse(x, y - 60, 46, 70, 0, 0, TAU);
+    g.ellipse(x, y - 60, 48, 72, 0, 0, TAU);
     g.fill();
-    g.fillStyle = '#A8664F';
+    g.fillStyle = '#B87458';
     g.beginPath();
-    g.arc(x, y - 140, 24, 0, TAU);
+    g.arc(x, y - 142, 24, 0, TAU);
     g.fill();
     g.fillStyle = '#2A1A14';
     g.beginPath();
-    g.ellipse(x + 3, y - 156, 26, 10, 0, Math.PI, TAU);
+    g.ellipse(x + 3, y - 158, 26, 10, 0, Math.PI, TAU);
     g.fill();
-    g.fillRect(x - 24, y - 158, 50, 5);
-    // hands meeting on the beat
+    g.fillRect(x - 24, y - 160, 50, 5);
     const hx = 10 + (1 - clap) * 18;
-    g.fillStyle = '#A8664F';
+    g.fillStyle = '#B87458';
     for (const sd of [-1, 1]) {
       g.beginPath();
-      g.arc(x - side * 30 + sd * hx, y - 110, 11, 0, TAU);
+      g.arc(x - side * 30 + sd * hx, y - 112, 11, 0, TAU);
       g.fill();
     }
-    if (clap > 0.7) star4(g, x - side * 30, y - 124, 16 * clap, 0.3, 'rgba(255,246,232,0.9)');
+    if (clap > 0.7) star4(g, x - side * 30, y - 126, 16 * clap, 0.3, 'rgba(255,246,232,0.9)');
   }
-  // SLIM on the throne
-  slim(cx, cy + 300 - 0.55 * 40, 2.3);
-  // confetti in gold + cream
-  for (let i = 0; i < 70; i++) {
-    const u = (t * (0.18 + hash(i) * 0.12) + hash(i + 3)) % 1;
-    const x = hash(i + 9) * VIEW_W + Math.sin(t * 2 + i) * 30;
-    const y = -20 + u * (VIEW_H + 40);
-    g.fillStyle = i % 3 ? '#E0B64A' : '#FFF6E8';
-    g.save();
-    g.translate(x, y);
-    g.rotate(t * 3 + i);
-    g.fillRect(-5, -3, 10, 6);
-    g.restore();
-  }
+  // SLIM on the throne: big, lit, the only tangerine in the frame
+  drawGlow(g, cx, cy + 120, '#FFF1D6', 330, 0.35);
+  slim(cx, cy + 300 - 0.55 * 40, 2.7);
+  // the marquee over the throne: SLIM CHANCE in the big letters (it covers Big Jim's monogram)
+  drawVictoryMarquee(g, cx, 96, b, kick);
+  g.restore();
   // the opening iris over it all
   const open = easeOut(clamp01(t / 1.1));
-  drawIris(g, cx, cy - 80, open * 1400, 1.2 - open * 1.2, 1);
+  if (open < 1) drawIris(g, cx, cy - 80, open * 1400, 1.2 - open * 1.2, 1);
+}
+
+/** the Jimperial marquee with the hero's name in chasing bulbs (the victory's title card) */
+function drawVictoryMarquee(g: Ctx, cx: number, y: number, b: BeatInfo, kick: number): void {
+  const w = 1000;
+  const h = 196;
+  const x = cx - w / 2;
+  g.fillStyle = '#1A1016';
+  g.fillRect(x - 22, y - 16, w + 44, h + 32);
+  g.fillStyle = '#F2E6CC';
+  g.fillRect(x + 14, y + 14, w - 28, h - 28);
+  const chase = Math.floor(b.beat * 4);
+  const per = 52;
+  for (let i = 0; i < per; i++) {
+    let d = (i / per) * 2 * (w + h);
+    let px: number;
+    let py: number;
+    if (d < w) (px = x + d), (py = y);
+    else if ((d -= w) < h) (px = x + w), (py = y + d);
+    else if ((d -= h) < w) (px = x + w - d), (py = y + h);
+    else (d -= w), (px = x), (py = y + h - d);
+    const on = (i + chase) % 3 === 0 || kick > 0.6;
+    g.fillStyle = on ? CF.bulb : '#5A4A3A';
+    g.beginPath();
+    g.arc(px, py, 7, 0, TAU);
+    g.fill();
+    if (on) drawGlow(g, px, py, CF.bulb, 26, 0.5);
+  }
+  g.textAlign = 'center';
+  g.textBaseline = 'alphabetic';
+  g.fillStyle = CF.fig;
+  g.font = `bold 20px ${SIGN_FONT}`;
+  g.fillText('NOW  PLAYING  ·  HELD  OVER', cx, y + 44);
+  const pop = 1 + 0.03 * kick;
+  g.save();
+  g.translate(cx, y + 150);
+  g.scale(pop, pop);
+  g.font = `118px ${SIGN_FONT}`;
+  g.lineJoin = 'round';
+  g.lineWidth = 12;
+  g.strokeStyle = INK;
+  g.strokeText('SLIM CHANCE', 0, 0);
+  g.fillStyle = CF.tangerine;
+  g.fillText('SLIM CHANCE', 0, 0);
+  g.restore();
+  g.fillStyle = INK;
+  g.font = `italic bold 18px ${SIGN_FONT}`;
+  g.fillText('with BIG JIM (briefly)', cx, y + h - 14);
+}
+
+/**
+ * THE THEATRE FRAME (the finale, k 0..1): the film stays FULL-FRAME; red velvet swags tied back at the sides and a
+ * gold-fringed valance creep in over its edges, the house lights glow amber in the corners — we're watching the last
+ * reel with the audience (their strip is drawn by the renderer below it).
+ */
+export function drawCurtainFrame(g: Ctx, k: number, b: BeatInfo): void {
+  const e = easeOut(clamp01(k));
+  if (e <= 0.001) return;
+  const sway = Math.sin(b.beat * Math.PI * 0.5) * 5 * e;
+  const W0 = 118 * e;
+  for (const side of [-1, 1]) {
+    const ox = side < 0 ? 0 : VIEW_W;
+    const at = (w: number) => ox - side * w;
+    const gr = g.createLinearGradient(ox, 0, at(W0 * 1.3), 0);
+    gr.addColorStop(0, '#24090D');
+    gr.addColorStop(0.55, '#8A2A30');
+    gr.addColorStop(0.85, '#6A1A20');
+    gr.addColorStop(1, '#3A0E12');
+    g.fillStyle = gr;
+    const tieY = VIEW_H * 0.6;
+    g.beginPath();
+    g.moveTo(ox, -10);
+    g.lineTo(at(W0 * 1.35), -10);
+    g.quadraticCurveTo(at(W0 * 1.05 + sway), tieY * 0.55, at(W0 * 0.5), tieY);
+    g.quadraticCurveTo(at(W0 * 0.95 + sway), VIEW_H * 0.85, at(W0 * 1.15), VIEW_H + 10);
+    g.lineTo(ox, VIEW_H + 10);
+    g.closePath();
+    g.fill();
+    g.strokeStyle = 'rgba(20,4,6,0.45)';
+    g.lineWidth = 4;
+    for (let f = 1; f <= 3; f++) {
+      const w = (W0 * f) / 4;
+      g.beginPath();
+      g.moveTo(at(w * 1.3), -10);
+      g.quadraticCurveTo(at(w * 1.05 + sway), tieY * 0.55, at(w * 0.5), tieY);
+      g.quadraticCurveTo(at(w * 0.95), VIEW_H * 0.85, at(w * 1.15), VIEW_H + 10);
+      g.stroke();
+    }
+    // the gold tie-back + tassel
+    g.fillStyle = CF.gold;
+    g.fillRect(Math.min(ox, at(W0 * 0.62)), tieY - 7, W0 * 0.62, 14);
+    g.beginPath();
+    g.arc(at(W0 * 0.55), tieY + 16, 9 * e, 0, TAU);
+    g.fill();
+    drawGlow(g, at(W0 * 0.9), 70, CF.houseAmber, 180 * e, 0.4 * e);
+  }
+  // the valance: scalloped velvet with a gold fringe
+  const vh = 54 * e;
+  g.fillStyle = '#5A1A20';
+  g.beginPath();
+  g.moveTo(0, -10);
+  g.lineTo(VIEW_W, -10);
+  g.lineTo(VIEW_W, vh);
+  for (let i = 12; i >= 0; i--) {
+    const x = (i / 12) * VIEW_W;
+    g.quadraticCurveTo(x + VIEW_W / 24, vh + 34 * e, x, vh);
+  }
+  g.closePath();
+  g.fill();
+  g.strokeStyle = CF.gold;
+  g.lineWidth = 5;
+  g.stroke();
+}
+
+/**
+ * THE FINAL HIT's light burst (T = seconds since the hit, at the strike point x, y): a white-out that snaps back, a
+ * gold + cream starburst of rays, a shock ring racing out, a hot core.
+ */
+export function drawFinalBurst(g: Ctx, T: number, x: number, y: number): void {
+  if (T < 0 || T > 0.9) return;
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  const f = Math.max(0, 1 - T / 0.12);
+  if (f > 0) {
+    g.fillStyle = `rgba(255,248,230,${0.75 * f * f})`;
+    g.fillRect(0, 0, VIEW_W, VIEW_H);
+  }
+  const a = Math.max(0, 1 - T / 0.9);
+  const R = 300 + 2400 * easeOut(clamp01(T / 0.45));
+  for (let i = 0; i < 28; i++) {
+    const ang = (i / 28) * TAU + hash(i) * 0.12 + T * 0.4;
+    const w = 0.025 + hash(i + 5) * 0.035;
+    g.fillStyle = i % 2 ? `rgba(255,224,138,${0.2 * a})` : `rgba(255,246,232,${0.12 * a})`;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.arc(x, y, R * (0.7 + 0.3 * hash(i + 9)), ang - w, ang + w);
+    g.closePath();
+    g.fill();
+  }
+  drawGlow(g, x, y, '#FFF1D6', 150 + 200 * T, 0.5 * a);
+  g.strokeStyle = `rgba(255,246,232,${0.85 * a})`;
+  g.lineWidth = 4 + 16 * a;
+  g.beginPath();
+  g.arc(x, y, 60 + 1500 * easeOut(clamp01(T / 0.6)), 0, TAU);
+  g.stroke();
+  g.restore();
+}
+
+/**
+ * THE HOUSE ERUPTS (T = seconds since the final hit, a = alpha): the front rows jump up in silhouette in front of the
+ * screen, arms up and bouncing on the beat, popcorn fountains out of their buckets and confetti cannons fire from both
+ * corners (drifting down for seconds). Deterministic in T (no state).
+ */
+export function drawEruption(g: Ctx, T: number, b: BeatInfo, a = 1): void {
+  if (T < 0 || a <= 0) return;
+  g.save();
+  g.globalAlpha = a;
+  const rise = easeOut(clamp01(T / 0.3));
+  const bounce = Math.exp(-b.beatPhase * 4);
+  // the front rows (big dark silhouettes, amber rim from the house lights)
+  for (let r = 0; r < 2; r++) {
+    const n = r ? 11 : 13;
+    const s = r ? 2.3 : 1.8;
+    for (let i = 0; i < n; i++) {
+      const x = ((i + 0.5 + (r ? 0 : 0.5)) / n) * VIEW_W + (hash(i + r * 31) - 0.5) * 50;
+      const jump = (0.5 + 0.5 * hash(i * 3 + r)) * bounce * 26 * s;
+      const base = VIEW_H + 60 - (r ? 0 : 60) + (1 - rise) * 200 * s - jump;
+      const head = base - 70 * s;
+      g.fillStyle = r ? '#0A0706' : '#1A100C';
+      g.strokeStyle = g.fillStyle;
+      g.beginPath();
+      g.moveTo(x - 30 * s, base + 60);
+      g.quadraticCurveTo(x - 30 * s, head + 22 * s, x - 10 * s, head + 16 * s);
+      g.lineTo(x + 10 * s, head + 16 * s);
+      g.quadraticCurveTo(x + 30 * s, head + 22 * s, x + 30 * s, base + 60);
+      g.closePath();
+      g.fill();
+      g.beginPath();
+      g.ellipse(x, head, 14 * s, 17 * s, 0, 0, TAU);
+      g.fill();
+      g.lineWidth = 10 * s;
+      g.lineCap = 'round';
+      const wv = Math.sin(T * 9 + i * 1.7) * 0.22;
+      for (const sd of [-1, 1]) {
+        const ang = -Math.PI / 2 + sd * (0.38 + wv * sd);
+        g.beginPath();
+        g.moveTo(x + sd * 18 * s, head + 22 * s);
+        g.lineTo(x + sd * 18 * s + Math.cos(ang) * 58 * s, head + 22 * s + Math.sin(ang) * 58 * s);
+        g.stroke();
+      }
+      if (r === 0) {
+        g.strokeStyle = 'rgba(255,190,110,0.5)';
+        g.lineWidth = 3;
+        g.beginPath();
+        g.arc(x, head, 15 * s, Math.PI * 1.1, Math.PI * 1.9);
+        g.stroke();
+      }
+    }
+  }
+  // popcorn fountains
+  for (let i = 0; i < 110; i++) {
+    const t0 = hash(i + 200) * 1.4;
+    const tt = T - t0;
+    if (tt < 0 || tt > 1.6) continue;
+    const bx = (0.08 + 0.84 * ((i % 7) / 6)) * VIEW_W;
+    const px = bx + (hash(i + 3) - 0.5) * 520 * tt;
+    const py = VIEW_H - 150 + (-900 - hash(i + 4) * 700) * tt + 1500 * tt * tt;
+    if (py > VIEW_H + 20) continue;
+    g.fillStyle = i % 3 ? CF.cream : '#F2D89A';
+    g.beginPath();
+    g.arc(px, py, 5, 0, TAU);
+    g.arc(px + 4, py - 3, 4, 0, TAU);
+    g.fill();
+  }
+  // confetti cannons from both bottom corners: burst, drag, then flutter down
+  const COLS = [CF.gold, CF.cream, CF.neonRose, CF.neonJade, CF.goldHi];
+  for (let i = 0; i < 160; i++) {
+    const t0 = hash(i + 400) * 0.35 + (i % 2 ? 0 : 0.05);
+    const tt = T - t0;
+    if (tt < 0) continue;
+    const side = i % 2 ? 1 : -1;
+    const vx = -side * (500 + hash(i + 1) * 1300);
+    const vy = -(1300 + hash(i + 2) * 1000);
+    const tau = (1 - Math.exp(-tt * 2.4)) / 2.4;
+    const x = (side < 0 ? 60 : VIEW_W - 60) + vx * tau + Math.sin(tt * 5 + i) * 24 * Math.min(1, tt);
+    const y = VIEW_H - 60 + vy * tau + 140 * tt;
+    if (y > VIEW_H + 20) continue;
+    g.save();
+    g.translate(x, y);
+    g.rotate(tt * (4 + hash(i + 7) * 6) + i);
+    g.scale(1, Math.cos(tt * 8 + i));
+    g.fillStyle = COLS[i % COLS.length];
+    g.fillRect(-7, -4, 14, 8);
+    g.restore();
+  }
+  g.restore();
 }
 
 /**

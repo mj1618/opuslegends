@@ -147,12 +147,18 @@ export function drawTitleScreen(ctx: CanvasRenderingContext2D, g: Game, b: BeatI
 
 // ------------------------------------------------------------------------------ HUD
 
-export function drawHud(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo): void {
+/**
+ * The HUD, two quiet clusters in the top corners, clear of the play band: LEFT = what you've earned (tokens big, then
+ * targets · the audience meter + FULL HOUSE!), RIGHT = the groove (the 4-bulb metronome, the combo title right under
+ * it). `A` fades it all (the finale hides it). "BAR n" only with the debug overlay.
+ */
+export function drawHud(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo, A = 1): void {
   const gr = g.groove;
+  ctx.globalAlpha = A;
   const pop = 1 + 0.12 * gr.pulse(1, 0.2);
   // soft dark backing so the counters stay legible over neon signs
   drawGlow(ctx, 170, 120, '#0D0A08', 300, 0.5, false);
-  drawGlow(ctx, VIEW_W - 190, 70, '#0D0A08', 190, 0.45, false);
+  drawGlow(ctx, VIEW_W - 180, 110, '#0D0A08', 230, 0.5, false);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   // tokens
@@ -221,27 +227,29 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo): vo
       ctx.arc(VIEW_W - 250 + i * 40, 60, r, 0, TAU);
       ctx.fill();
     }
-    ctx.textAlign = 'right';
-    ctx.font = `24px ${MARQUEE}`;
-    if (g.conductor.playing) outlineText(ctx, `BAR ${Math.floor(gr.beat / 4)}`, VIEW_W - 110, 100, 'rgba(233,216,180,0.8)', 4);
-    ctx.textAlign = 'left';
+    if (g.debug.enabled && g.conductor.playing) {
+      ctx.textAlign = 'right';
+      ctx.font = `22px ${MARQUEE}`;
+      outlineText(ctx, `BAR ${Math.floor(gr.beat / 4) + 1}`, VIEW_W - 110, 96, 'rgba(233,216,180,0.7)', 4);
+      ctx.textAlign = 'left';
+    }
   }
   // cold open prompt: the house is dark, the projector waits
   if (g.phase === 'coldOpen' && !g.calib.active) {
     const k = 0.6 + 0.4 * gr.pulse(1, 0.4);
     const a = Math.min(1, g.coldOpenT * 2);
     ctx.textAlign = 'center';
-    ctx.globalAlpha = a;
+    ctx.globalAlpha = (a) * A;
     ctx.font = `120px ${MARQUEE}`;
     outlineText(ctx, 'SLIM CHANCE', VIEW_W / 2, VIEW_H * 0.2, CF.tangerine, 12);
     ctx.font = `italic 28px ${FONT}`;
     outlineText(ctx, 'reel one · 42nd Street', VIEW_W / 2, VIEW_H * 0.27, CF.filmHi, 5);
-    ctx.globalAlpha = a * k;
+    ctx.globalAlpha = (a * k) * A;
     ctx.font = `44px ${MARQUEE}`;
     outlineText(ctx, 'PRESS  X  (CUE SWING)  TO ROLL THE FILM', VIEW_W / 2, VIEW_H * 0.35, CF.cream, 8);
     ctx.font = `26px ${FONT}`;
     outlineText(ctx, '↓  sync the projector first (audio lag test)', VIEW_W / 2, VIEW_H * 0.35 + 50, 'rgba(233,216,180,0.8)', 4);
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = 1 * A;
   }
   // count-in: the film's countdown leader
   if (g.phase === 'countIn' && g.scene === 'play' && g.conductor.playing) {
@@ -254,7 +262,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo): vo
     const d = beat - h.beat;
     if (d < -0.5 || d > h.beats) continue;
     const a = Math.min(1, (d + 0.5) / 0.5, (h.beats - d) / 1);
-    ctx.globalAlpha = Math.max(0, a);
+    ctx.globalAlpha = (Math.max(0, a)) * A;
     ctx.font = `bold 36px ${FONT}`;
     ctx.textAlign = 'center';
     const w = ctx.measureText(h.text).width + 70;
@@ -265,13 +273,13 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo): vo
     ctx.lineWidth = 2;
     ctx.stroke();
     outlineText(ctx, h.text, VIEW_W / 2, VIEW_H * 0.12, CF.cream, 5);
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = 1 * A;
     break;
   }
   // dubbed subtitle on the song's shouts (cream, never yellow: yellow reads as reward)
   if (g.subtitle.t > 0 && g.scene === 'play') {
     const k = g.subtitle.t;
-    ctx.globalAlpha = Math.min(1, k * 5);
+    ctx.globalAlpha = (Math.min(1, k * 5)) * A;
     ctx.textAlign = 'center';
     ctx.save();
     ctx.translate(VIEW_W / 2, VIEW_H - 130);
@@ -280,15 +288,16 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo): vo
     ctx.font = `bold 58px "Helvetica Neue", Helvetica, Arial, sans-serif`;
     outlineText(ctx, g.subtitle.text, 0, 0, CF.subtitle, 9);
     ctx.restore();
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = 1 * A;
   }
   if (g.toast.t > 0) {
-    ctx.globalAlpha = Math.min(1, g.toast.t * 2);
+    ctx.globalAlpha = (Math.min(1, g.toast.t * 2)) * A;
     ctx.font = `bold 34px ${FONT}`;
     ctx.textAlign = 'center';
     outlineText(ctx, g.toast.text, VIEW_W / 2, VIEW_H - 190, CF.cream);
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = 1 * A;
   }
+  ctx.globalAlpha = 1;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
   void b;

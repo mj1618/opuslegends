@@ -30,6 +30,10 @@ interface Stamp {
   y: number;
   t: number;
   rot: number;
+  /** 0..1 scale (long streaks shrink the stamps: the bells carry Perfect) */
+  s: number;
+  /** seconds since a newer stamp replaced it (NaN = still the newest) */
+  gone: number;
 }
 
 interface Scratch {
@@ -185,8 +189,11 @@ export class Feedback {
       this.best = Math.max(this.best, this.combo);
       this.bump = 1;
       // up-and-behind the head: never over the lane ahead
-      this.stamps.push({ grade: gr, x: p.x - 70 + this.rand() * 30, y: p.y - 205 - this.rand() * 20, t: 0, rot: -0.14 + this.rand() * 0.12 });
-      if (this.stamps.length > 4) this.stamps.shift();
+      // ONE stamp at a time: the newest wins, the previous one is knocked away fast (max 2 on screen, briefly)
+      for (const o of this.stamps) if (Number.isNaN(o.gone)) o.gone = 0;
+      while (this.stamps.length > 1) this.stamps.shift();
+      const sc = this.combo >= 24 ? 0.72 : this.combo >= 8 ? 0.84 : 1;
+      this.stamps.push({ grade: gr, x: p.x - 70 + this.rand() * 30, y: p.y - 205 - this.rand() * 20, t: 0, rot: -0.14 + this.rand() * 0.12, s: sc, gone: NaN });
     }
     if (g.stats.stumbles > this.lastStumbles) {
       this.breakCombo();
@@ -205,8 +212,11 @@ export class Feedback {
       if (ext < this.combo && this.combo >= 3) this.broke = { n: this.combo, t: 0 };
       this.combo = ext;
     }
-    for (const s of this.stamps) s.t += dt;
-    while (this.stamps.length && this.stamps[0].t > STAMP_LIFE) this.stamps.shift();
+    for (const s of this.stamps) {
+      s.t += dt;
+      if (!Number.isNaN(s.gone)) s.gone += dt;
+    }
+    while (this.stamps.length && (this.stamps[0].t > STAMP_LIFE || this.stamps[0].gone > 0.09)) this.stamps.shift();
     for (const s of this.scratches) s.t += dt;
     while (this.scratches.length && this.scratches[0].t > 0.3) this.scratches.shift();
     this.bump *= Math.exp(-dt / 0.12);
@@ -232,10 +242,11 @@ export class Feedback {
       const k = s.t / STAMP_LIFE;
       // slam in (1.7 -> 1 in 70 ms), hold, then lift + fade
       const inK = Math.min(1, s.t / 0.07);
-      const sc = 1 + 0.7 * (1 - inK) * (1 - inK);
-      const a = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4;
+      const sc = (1 + 0.7 * (1 - inK) * (1 - inK)) * s.s;
+      const a = (k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4) * (Number.isNaN(s.gone) ? 1 : 1 - s.gone / 0.09);
       ctx.globalAlpha = Math.max(0, a) * (0.4 + 0.6 * inK);
-      drawSprite(ctx, stampSprite(s.grade), s.x, s.y - 30 * Math.max(0, k - 0.5), s.rot, sc, sc);
+      const kick = Number.isNaN(s.gone) ? 0 : s.gone / 0.09;
+      drawSprite(ctx, stampSprite(s.grade), s.x - 40 * kick, s.y - 30 * Math.max(0, k - 0.5) - 20 * kick, s.rot - 0.3 * kick, sc, sc);
     }
     ctx.globalAlpha = 1;
   }
@@ -299,7 +310,7 @@ export class Feedback {
   drawCombo(ctx: Ctx, beatPulse: number): void {
     const n = this.combo;
     const X = VIEW_W - 170;
-    const Y = 212;
+    const Y = 158;
     if (n >= 3) {
       const heat = Math.min(1, n / 48);
       const size = Math.round(46 + 34 * Math.min(1, Math.log2(n / 2) / 4.6) + 14 * this.bump);

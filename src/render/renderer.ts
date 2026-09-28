@@ -66,6 +66,8 @@ import { Stage } from './stage';
 
 export { outlineText, roundRect } from './screens';
 
+const easeOutK = (t: number) => 1 - (1 - t) * (1 - t) * (1 - t);
+
 const KNOWN_ENEMY = new Set(['jabber']);
 const KNOWN_HAZARD = new Set(['spike']);
 
@@ -90,6 +92,11 @@ export class Renderer {
   private lastFreeze = 0;
   private endAt = -1;
   private sc: SkinCtx;
+  /** the final hit's freeze-frame (a copy of the backing store; allocated ahead by prewarm) */
+  private freezeCv: HTMLCanvasElement | null = null;
+  private frozen = false;
+  private frozenHero: [number, number] = [0, 0];
+  private frozenHit: [number, number] = [0, 0];
   /** JS render cost (ms) samples for perf probes */
   private msSamples: number[] = [];
 
@@ -174,17 +181,10 @@ export class Renderer {
     this.lastFreeze = g.freezeFx;
 
     const acam: ArtCamera = { x: cam.rx, y: cam.ry, zoom: cam.rzoom };
-    // act 3's finale PULL-OUT: the whole film (world + film pass + the Burn) squeezed into a screen in the theatre
-    const pull = this.act3.pullK(g);
-    if (pull > 0.001) {
-      const sr = this.act3.screenRect(pull);
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(sr.x, sr.y, sr.w, sr.h);
-      ctx.clip();
-      ctx.translate(sr.x, sr.y);
-      ctx.scale(sr.s, sr.s);
-    }
+    // act 3's finale: seconds since the FINAL HIT (NaN before it); the frame freezes on the strike (see below)
+    this.act3.track(g, this.clock);
+    const hitT = this.act3.hitT(this.clock);
+    if (!(hitT >= 0)) this.frozen = false;
     this.syncAct3(envHere);
     const w = this.stage.film.weave(b);
     ctx.save();
@@ -252,6 +252,7 @@ export class Renderer {
       ctx.translate(-VIEW_W / 2, -VIEW_H / 2);
     }
     this.stage.drawFront(ctx, L, acam, b);
+    this.drawRevealCurtain(ctx, cam, g.worldBeat);
     ctx.restore();
     // screen-space: hero position for the replay burst / audience ripple
     const hsx = VIEW_W / 2 + (px - cam.rx) * cam.rzoom;
@@ -289,13 +290,42 @@ export class Renderer {
       );
     }
     if (g.phase === 'dying') drawRewind(ctx, Math.min(1, g.deathProgress * 1.4), this.clock);
-    if (pull > 0.001) {
-      ctx.restore();
-      this.act3.hall(ctx, g, pull, b, this.clock);
+    // THE FINAL HIT: freeze-frame the strike (a copy of the finished film frame), push in on Slim, then act 3's post:
+    // light burst, the iris slamming shut on him, THE END, the victory (render/act3Draw.ts)
+    if (hitT >= 0) {
+      // freeze on the strike's contact (a late / early swing still gets its frame; no swing: freeze anyway at 0.22 s)
+      if (!this.frozen && hitT >= ENDING.freeze) {
+        const fh = L.breakables.find((k) => k.look === 'finalHit');
+        if (!fh || (fh.broken && fh.brokenT >= 0.03) || hitT >= 0.22) {
+          this.freezeFrame(ctx, hsx, hsy);
+          this.frozenHit = fh ? [VIEW_W / 2 + (fh.x - cam.rx) * cam.rzoom, VIEW_H / 2 + (fh.y - cam.ry) * cam.rzoom] : [hsx + 150, hsy - 110];
+        }
+      }
+      const [fx, fy] = this.frozen ? this.frozenHero : [hsx, hsy];
+      if (this.frozen && hitT < ENDING.shut && this.freezeCv) {
+        const push = 1 + 0.16 * easeOutK(Math.min(1, (hitT - ENDING.freeze) / 0.45));
+        const [ox, oy] = this.act3.focus();
+        ctx.save();
+        ctx.translate(ox, oy);
+        ctx.scale(push, push);
+        ctx.translate(-ox, -oy);
+        ctx.drawImage(this.freezeCv, 0, 0, VIEW_W, VIEW_H);
+        ctx.restore();
+        // the freeze warms toward a sepia still
+        ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.fillStyle = `rgba(242,208,160,${Math.min(0.35, (hitT - ENDING.freeze) * 1.2)})`;
+        ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+        ctx.restore();
+      }
+      this.act3.post(ctx, g, hitT, fx, fy, this.frozen ? this.frozenHit : [fx + 150, fy - 110], b, this.clock, this.stage.light(envHere));
+      if (hitT >= ENDING.shut) this.stage.film.draw(ctx, b, { amount: 0.7 });
     }
-    // the theatre (outside the film): the audience strip is the streak meter (the pull-out's hall has its own audience)
+    // the theatre around the film in the finale: curtains over its edges + the marquee cut-in
+    this.act3.hall(ctx, g, b, this.clock);
+    // the theatre (outside the film): the audience strip is the streak meter
     const enforcers = L.enemies.filter((e) => !e.alive && !e.heaved).length;
-    if (pull < 0.3) drawTheatre(ctx, b, {
+    drawTheatre(ctx, b, {
       standing: g.crowd.awake ? g.crowd.count : 0,
       heroX: hsx,
       perfectT: this.clock - this.perfectAt < 2 ? this.clock - this.perfectAt : undefined,
@@ -305,8 +335,17 @@ export class Renderer {
     let cue = 0;
     for (const cp of L.checkpoints) cue = Math.max(cue, cp.flash);
     drawCueDot(ctx, cue);
-    drawHud(ctx, g, b);
-    if (g.scene === 'play' && g.phase !== 'coldOpen') this.feedback.drawCombo(ctx, g.groove.pulse(1, 0.25));
+    this.act3.eruption(ctx, hitT, b);
+    // the HUD fades out for the finale (332 on) and stays off through THE END, the victory and the poster
+    const hudA = this.act3.hudAlpha(g);
+    if (hudA > 0.01) {
+      drawHud(ctx, g, b, hudA);
+      if (g.scene === 'play' && g.phase !== 'coldOpen') {
+        ctx.globalAlpha = hudA;
+        this.feedback.drawCombo(ctx, g.groove.pulse(1, 0.25));
+        ctx.globalAlpha = 1;
+      }
+    }
     if (g.scene === 'end') {
       if (this.endAt < 0) this.endAt = this.clock;
       // act 3's ending (THE END -> the victory iris) plays out in the theatre before the poster prints
@@ -317,7 +356,8 @@ export class Renderer {
     if (g.paused && !g.calib.active) drawCenterText(ctx, 'INTERMISSION', 'Enter / Space: resume  ·  X: re-sync the projector (audio lag)');
     drawCalibration(ctx, g);
 
-    if (g.flash > 0.001) {
+    // (the finale owns its own light: no game flash over the final hit's burst / freeze)
+    if (g.flash > 0.001 && !(this.act3.curtainK(g) > 0 && g.worldBeat > 339)) {
       ctx.globalAlpha = Math.min(1, g.flash);
       ctx.fillStyle = g.flashColor;
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
@@ -330,6 +370,75 @@ export class Renderer {
       ctx.globalAlpha = 1;
     }
     g.debug.drawScreen(ctx);
+  }
+
+  private reveal: { key: unknown; x: number; beat: number } = { key: null, x: NaN, beat: NaN };
+
+  /**
+   * THE DROP's reveal (act 3, bar 69): the casino's velvet drape hangs at the roof's edge and hides the sunset until the
+   * drop's downbeat (the roof's `sunset` sky cue, 272), then flies up in 0.6 beat — the sky is a shock of colour.
+   */
+  private drawRevealCurtain(ctx: CanvasRenderingContext2D, cam: Game['camera'], wb: number): void {
+    const L = this.game.level;
+    if (this.reveal.key !== L) {
+      const bd = this.stage.boundaries(L).find((q) => q.to === 'roof');
+      const sky = L.skyCues.find((c) => c.preset === 'sunset');
+      this.reveal = { key: L, x: bd?.x ?? NaN, beat: sky?.beat ?? NaN };
+    }
+    const R = this.reveal;
+    if (Number.isNaN(R.x) || Number.isNaN(R.beat)) return;
+    const d = wb - R.beat;
+    if (d > 0.6 || d < -24) return;
+    const sx = VIEW_W / 2 + (R.x - cam.rx) * cam.rzoom;
+    if (sx > VIEW_W + 40) return;
+    const up = d <= 0 ? 0 : (d / 0.6) ** 2;
+    const oy = -up * (VIEW_H + 260);
+    const x0 = Math.max(-60, sx);
+    const fold = 84 * cam.rzoom + 20;
+    const sway = Math.sin(wb * Math.PI * 0.5) * 6;
+    ctx.save();
+    ctx.translate(0, oy);
+    ctx.fillStyle = '#2A0C24';
+    ctx.fillRect(x0, -60, VIEW_W - x0 + 60, VIEW_H + 120);
+    for (let x = x0; x < VIEW_W + fold; x += fold) {
+      const gr = ctx.createLinearGradient(x, 0, x + fold, 0);
+      gr.addColorStop(0, '#2A0C24');
+      gr.addColorStop(0.45, '#7A3A66');
+      gr.addColorStop(0.6, '#8A4A76');
+      gr.addColorStop(1, '#2A0C24');
+      ctx.fillStyle = gr;
+      ctx.fillRect(x, -60, fold + 1, VIEW_H + 120);
+    }
+    // the leading edge: a gold braid + a shadow on the scene beside it
+    const edge = ctx.createLinearGradient(x0 - 50, 0, x0, 0);
+    edge.addColorStop(0, 'rgba(13,6,12,0)');
+    edge.addColorStop(1, 'rgba(13,6,12,0.55)');
+    ctx.fillStyle = edge;
+    ctx.fillRect(x0 - 50, -60, 50, VIEW_H + 120);
+    ctx.fillStyle = CF.gold;
+    ctx.fillRect(x0 + sway * 0.3, -60, 7, VIEW_H + 120);
+    // the hem: gold fringe (seen as it flies up)
+    ctx.fillStyle = CF.gold;
+    ctx.fillRect(x0, VIEW_H + 40, VIEW_W - x0, 14);
+    ctx.fillStyle = '#B8923A';
+    for (let x = x0 + 6; x < VIEW_W; x += 16) ctx.fillRect(x, VIEW_H + 54, 5, 26);
+    ctx.restore();
+  }
+
+  /** copy the finished film frame (backing-store pixels) for the final hit's freeze */
+  private freezeFrame(ctx: CanvasRenderingContext2D, hx: number, hy: number): void {
+    const src = ctx.canvas;
+    if (!this.freezeCv || this.freezeCv.width !== src.width || this.freezeCv.height !== src.height) {
+      this.freezeCv = document.createElement('canvas');
+      this.freezeCv.width = src.width;
+      this.freezeCv.height = src.height;
+    }
+    const fc = this.freezeCv.getContext('2d');
+    if (!fc) return;
+    fc.setTransform(1, 0, 0, 1, 0, 0);
+    fc.drawImage(src, 0, 0);
+    this.frozen = true;
+    this.frozenHero = [hx, hy];
   }
 
   /** act 3 scene state from the game (the casino's dying chandeliers + the hush, the penthouse's lens blaze / flares) */
