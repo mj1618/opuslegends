@@ -187,7 +187,9 @@ export const sliceLevel: LevelDef = {
     // ---- bar 15: bass out again — a breather: held jump over a pool, a hop, a bottle on the snare
     ...poolJump(bar(15, 1)),
     ...tokenHop(bar(15, 3)),
-    ...tokenHop(bar(15, 4)),
+    // iteration 5 (review iter4 fix 2): the snare is a bottle, not a hop — a hop on 59 pressed ≥ +140 ms late landed
+    // in the bar-16 pit (a HIDDEN lethal reward; `slack.mjs --hidden`)
+    bottle(bar(15, 4), 'glass'),
     ...melodyTokens([[58.67, 55], [59.67, 59]]),
     // ---- bar 16: block PEAK = LETHAL COMBINATION: pit on 1, a goon on the snare (2), a held jump over a long pit on
     // the kick (3) and the BIG sign struck mid-air on the snare (4), landing on the versePeak downbeat. ('teach')
@@ -322,9 +324,10 @@ export const sliceLevel: LevelDef = {
     // ---- bar 30: E lands; hook B + the fill (&3, &4)
     fx(bar(30, 1), 'flash', 0.6),
     { type: 'camera', beat: bar(30, 1), zoom: 0.84, beats: 2 },
-    // iteration 4: E lands on a pit (~-80/+150 ms) — the ±130 teeth the widened 94/98/106 gave back, away from the
-    // bars 24-28 burst (a ±85 press never misses it early; the late side keeps the +150 rule)
-    ...gapHop(bar(30, 1), [0.09, 0.85]),
+    // iteration 4: E lands on a pit — the ±130 teeth the widened 94/98/106 gave back. Iteration 5 (review iter4 fix 10):
+    // 'std' (~-105/+150): at -80 it was the ±130 bot's repeat pit right after the walkdown checkpoint (◆112, 5 deaths in
+    // 5 seeds, 3 in a row); the tight one is now 118 (bar 30 b3, a bar after the re-entry)
+    ...gapHop(bar(30, 1), 'std'),
     bottle(bar(30, 2)),
     ...gapHop(bar(30, 3), 'tight'),
     bottle(and(bar(30, 3)), 'glass'),

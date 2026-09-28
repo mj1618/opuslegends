@@ -295,7 +295,11 @@ export class Mechanics {
     const active = running && p.strikeActive;
     if (active && !this.wasActive && !this.hook) {
       // the press = the active edge minus the strike's startup
-      const pressBeat = wb - Tun.strike.startup / p.spb;
+      // iteration 5: a hero BEHIND the grid (a stumble's knockback, still surging back) grabs by where he IS — the rope
+      // hangs at its beat's x, so the window follows his position (a player who stumbled right before the zip used to
+      // press on reaching the cable, past the +0.5 beat window, and fall every retry: reckless bot 26× at 206)
+      const lag = Math.min(1.5, Math.max(0, (p.musicX - p.x) / this.L.ppb));
+      const pressBeat = wb - Tun.strike.startup / p.spb - (Number.isFinite(lag) ? lag : 0);
       for (const h of this.hooks) {
         if (h.state !== 'idle' || pressBeat < h.beat - HOOK.early || pressBeat > h.beat + HOOK.late) continue;
         if (p.x > h.x1 - 8 || p.x < h.x0 - 1.2 * this.L.ppb) continue;

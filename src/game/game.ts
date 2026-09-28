@@ -107,6 +107,19 @@ export class Game {
   private burnGrace = 0;
   /** extra rest distance (beats) after the Burn caught you, until the next checkpoint (Tun.chaser.caughtBonus) */
   private burnRestBonus = 0;
+  /** Burn catches since the last checkpoint (the assist: Tun.chaser.missFeedOffAfter / restAfter / spentAfter) */
+  private burnCatches = 0;
+  /** the hero's last forward progress (world x, beat): the Burn's softlock rule */
+  private progress = { x: -Infinity, beat: 0 };
+  /**
+   * the projector sync is being RE-OFFERED (iteration 5): the auto-drift sat at its ±rangeMs clamp. +1 = the player
+   * hears the music late (presses late), -1 = early, 0 = no offer. Presentation: the pause screen can highlight "X
+   * re-syncs"; the Game prompts at the next checkpoint / count-in (never mid-action). Cleared by a sync.
+   */
+  resyncOffer = 0;
+  private resyncPinned = 0;
+  private resyncShown = 0;
+  private resyncDue = false;
   /** chorus drops (cap-rise beats) already paid this attempt */
   private dropsDone = new Set<number>();
   /** a paid drop opens its chorus cap early (until its downbeat) */
@@ -419,6 +432,7 @@ export class Game {
     const rest = Tun.chaser.restGap + this.burnRestBonus;
     const gap = Math.min(rest, Math.max(this.snap.burnGap, Tun.chaser.respawnMinGap + this.burnRestBonus));
     this.chaser = { active: false, x: -Infinity, riseBeat: 0, gap, rel: gap + 0.5, lunge: 0, danger: 0, flare: 0 };
+    this.progress = { x: beat * this.level.ppb, beat };
     for (const b of [...this.dropsDone]) if (b >= beat - 1e-6) this.dropsDone.delete(b);
     this.dropCapBeat = -Infinity;
     this.lungeIdx = this.lungeBeats.findIndex((b) => b >= beat - 1e-6);
@@ -480,7 +494,11 @@ export class Game {
   die(cause: string): void {
     if (this.phase !== 'run') return;
     // caught by the Burn: it keeps an extra distance until the next checkpoint (no catch-twice at one spot)
-    if (cause === 'chaser') this.burnRestBonus = Tun.chaser.caughtBonus;
+    if (cause === 'chaser') {
+      this.burnCatches++;
+      this.burnRestBonus = this.burnCatches >= Tun.chaser.restAfter ? Tun.chaser.assistRest - Tun.chaser.restGap : Tun.chaser.caughtBonus;
+      this.log('burnAssist', { catches: this.burnCatches });
+    }
     this.phase = 'dying';
     this.phaseTimer = Tun.flow.deathTime;
     this.stats.deaths++;
@@ -517,6 +535,7 @@ export class Game {
       this.showFailHint(this.pendingHint, beat - Tun.flow.countInBeats + 0.5);
       this.pendingHint = null;
     }
+    this.deliverResyncOffer();
   }
 
   private finish(): void {
@@ -551,7 +570,9 @@ export class Game {
     this.snapHeaved = new Set(this.heaved);
     this.burnGrace = 0;
     this.burnRestBonus = 0;
+    this.burnCatches = 0;
     this.stage.onCheckpoint();
+    this.deliverResyncOffer();
     this.particles.emit({ x: cp.x, y: cp.y - 200, count: 30, speed: [150, 500], life: [0.5, 1], size: [6, 12], color: '#F8F1DC', gravity: 500, drag: 1.5, shape: PShape.Square });
     this.log('checkpoint', { beat: cp.beat });
   }
@@ -659,6 +680,11 @@ export class Game {
     this.conductor.latency = ms / 1000;
     this.latencyBaseMs = ms;
     this.autoErr = [];
+    this.resyncPinned = 0;
+    if (store) {
+      this.resyncOffer = 0;
+      this.resyncDue = false;
+    }
     if (store) safeSetLocal(LATENCY_KEY, String(Math.round(ms)));
   }
 
@@ -715,6 +741,25 @@ export class Game {
     } else this.showToast('Not enough taps — offset unchanged (↓ before the film · X in the pause menu)', 3.5);
     this.log('calib', { result: r, errs: this.calib.errs.map((e) => Math.round(e)) });
     if (this.calib.origin === 'coldOpen' && this.phase === 'coldOpen') this.beginFromColdOpen();
+    else if (this.calib.origin === 'pause' && this.bot && params.resync) this.setPaused(false);
+  }
+
+  /**
+   * RE-OFFER the projector sync (iteration 5, review iter4 fix 6): the auto-drift is pinned at its clamp, so the rest of
+   * the offset needs the tap test. Called at a checkpoint and on a respawn count-in — breathing points, never
+   * mid-action. The bot (?resync=1) accepts it like a player would: pause, sync, resume.
+   */
+  private deliverResyncOffer(): void {
+    if (!this.resyncDue || this.scene !== 'play') return;
+    this.resyncDue = false;
+    this.resyncShown++;
+    const late = this.resyncOffer > 0;
+    this.showToast(`Your sound is running ${late ? 'LATE' : 'EARLY'} — Esc, then X to re-sync the projector (4 s)`, 4.5);
+    this.log('resyncPrompt', { shown: this.resyncShown, late });
+    if (this.bot && params.resync) {
+      this.setPaused(true);
+      this.startCalibration('pause');
+    }
   }
 
   /**
@@ -735,6 +780,14 @@ export class Game {
     const cur = this.conductor.latency * 1000;
     const step = clamp(med * A.gain, -A.maxStepMs, A.maxStepMs);
     const next = clamp(cur + step, this.latencyBaseMs - A.rangeMs, this.latencyBaseMs + A.rangeMs);
+    // pinned: a clear bias pushing past the clamp → re-offer the projector sync (at the next checkpoint / count-in)
+    if (Math.abs(cur + step - next) > 0.5) {
+      if (++this.resyncPinned >= A.pinnedSteps && !this.resyncOffer && this.resyncShown < A.offerTimes) {
+        this.resyncOffer = Math.sign(step);
+        this.resyncDue = true;
+        this.log('resyncOffer', { medianMs: Math.round(med), ms: Math.round(next) });
+      }
+    } else this.resyncPinned = 0;
     if (Math.abs(next - cur) < 0.5) return;
     this.conductor.latency = next / 1000;
     this.log('autoLatency', { medianMs: Math.round(med), ms: Math.round(next * 10) / 10 });
@@ -1090,16 +1143,30 @@ export class Game {
     c.rel = c.rel > c.gap ? Math.max(c.gap, c.rel - step) : Math.min(c.gap, c.rel + step);
     // drum-fill lunges (deterministic from the world beat, so rewinds replay them exactly)
     while (this.lungeIdx < this.lungeBeats.length && this.lungeBeats[this.lungeIdx] <= beatW) {
-      this.burnStats.lunges++;
-      this.events.emit('burn', { kind: 'lunge', beat: this.lungeBeats[this.lungeIdx], gap: c.gap, danger: c.danger });
+      if (this.burnCatches < B.restAfter) {
+        this.burnStats.lunges++;
+        this.events.emit('burn', { kind: 'lunge', beat: this.lungeBeats[this.lungeIdx], gap: c.gap, danger: c.danger });
+      }
       this.lungeIdx++;
     }
     const last = this.lungeIdx > 0 ? this.lungeBeats[this.lungeIdx - 1] : -Infinity;
     const d = beatW - last;
     c.lunge = d < 0 ? 0 : d < B.lungeRise ? Math.sin((d / B.lungeRise) * Math.PI * 0.5) : d < B.lungeRise + B.lungeFall ? 1 - (d - B.lungeRise) / B.lungeFall : 0;
+    // the assist: after `restAfter` catches in this segment it stops lunging
+    if (this.burnCatches >= B.restAfter) c.lunge = 0;
     c.x = (beatW - c.rel + B.lungeBeats * c.lunge) * L.ppb;
     c.flare = Math.max(0, c.flare - dBeats * 0.5);
-    const margin = (p.x - p.w / 2 + Tun.player.hurtInset - c.x) / L.ppb;
+    let margin = (p.x - p.w / 2 + Tun.player.hurtInset - c.x) / L.ppb;
+    // it only kills once PULLED (gap < catchBelowGap: more than one stumble's worth) and not spent (the assist): else it
+    // scorches your heels — held at your back, flaring — and you live
+    // (a hero STUCK — no progress for stuckBeats, a wall he can't pass — is still caught: no softlock)
+    if (p.x > this.progress.x + 0.25 * L.ppb) this.progress = { x: p.x, beat: beatW };
+    const stuck = beatW - this.progress.beat > B.stuckBeats;
+    if (margin < 0 && (c.gap >= B.catchBelowGap || this.burnCatches >= B.spentAfter) && !stuck) {
+      c.x = (p.x - p.w / 2 + Tun.player.hurtInset) - 0.02 * L.ppb;
+      c.flare = 1;
+      margin = 0.02;
+    }
     c.danger = clamp(1 - margin / B.restGap, 0, 1);
     if (beatW > c.riseBeat + B.riseBeats) this.burnStats.minMarginBeats = Math.min(this.burnStats.minMarginBeats, margin);
     if (margin < 0) {
@@ -1271,7 +1338,8 @@ export class Game {
     // isn't free); missed threats already cost a stumble / a life
     this.crowd.add(-Tun.crowd.perMiss);
     this.breakCombo('miss');
-    if (a.failKind === 'none' && this.chaser.active) this.feedBurn(Tun.chaser.missPull);
+    // (the assist: after `missFeedOffAfter` Burn catches in this checkpoint segment, missed rewards stop feeding it)
+    if (a.failKind === 'none' && this.chaser.active && this.burnCatches < Tun.chaser.missFeedOffAfter) this.feedBurn(Tun.chaser.missPull);
     this.events.emit('miss', { verb: a.type === 'strike' ? 'strike' : 'jump', beat: a.beat, failKind: a.failKind, source: a.source });
   }
 
@@ -1302,7 +1370,7 @@ export class Game {
   static readonly FAIL_HINTS: Record<string, { text: string; icon: string }> = {
     pit: { text: 'TAP JUMP right at the edge', icon: 'jump' },
     lifts: { text: 'HOP on EVERY beat — the kegs slam on it', icon: 'jump' },
-    burn: { text: 'Hit the beats — every miss feeds the BURN', icon: 'burn' },
+    burn: { text: 'SWING (X) at the gold — every miss feeds the BURN', icon: 'burn' },
     jabber: { text: 'X — swing FIRST, on the beat', icon: 'strike' },
     spike: { text: 'Hop the cue racks', icon: 'jump' },
     lowSign: { text: 'HOLD ↓ under the sign', icon: 'down' },
@@ -1742,6 +1810,8 @@ export class Game {
         latencyBaseMs: this.latencyBaseMs,
         calibration: this.calib.errs.length ? { resultMs: this.calib.result, tapErrsMs: this.calib.errs.map((e) => Math.round(e)) } : null,
         deviceMs: params.device,
+        /** the projector sync re-offered (auto-drift pinned at its clamp): prompts shown this run */
+        resyncPrompts: this.resyncShown,
         baseLatencyMs: round3((this.audio.ctx.baseLatency || 0) * 1000),
         outputLatencyMs: round3((this.audio.ctx.outputLatency || 0) * 1000),
         sampleRate: this.audio.ctx.sampleRate,

@@ -27,7 +27,7 @@
  * (measured with `node playtest/slack.mjs --level=src/level/act3.ts#act3Level --from=240`), ≤ 1 stumble per bar,
  * checkpoints ≤ 5 bars apart, a breather after every peak.
  */
-import { and, bottle, bottleHigh, crate, jabber, launch, lumArcHop, lumArcJump, melodyTokens, pendulum, slideUnder, spikeHop, tokenHop } from './dsl';
+import { and, bottle, bottleHigh, crate, jabber, launch, lumArcHop, lumArcJump, lumRowSwung, melodyTokens, pendulum, slideUnder, spikeHop, tokenHop } from './dsl';
 import type { BigJimPose, BreakableLook, FxKind, LevelDef, LevelItem, SetPieceName, SkyPreset } from './types';
 
 /** beat of bar n (1-based, the edit's numbering), beat k (1-based) */
@@ -70,6 +70,8 @@ const UP_EDGE = 0.55;
 const POST_TOP = [-0.27, 0.28] as const;
 /** Big Jim's fists: slam-lift press tops, narrower than the dsl default (build.ts SLAM -0.42..0.36) */
 const SLAM_TOP = [-0.3, 0.26] as const;
+/** the knee's solid lip after the first fist (beats after its slam) */
+const KNEE = 0.42;
 class Terrain {
   readonly items: LevelItem[] = [];
   private from: number;
@@ -131,12 +133,17 @@ class Terrain {
    * slam lifts (Big Jim's fists) at the current height; hops ON first-1 .. first+n-1. The FIRST fist slams onto solid
    * ground (his knee: hopping onto it is a reward), the pit opens after it (the hops off the fists are lethal)
    */
-  lifts(first: number, n: number): this {
-    const pit = first + SLAM_TOP[1];
+  lifts(first: number, n: number, walkOn = false): this {
+    // the knee (solid) runs on KNEE past the first fist's top, so a LATE reward hop onto it still lands (iteration 5: at
+    // SLAM_TOP[1] a +145 ms late 308 hop fell into the pit)
+    const pit = first + KNEE;
     this.set(pit, this.h);
     this.items.push({ type: 'gap', from: pit, to: first + n - 0.15 });
     for (let i = 0; i < n; i++) this.items.push({ type: 'slam', beat: first + i, h: this.h, from: SLAM_TOP[0], to: SLAM_TOP[1] });
-    this.hops(first, n, 'death', 1);
+    // walkOn (iteration 5): no hop onto the first fist — you run onto it (it slams onto solid ground), so the first
+    // lethal hop off it has no jump buffer behind it: its early side is real
+    if (walkOn) this.hops(first + 1, n - 1, 'death');
+    else this.hops(first, n, 'death', 1);
     this.from = first + n - 0.15;
     return this;
   }
@@ -161,13 +168,27 @@ const FIT = {
   rackStep: [0.1, 0.65] as const,
   /** 268: tap hop UP +40 onto the apex tier as the frame slams (the kick) */
   rackGap: [0.1, 0.7] as const,
-  /** 276 / 282: light-wells between the letters (tap hop, flat) */
+  /** 276 / 282: light-wells between the letters (tap hop, flat). Iteration 5: 276 is no longer led by a reward hop on
+   * 275 (a +95 ms late 275 hop landed in the well — a hidden lethal, the 277 loop): X X X ∪, its early side is real */
   well: [0.13, 0.84] as const,
   wellStd: [0.09, 0.8] as const,
   /** 294: held jump UP +150 from the M's hump to the terrace */
   terrace: [0.2, 1.5] as const,
   /** 316 / 324: tap hop UP +50 across the gap between Big Jim's lapels */
   lapel: [0.1, 0.68] as const,
+  /** 324 after the knuckle-ring hop (323): the near lip at +0.36 so a LATE ring hop still lands on the lapel (iteration 5:
+   * at +0.1 a +85 ms late 323 hop — marked a stumble — fell into the gap) */
+  lapelHup: [0.36, 0.68] as const,
+  /**
+   * iteration 5, THE GAUNTLET'S TEETH (review iter4 fix 7): hops UP across his body that follow a STRIKE or a landing
+   * (no jump buffer to hide an early press): 312 cuff -> sleeve, 318 lapel -> tie pin, 326 collar -> lens rim.
+   * ~-90/+150 ms: fair to the rule, but a ±130 press misses them early
+   */
+  climb: [0.1, 0.66] as const,
+  /** 318: the same across a FLAT notch (the landing comes sooner than going up, so the pit runs further) */
+  notch: [0.1, 0.84] as const,
+  /** 280: up onto the fallen I after the strikes (was `lapel`, measured −80 once 275 stopped being a hop) */
+  ontoI: [0.1, 0.66] as const,
 };
 
 /** Act 3's items, starting on a floor `h0` px above the street (act 2's last height). */
@@ -192,7 +213,7 @@ export function act3Items(h0 = 950): LevelItem[] {
   T.void(bar(69) + 0.45, bar(69) + 1.4, ROOF);
   // ---- Sign Falls (69-74)
   T.gapUp(bar(70, 1), FIT.well, 0) // 276: LETHAL light-well
-    .gapUp(bar(71, 1), FIT.lapel, 50) // 280: LETHAL — across a light-well UP onto the fallen I (the A7 climb, .90)
+    .gapUp(bar(71, 1), FIT.ontoI, 50) // 280: LETHAL — across a light-well UP onto the fallen I (the A7 climb, .90)
     .gapUp(bar(71, 3), FIT.wellStd, 0) // 282: LETHAL light-well
     .set(bar(72, 4) + 0.7, ROOF + 50); // (the J lies to 287.3; its hook = the see-saw at 287)
   T.set(bar(73, 1) + 0.6, ROOF + 140); // the second I's cap tier: the J-hook launch lands on it ON 289
@@ -203,14 +224,16 @@ export function act3Items(h0 = 950): LevelItem[] {
   const P = TERRACE;
   T.set(bar(77, 1) + 0.3, P - 24).set(bar(77, 1) + 1.6, P); // 304: a table pocket (safe pool)
   T.up(bar(77, 4), 50); // 307: up onto his knee
-  T.lifts(bar(78, 2), 2); // 308 · 309 · 310: LETHAL — his FISTS slam over the burned-out floor -> the cuff (311)
-  T.up(bar(79, 1), 50); // 312: onto the velvet sleeve
+  T.lifts(bar(78, 2), 2, true); // (308 X) · 309 · 310: LETHAL — his FISTS slam over the burned-out floor -> the cuff (311)
+  T.gapUp(bar(79, 1), FIT.climb, 50); // 312: LETHAL — off his cuff, across the gap onto the velvet sleeve
   T.up(bar(79, 4), 50); // 315: HUP — up the sleeve to his shoulder
   T.gapUp(bar(80, 1), FIT.lapel, 50); // 316: HUP — LETHAL: across to the lapel
+  T.gapUp(bar(80, 3), FIT.notch, 0); // 318: LETHAL — after the HEY, across the lapel's notch to his tie pin
   T.set(bar(81, 1) + 0.3, T.h - 24).set(bar(81, 1) + 1.6, T.h); // 320: his breast pocket (safe pool)
-  T.gapUp(bar(82, 1), FIT.lapel, 50); // 324: HUP — LETHAL: lapel -> collar
-  T.up(bar(82, 3), 50); // 326: up onto his lens rim
+  T.gapUp(bar(82, 1), FIT.lapelHup, 50); // 324: HUP — LETHAL: lapel -> collar
+  T.gapUp(bar(82, 3), FIT.climb, 50); // 326: LETHAL — after the HEY, up across onto his lens rim
   // ---- the finale (84-86): the film strip, sprockets rising on the pickup (B C D D#), iris blades
+  T.gapUp(bar(83, 3), FIT.notch, 0); // 330: LETHAL — the bridge of his aviators (the last threat before the finale)
   T.up(bar(84, 1), 40).up(bar(84, 3), 40).up(bar(84, 4), 40);
   T.up(bar(85, 1), 30).up(bar(85, 3), 30).up(bar(85, 4), 30);
   const terrain = T.end(bar(86) + 40);
@@ -313,8 +336,10 @@ export function act3Items(h0 = 950): LevelItem[] {
     bottleHigh(bar(69, 2), 'glass', undefined, true), // the casino's skylight, burst from below mid-launch
     mode(bar(69, 3), 'roof'),
     crate(bar(69, 3), 'letterNeon'), // land ON 274 on the fallen B: its big neon SLAMS
-    smash(and(bar(69, 3)), 'letterNeon'),
-    ...tokenHop(bar(69, 4)),
+    // iteration 5: X · X then the well — the B's last tube on 4 (was a reward hop on 275 whose late landing fell into the
+    // 276 well: a hidden lethal). Tokens run along the B to the lip
+    smash(bar(69, 4), 'letterNeon'),
+    lumRowSwung(and(bar(69, 3)), bar(70, 1) - 0.1, 50),
     topple(bar(69), 0, 'B', 274.3, 276.09, ROOF, 'frame'),
     // ---- bar 70 (.80, HEY 277 · 278): the light-well on the kick (276, tight), the Bluffer leaps off the falling I on
     // the first HEY, the I's neon on the second, neon tubes on 4 and its "and"
@@ -402,6 +427,7 @@ export function act3Items(h0 = 950): LevelItem[] {
     // his cuff; a medallion on 4
     setPiece(bar(77, 4), 'gauntlet', 25),
     follows(bar(78), 'hooks'),
+    smash(bar(78, 1), 'bell'), // iteration 5: his pinky ring on the downbeat (was a reward hop onto the knee: X ∪ ∪ X X)
     pendulum(bar(78, 4)),
     smash(and(bar(78, 4)), 'bell'), // his cufflink
     fx(bar(78, 2), 'bgPulse', 0.6),
@@ -415,7 +441,7 @@ export function act3Items(h0 = 950): LevelItem[] {
     { type: 'phrase', beats: [bar(79, 4), bar(80, 1), bar(80, 2)] },
     giant(bar(80, 2), 'lens'),
     fx(bar(80, 2), 'flash', 0.8),
-    ...tokenHop(bar(80, 3)),
+    // (318: the hop across the lapel notch is lethal now — terrain above)
     pendulum(bar(80, 4)),
     // ---- bar 81 (held 320.07): the held jump over his breast pocket (safe), the big medallion mid-air (321), his
     // KNUCKLE RING sweeps low (323: hop it, the HUP)
@@ -430,11 +456,11 @@ export function act3Items(h0 = 950): LevelItem[] {
     giant(bar(82, 2), 'lens'),
     fx(bar(82, 2), 'flash', 0.8),
     smash(bar(82, 4), 'letterNeon'),
-    // ---- bar 83 (the fill &3 &4): the exam's cadence, 0 threats — the GOLD CHAIN snaps on 1, a hop, the fill run
-    // through the flying medallions (330.70, 331.68)
+    // ---- bar 83 (the fill &3 &4): the exam's LAST question — the GOLD CHAIN snaps on 1, tokens along the rim, then
+    // (iteration 5) the lethal hop over the bridge of his aviators on the kick (330, after a strike: no buffer), the fill
+    // run through the flying medallions mid-hop (330.70, 331.68)
     crate(bar(83, 1), 'chain'),
-    ...tokenHop(bar(83, 2)),
-    ...tokenHop(bar(83, 3)),
+    lumRowSwung(bar(83, 1) + 0.5, bar(83, 3) - 0.2, 50),
     smash(330.7, 'letterNeon'),
     smash(331.68, 'letterNeon'),
     fx(330.7, 'bgPulse', 0.7),

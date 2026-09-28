@@ -243,6 +243,23 @@ export const Tun = {
     respawnGraceStumbles: 1,
     /** after the Burn CAUGHT you, it rests this much further back (beats) until the next checkpoint */
     caughtBonus: 0.5,
+    /**
+     * iteration 5 (review iter4 fix 3): it only KILLS once pulled below this gap (beats). One stumble from rest
+     * (1.75 − 0.75 = 1.0) never catches, even into a fill lunge: the Burn scorches your heels (danger 1, flare) but you
+     * live. Two stumbles close together, or a stumble after a run of misses (already pulled), still catch.
+     */
+    catchBelowGap: 0.95,
+    /**
+     * the ASSIST, per checkpoint segment (resets at the next checkpoint): after `missFeedOffAfter` catches, missed
+     * rewards stop feeding it; after `restAfter` catches it rests at `assistRest` beats and stops lunging; after
+     * `spentAfter` catches it can't kill at all (a struggling player always gets through; no catch loops)
+     */
+    missFeedOffAfter: 2,
+    restAfter: 2,
+    assistRest: 2.5,
+    spentAfter: 3,
+    /** …but a hero STUCK (no forward progress for this many beats: a wall he can't pass) is caught anyway (no softlock) */
+    stuckBeats: 2,
     /** drum-fill lunge: extra reach (beats) and envelope (rise, fall) in beats */
     lungeBeats: 0.3,
     lungeRise: 0.25,
@@ -275,6 +292,13 @@ export const Tun = {
     gain: 0.35,
     maxStepMs: 8,
     rangeMs: 40,
+    /**
+     * iteration 5 (review iter4 fix 6): when the drift wants to go past its clamp this many steps in a row (~2 bars
+     * of clear bias), the projector sync is RE-OFFERED — a prompt at the next checkpoint / count-in (never mid-action)
+     * and in the pause screen (`Game.resyncOffer`), at most `offerTimes` times
+     */
+    pinnedSteps: 2,
+    offerTimes: 3,
   },
 
   /** failure hints: after the player fails the same thing `after` times, show a short tip once */

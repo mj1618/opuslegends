@@ -19,6 +19,7 @@
  *   ?coldopen=0   skip the cold open (start straight at the count-in)
  *   ?device=<ms>  autoplay: the bot hears the audio this late (unreported device latency; calibration fixes it)
  *   ?calib=1      run the cold open's projector sync (latency tap test) — the bot taps it too
+ *   ?resync=1     autoplay: accept a re-offered projector sync (the auto-drift pinned at its clamp): pause, tap, resume
  *   ?autolat=0    disable the in-run latency auto-drift
  *   ?song=<id>    edit (default: the original recording's level edit) | full (the whole original) |
  *                 placeholder (synth track). Falls back to placeholder if the licensed file is missing.
@@ -55,6 +56,8 @@ export interface Params {
   device: number;
   /** cold open: run the projector sync (the latency tap test) even if an offset is stored / for the bot */
   calib: boolean;
+  /** autoplay: the bot ACCEPTS a re-offered projector sync (pause → tap test → resume), like a player following the prompt */
+  resync: boolean;
   /** auto-calibration drift of the latency offset during the run (default on; ?autolat=0 disables) */
   autoLatency: boolean;
 }
@@ -94,6 +97,7 @@ function readParams(): Params {
     song: q.get('song'),
     device: num('device') ?? 0,
     calib: flag('calib'),
+    resync: flag('resync'),
     autoLatency: q.get('autolat') !== '0',
   };
 }

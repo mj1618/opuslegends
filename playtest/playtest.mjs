@@ -32,6 +32,9 @@
  *                     (calibration, auto-drift) corrects it like it would for a human. Implies sloppy reporting
  *   --calib           run the cold open's projector sync (latency tap test); the bot taps it (device + jitter)
  *   --autolat=0       disable the in-run latency auto-drift
+ *   --resync          the bot ACCEPTS a re-offered projector sync (auto-drift pinned at its clamp): pause, tap, resume
+ *   --no-hidden       skip the hidden-lethal gate (`slack.mjs --hidden` on the full level, ~10 s, run before the browser
+ *                     when the whole level is played: a reward/stumble press that kills inside ±150 ms fails the run)
  *   --seed=<n>        jitter seed
  *   --song=<id>       edit (default) | full | placeholder — passed as ?song= (falls back to the
  *                     placeholder, with an on-screen note, if the licensed recording is missing)
@@ -93,7 +96,19 @@ async function main() {
   if (args.device) q.set('device', String(args.device));
   if (args.calib) q.set('calib', '1');
   if (args.autolat !== undefined) q.set('autolat', String(args.autolat));
+  if (args.resync) q.set('resync', '1');
   const sloppy = !!(args.sloppy || args.late || args.skip || args.device);
+  // HIDDEN-LETHAL GATE (iteration 5): every action not marked lethal must be survivable ±150 ms and when skipped
+  let hiddenFail = null;
+  if (!args['no-hidden'] && !args.start) {
+    log('hidden-lethal gate (slack.mjs --hidden)…');
+    try {
+      execSync('node playtest/slack.mjs --level=src/level/index.ts#gameLevel --hidden', { cwd: root, stdio: 'pipe' });
+    } catch (e) {
+      hiddenFail = String(e.stdout ?? '').split('FAIL:')[1]?.trim().split('\n').map((l) => l.trim()).join(' | ') || 'slack.mjs --hidden failed';
+      log('hidden-lethal gate FAILED: ' + hiddenFail);
+    }
+  }
   const maxDeaths = args['max-deaths'] !== undefined ? Number(args['max-deaths']) : Infinity;
   const strictTiming = !args.miss && !args.jitter && !sloppy;
   const url = `${base}?${q}`;
@@ -165,6 +180,7 @@ async function main() {
   const expectedDeaths = args['expect-deaths'] !== undefined ? Number(args['expect-deaths']) : exp.deaths;
   const expectedStumbles = args['expect-stumbles'] !== undefined ? Number(args['expect-stumbles']) : exp.stumbles;
   if (!report.completed) failures.push('level not completed');
+  if (hiddenFail) failures.push(`hidden lethal presses: ${hiddenFail}`);
   if (!sloppy && report.deaths !== expectedDeaths) failures.push(`${report.deaths} death(s) (expected ${expectedDeaths}): ${JSON.stringify(report.deathLog)}`);
   if (!sloppy && report.stumbles !== expectedStumbles) failures.push(`${report.stumbles} stumble(s) (expected ${expectedStumbles}): ${JSON.stringify(report.stumbleLog)}`);
   const missBeats = new Set(String(args.miss ?? '').split(',').filter(Boolean).map(Number));
@@ -192,6 +208,13 @@ async function main() {
     const act = (b) => (b < 132 ? 'act1' : b < 240 ? 'act2' : 'act3');
     const count = (list) => list.reduce((m, d) => ((m[act(d.beat)] = (m[act(d.beat)] ?? 0) + 1), m), {});
     log(`sloppy human  deaths by act: ${JSON.stringify(count(report.deathLog))}  stumbles by act: ${JSON.stringify(count(report.stumbleLog))}  latency ${report.clock.latencyOffsetMs} ms (base ${report.clock.latencyBaseMs})`);
+    // death LOOPS: the longest run of consecutive deaths at one spot (±0.3 beat) — the fairness bar is ≤ 3
+    let loop = { n: 0, beat: null };
+    for (let i = 0, n = 0; i < report.deathLog.length; i++) {
+      n = i > 0 && Math.abs(report.deathLog[i].beat - report.deathLog[i - 1].beat) < 0.3 ? n + 1 : 1;
+      if (n > loop.n) loop = { n, beat: report.deathLog[i].beat, cause: report.deathLog[i].cause };
+    }
+    log(`death loops   longest same-spot run ${loop.n}${loop.beat !== null ? ` at ${loop.beat} (${loop.cause})` : ''}; Burn ${JSON.stringify(report.burn ?? {})}`);
   }
   log(`song          ${report.song} (bpm ${report.bpm}, swing ${report.swing})`);
   log(`completed ${report.completed}  deaths ${report.deaths}  stumbles ${report.stumbles}  lums ${report.lums}/${report.lumsTotal}  pendulums ${report.pendulums}/${report.pendulumsTotal}  heaves ${report.heaves}/${report.phrases}`);

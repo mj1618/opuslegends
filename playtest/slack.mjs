@@ -12,6 +12,9 @@
  * in the sim; the Burn is not modelled (the real bots measure it).
  * --stumbles also sweeps every MOVING stumble threat (thrown bottles / firebombs / balls) and every hook ride the same
  * way and reports its window (no stumble / hooked): the act-2 fairness rule is ≥ +130 ms late on those.
+ * --hidden (iteration 5) sweeps EVERY action for death (hidden lethal presses: a reward / stumble hop whose late landing
+ * falls into the next pit) and exits 1 if a non-lethal action kills inside ±150 ms (--hiddenMs=) or when skipped, or
+ * a lethal one is under −70/+150 (--lethalEarly=; act 1's tight/peak pits are −70, acts 2-3 author to −85). `npm run playtest` runs it as a gate on the full level (~1-2 min; --no-hidden skips).
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -32,6 +35,7 @@ const load = async (spec) => {
   return name ? mod[name] : mod.default;
 };
 try {
+  await (async () => {
   const level = await load(args.level ?? 'src/level/slice.ts#sliceLevel');
   const songMod = await server.ssrLoadModule('/src/audio/song.ts');
   const bm = join(root, `assets/audio/${level.songId}.beatmap.json`);
@@ -151,6 +155,66 @@ try {
     return null;
   }
 
+  /**
+   * --hidden (iteration 5, review iter4 fix 2): HIDDEN LETHAL PRESSES. Sweeps EVERY action (not only the lethal ones)
+   * from its beat outward (10 ms steps to ±300 ms, every other action on its beat) and reports the contiguous window
+   * in which nothing kills, plus whether skipping it kills. FAILS (exit 1) when
+   *   - an action NOT marked lethal (reward / stumble) kills inside ±HIDDEN_MS, or when skipped (a reward/stumble skip
+   *     must never cost a life), or
+   *   - a lethal action's window is under the fairness rule (−70 / +150 ms; acts 2-3 −85, listed).
+   * A non-lethal action that only kills beyond ±HIDDEN_MS is listed as a note (that press is a miss by then anyway).
+   */
+  let hiddenFail = false;
+  function hidden() {
+    const HIDDEN_MS = Number(args.hiddenMs ?? 150);
+    // lethal early-side floor: −70 = act 1's documented 'tight'/'peak' teeth (dsl GAP_FIT); acts 2-3 author to −85
+    // (listed below as info). The late side is +150 everywhere.
+    const LETHAL_EARLY = Number(args.lethalEarly ?? 70);
+    const tight = [];
+    const STEP = 10;
+    const bad = [];
+    const notes = [];
+    let n = 0;
+    const acts = L.actions.map((a, i) => ({ a, i })).filter(({ a }) => a.beat >= from && a.beat < to);
+    for (const { a, i } of acts) {
+      const start = startFor(a.beat);
+      const end = a.beat + 3;
+      if (run(start, end, new Map()) !== null) {
+        bad.push(`${a.beat} ${a.source} ${a.type}: DIES ON TIME`);
+        continue;
+      }
+      n++;
+      const alive = (ms) => run(start, end, new Map([[i, ms / 1000]])) === null;
+      let E = 0;
+      let Lt = 0;
+      while (E > -300 && alive(E - STEP)) E -= STEP;
+      while (Lt < 300 && alive(Lt + STEP)) Lt += STEP;
+      // skip = press it never (a huge offset beyond the sweep's end)
+      const skipKills = run(start, end, new Map([[i, 99]])) !== null;
+      const tag = `${String(a.beat).padEnd(8)} ${a.source.padEnd(9)} ${a.type.padEnd(6)} ${a.failKind.padEnd(8)} ${`${E}/+${Lt}`.padEnd(11)}${skipKills ? ' skip KILLS' : ''}`;
+      if (a.failKind === 'death') {
+        // (a lethal's skip kills by definition; its window must meet the rule — 10 ms steps: allow the 5 ms grid)
+        if (E > -LETHAL_EARLY + STEP / 2 || Lt < 150 - STEP / 2) bad.push(`${tag}  <-- lethal under −${LETHAL_EARLY}/+150`);
+        else if (E > -85 + STEP / 2) tight.push(tag);
+      } else if (E > -HIDDEN_MS || Lt < HIDDEN_MS || skipKills) bad.push(`${tag}  <-- HIDDEN LETHAL (marked ${a.failKind})`);
+      else if (E > -300 || Lt < 300) notes.push(tag);
+    }
+    console.log(`hidden-lethal sweep: ${acts.length} actions (${n} survive on time), ±${HIDDEN_MS} ms gate for rewards/stumbles, −${LETHAL_EARLY}/+150 for lethals`);
+    if (tight.length) {
+      console.log(`\nlethal actions between −${LETHAL_EARLY} and −85 ms early (the tight/peak teeth, info):`);
+      for (const t of tight) console.log('  ' + t);
+    }
+    if (notes.length) {
+      console.log(`\nnon-lethal actions that only kill beyond ±${HIDDEN_MS} ms (info):`);
+      for (const t of notes) console.log('  ' + t);
+    }
+    if (bad.length) {
+      hiddenFail = true;
+      console.log('\nFAIL:');
+      for (const t of bad) console.log('  ' + t);
+    } else console.log('\nPASS: no hidden lethal presses');
+  }
+
   if (args.trace) {
     holds = new Map(String(args.hold ?? '').split(',').filter(Boolean).map((h) => h.split(':').map(Number)));
     const [a, b] = String(args.trace).split(',').map(Number);
@@ -166,10 +230,9 @@ try {
   const from = Number(args.from ?? level.startBeat);
   const to = Number(args.to ?? level.endBeat);
   const lethal = L.actions.map((a, i) => ({ a, i })).filter(({ a }) => a.failKind === 'death' && a.beat >= from && a.beat < to);
-  const rows = [];
-  for (const { a, i } of lethal) {
-    let start = Math.max(level.startBeat, a.beat - 3);
-    // start on solid ground, and never mid-way through an earlier jump (include its press)
+  /** a sweep's start beat: on solid ground, never mid-way through an earlier jump / launch / hook ride */
+  const startFor = (beat) => {
+    let start = Math.max(level.startBeat, beat - 3);
     for (let k = 0; k < 20; k++) {
       while (Number.isNaN(L.floorYAt(start * ppb))) start -= 0.25;
       const prev = L.actions.find((b) => b.type === 'jump' && b.beat < start && b.beat + 2.2 > start);
@@ -179,6 +242,15 @@ try {
       if (!prev && !pad && !hk) break;
       start = Math.min(prev ? prev.beat - 0.5 : Infinity, pad ? pad.beat - 0.5 : Infinity, hk ? hk.beat - 0.5 : Infinity);
     }
+    return Math.max(level.startBeat, start);
+  };
+  if (args.hidden) {
+    hidden();
+    process.exitCode = hiddenFail ? 1 : 0;
+  }
+  const rows = [];
+  for (const { a, i } of args.hidden ? [] : lethal) {
+    const start = startFor(a.beat);
     const end = a.beat + 3;
     const base = run(start, end, new Map());
     const alive = (ms) => run(start, end, new Map([[i, ms / 1000]])) === null;
@@ -191,7 +263,7 @@ try {
     rows.push({ beat: a.beat, src: a.source, type: a.type, hold: a.hold, base: base === null ? 'ok' : `DIES@${base.toFixed(2)}`, early: E, late: Lt });
   }
   // strike reach: one on-time run of the whole act, every strike target must be hit
-  {
+  if (!args.hidden) {
     const hits = new Map();
     const takeoffs = [];
     const otr = args.why ? [] : null;
@@ -258,6 +330,7 @@ try {
       console.log(`${String(a.beat).padEnd(8)} ${name.padEnd(8)} ${a.type.padEnd(6)} ${base ? `${E}/+${Lt}` : 'FAILS ON TIME'}${flag}`);
     }
   }
+  if (args.hidden) return;
   const cps = [level.startBeat, ...L.checkpoints.map((c) => c.beat)].sort((x, y) => x - y);
   const seg = (b) => cps.filter((c) => c <= b + 1e-6).pop();
 
@@ -307,6 +380,7 @@ try {
     const early16 = rows.filter((r) => r.beat < level.startBeat + 64).reduce((s, r) => s + pFail(r, J, late), 0);
     console.log(`${name.padEnd(16)} ${total.toFixed(2).padStart(6)}   bars 1-16 ${early16.toFixed(3)}   ${parts.join(' ')}`);
   }
+  })();
 } finally {
   await server.close();
 }
