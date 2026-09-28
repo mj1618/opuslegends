@@ -246,13 +246,15 @@ export function act3Items(h0 = 950): LevelItem[] {
     sky(bar(61), 'poolroom'),
     { type: 'ground', beat: bar(61) + 0.1, style: 'felt' },
     setPiece(bar(61), 'poolRoom', 16),
-    cam(bar(61), 0.95, 4),
     mode(bar(61), 'poolroom'),
     follows(bar(61), 'stomps'),
     label(bar(61), 'BREAKDOWN — the Pool Room'),
     // ---- bar 61 (.46): CALL 1 — the goons stomp 1 · &2 · 3 on the tables (gold dust where they stomp); you hit the
     // claps: the racked balls on 2, the felt lamp on 4 (the held C#)
     setPiece(bar(61), 'callResponse', 4),
+    // iteration 5 (review iter4 fix 5): a 1-bar camera PUSH-IN on the goons for each call, back out for your answer
+    cam(bar(61), 0.84, 1),
+    cam(bar(62), 0.95, 1),
     { type: 'lum', beat: bar(61), h: 40 },
     { type: 'lum', beat: and(bar(61, 2)), h: 40 },
     { type: 'lum', beat: bar(61, 3), h: 40 },
@@ -267,6 +269,8 @@ export function act3Items(h0 = 950): LevelItem[] {
     // ---- bar 63 (.41): CALL 2 — the bench see-saw on the stomp's 1 flings you onto a pool table ON 250 (the 3); a
     // brass bell mid-arc on the clap, a bottle on the table on 4
     setPiece(bar(63), 'callResponse', 4),
+    cam(bar(63), 0.86, 1),
+    cam(bar(64), 0.95, 1),
     launch(bar(63, 1), 2, h0 + 90),
     mode(bar(63, 1), 'launch'),
     bottleHigh(bar(63, 2), 'bell'),

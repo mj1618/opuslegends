@@ -207,6 +207,15 @@ export const sliceLevel: LevelDef = {
     follows(bar(17), 'fills'),
     label(bar(17), 'THE HONKY-TONK — stop-time'),
     fx(bar(17), 'flash', 0.3),
+    // iteration 5 (review iter4 fix 4): mid-act visual beats for the 26 s in one room (presentation only, types.ts
+    // MidActBeat): the doors kicked open (a camera punch), a sign crashing on the fill, house lights down to follow-spots
+    // for the walk-up + chorus, a bar brawl behind the counter through the chorus body, the lights back up on the tag
+    setPiece(bar(17), 'doorKick', 2),
+    fx(bar(17), 'zoom', 0.6),
+    setPiece(bar(20, 3), 'signDrop', 1.5),
+    setPiece(bar(22), 'spotlights', 36),
+    setPiece(bar(24), 'brawl', 20),
+    setPiece(bar(31), 'houseLights', 4),
     // ---- bar 17: the versePeak (the held high D) — a groove bar
     ...tokenHop(bar(17, 2)), // iteration 4: the honky-tonk block leads with the hop (lifts, fill runs, HUP HUP)
     ...tokenJump(bar(17, 3)),

@@ -283,6 +283,8 @@ export const act2Items: LevelItem[] = [
   // and A (138.66) are hops UP on the "and"s, a window on the B (139.68)
   { type: 'camera', beat: bar(35, 1), zoom: 0.86, beats: 4, ground: 0.52 },
   mode(bar(35, 1), 'climb'),
+  // iteration 5 (review iter4 fix 4, the 26 s facade): the windows light up one per beat just ahead of Slim (bars 35-38)
+  setPiece(bar(35, 1), 'lightChase', 16, { ahead: 1 }),
   lumRowSwung(bar(35, 1) + 0.9, bar(35, 2) + 0.4, 70), // tokens up the flight
   pane(and(bar(35, 4))),
   fx(and(bar(35, 4)), 'bgPulse', 0.5),
@@ -313,6 +315,10 @@ export const act2Items: LevelItem[] = [
   ...tokenHop(bar(38, 3)),
   // ---- bar 39: a hop through tokens on the kick, up on the E (153), the second ALLEY jumped UP on the A (154, the boom), a high
   // bottle mid-air on the B (155), tokens up the flight on the fill (155.61)
+  // iteration 5: the camera TILTS for a bar to show how far down the street is (streetReveal), then back to the climb
+  setPiece(bar(39, 1), 'streetReveal', 4),
+  { type: 'camera', beat: bar(39, 1), zoom: 0.8, beats: 1.5, ground: 0.44 },
+  { type: 'camera', beat: bar(39, 4), zoom: 0.84, beats: 1.5, ground: 0.52 },
   ...tokenHop(bar(39, 1)),
   bottleHigh(bar(39, 4), 'glass'),
   lumRowSwung(and(bar(39, 4)), bar(40, 1), 70),
@@ -335,6 +341,10 @@ export const act2Items: LevelItem[] = [
   { type: 'camera', beat: bar(42), zoom: 0.9, beats: 4, ground: 0.58 },
   mode(bar(42), 'roof'),
   follows(bar(42), 'vocal'),
+  // iteration 5: on the roof the sky shifts — the moon out, searchlights sweeping (bars 42-45); tenants react to the
+  // stop-time (bars 44-45)
+  setPiece(bar(42), 'searchlights', 16),
+  setPiece(bar(44), 'tenants', 8),
   label(bar(42), 'THE ROOF'),
   // ---- bar 42: breather after the peak: a hop onto the roof, a swung token row, a held jump through tokens on the kick
   ...tokenHop(bar(42, 1)),
