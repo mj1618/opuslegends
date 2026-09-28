@@ -40,10 +40,12 @@ function notFound(res) {
 /** @returns {import('vite').Plugin} */
 export function audioAssets() {
   let outDir = '';
+  let isBuild = false;
   return {
     name: 'opus-audio-assets',
     configResolved(c) {
       outDir = resolve(c.root, c.build.outDir);
+      isBuild = c.command === 'build';
     },
     configureServer(server) {
       server.middlewares.use('/audio', (req, res, next) => {
@@ -69,7 +71,8 @@ export function audioAssets() {
       });
     },
     closeBundle() {
-      if (!outDir) return;
+      // (a dev server also fires closeBundle when it shuts down: only a real build writes files)
+      if (!isBuild || !outDir) return;
       for (const d of COPY) {
         const src = join(AUDIO_DIR, d);
         if (existsSync(src)) cpSync(src, join(outDir, 'audio', d), { recursive: true });

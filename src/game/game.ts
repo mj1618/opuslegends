@@ -197,7 +197,10 @@ export class Game {
       const [buf, stems] = await Promise.all([
         loadSongBuffer(this.song, this.audio.ctx, this.tempo),
         loadSongStems(this.song, this.audio.ctx, this.tempo),
+        this.audio.calibrate(),
       ]);
+      // the master limiter's look-ahead delays everything audible: the clock accounts for it
+      this.conductor.outputDelay = this.audio.limiterDelay;
       console.info(`song loaded in ${Math.round(performance.now() - t0)} ms`);
       this.conductor.buffer = buf;
       this.conductor.stems = stems;

@@ -6,7 +6,8 @@
  *   audibleCtxTime(perf) = perf/1000 + offsetEst            (offsetEst: filtered map from
  *                                                            AudioContext.getOutputTimestamp,
  *                                                            i.e. what is leaving the speakers)
- *   songTime(perf)       = (audibleCtxTime - startCtx) * rate + startSong - latency
+ *   songTime(perf)       = audibleCtxTime - outputDelay - startCtx + startSong - latency
+ *                          (outputDelay: our master limiter's look-ahead)
  *
  * - `latency` is the user-adjustable offset (seconds; + = "I hear the audio later than the game
  *   thinks", which delays gameplay/visual time to match what the player hears).
@@ -41,6 +42,11 @@ export class Conductor {
 
   /** user latency offset, seconds */
   latency = 0;
+  /**
+   * Extra delay between this conductor's sources and the speakers inside our own graph (the master
+   * limiter's look-ahead, measured by AudioSystem.calibrate). getOutputTimestamp covers the device.
+   */
+  outputDelay = 0;
 
   playing = false;
   /** song time (s) for the current frame, latency-compensated */
@@ -106,7 +112,7 @@ export class Conductor {
   /** Song time (s) at a performance.now() timestamp (e.g. an input event's timeStamp). */
   songTimeAtPerf(perfMs: number): number {
     if (!this.playing) return this.time;
-    return this.audibleCtxTimeAt(perfMs) - this.startCtx + this.startSong - this.latency;
+    return this.audibleCtxTimeAt(perfMs) - this.outputDelay - this.startCtx + this.startSong - this.latency;
   }
 
   /**
@@ -123,7 +129,7 @@ export class Conductor {
 
   /** Raw (unfiltered) song time from ctx.currentTime, for diagnostics only. */
   rawSongTime(): number {
-    return this.ctx.currentTime - this.startCtx + this.startSong - this.latency;
+    return this.ctx.currentTime - this.outputDelay - this.startCtx + this.startSong - this.latency;
   }
 
   /** Call once per render frame, before anything reads `time`/`beat`. */
@@ -176,7 +182,7 @@ export class Conductor {
     this.playing = true;
     if (this.segments.length > 64) this.segments.shift();
     this.segments.push({ startCtx: when, startSong: from, stopCtx: Infinity });
-    this.time = nowAudible - this.startCtx + this.startSong - this.latency;
+    this.time = nowAudible - this.outputDelay - this.startCtx + this.startSong - this.latency;
     this.beat = this.tempo.timeToBeat(this.time);
     this.lastBeatFired = Math.floor(this.tempo.timeToBeat(from) - 1e-6);
     this.cueIndex = this.cues.findIndex((c) => c.beat >= this.tempo.timeToBeat(from) - 1e-6);

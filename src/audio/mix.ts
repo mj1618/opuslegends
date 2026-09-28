@@ -52,14 +52,20 @@ export function overlayGain(stem: string, crowd: number): number | undefined {
 }
 
 /**
- * Master bus levels. The record is mastered hot (-10.5 LUFS, peaks at ~0 dBFS), so the master
- * soft limiter (AudioSystem) catches record + overlays + SFX peaks.
+ * Master bus levels (measured, see iteration-2 engine notes in CLAUDE.md):
+ *   - the record (edit) is mastered hot: -10.5 LUFS, 100 ms RMS median -14 dBFS, true peaks +0.75 dBFS
+ *     (it clips on its own), so it plays at unity into the master soft limiter;
+ *   - synth SFX at unity: strike/lum/land/thwack ~-26 dBFS RMS(100 ms), hop -34, peaks -9..-18 dBFS.
+ *     At +6 dB the gameplay SFX sit ~6 dB under the record (strike/lum ~-20, hop ~-28 "low in the
+ *     mix"), reward sounds (chime, roar) come up close to it;
+ *   - limiter: threshold just under 0 dBFS so it only catches peaks; its makeup gain is trimmed
+ *     away (AudioSystem.calibrate), so below the threshold everything is at unity.
  */
 export const MIX = {
   /** music bus (record + overlay stems), linear */
   music: 1.0,
-  /** SFX bus: synth SFX peak ~-6..-10 dBFS at this gain, i.e. just under the record's transients */
-  sfx: 0.55,
+  /** SFX bus, linear (+6 dB) */
+  sfx: 2.0,
   /** soft limiter on the master (DynamicsCompressorNode): threshold/knee dB, ratio, attack/release s */
-  limiter: { threshold: -3, knee: 2.5, ratio: 20, attack: 0.002, release: 0.12 },
+  limiter: { threshold: -2.5, knee: 2, ratio: 20, attack: 0.002, release: 0.1 },
 } as const;
