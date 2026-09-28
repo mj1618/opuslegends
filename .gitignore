@@ -5,3 +5,5 @@ playtest/out
 .DS_Store
 reference/
 tools/music/.venv/
+tools/music/samples/
+tools/music/samples_cache/

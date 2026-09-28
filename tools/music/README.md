@@ -1,7 +1,8 @@
 # tools/music — score-as-code production pipeline
 
-Everything is synthesized in numpy/scipy. There are no sample libraries, but one-shot and multisample
-WAVs can be added later (see [Samples](#samples-later)). A song is a Python **score**, and one render
+By default everything is synthesized in numpy/scipy. A song can switch drums, piano, guitar cabs and gang shouts to
+**sampled** real recordings, per instrument family (see [Sampled instruments](#sampled-instruments)). A song is a
+Python **score**, and one render
 produces all of the following from it:
 
 - the mastered track: `.ogg` (Vorbis q6) and `.mp3` (LAME V2), −14 LUFS integrated, ≤ −1 dBTP;
@@ -47,6 +48,10 @@ instruments/bass.py    Bass (picked, DI + driven blend)
 instruments/keys.py    HonkyTonkPiano, Organ (tonewheel + Leslie)
 instruments/vocals.py  GangShouts (HEY/WHOA/HO/HA/YEAH), Crowd (cheer/roar)
 instruments/base.py    Instrument base (voice cache), Sampler, Layered
+instruments/palette.py Palette(use_samples=...): per-song synth <-> sampled switch
+instruments/sampled.py SampledKit, SampledPiano, IRRhythmGuitar, IRLeadGuitar, SampledGangShouts
+instruments/sample_cache.py  builds samples_cache/ from the raw libraries in samples/ (both gitignored)
+SAMPLES.md             sample sources, licences, required credits, setup commands
 songs/                 score files (palette_demo.py; jim_transcription.json comes from the transcriber)
 ```
 
@@ -154,9 +159,63 @@ Only gameplay tracks export lanes.
 | `GangShouts(voices=10)` | Glottal source (jitter, shimmer, subharmonic roughness, aspiration) into a **time-varying 5-formant cascade** with word keyframes. The gang is 8–14 voices with different pitches, tract lengths and pans. The onset is **self-calibrated**: the gang envelope reaches 50 % on the beat, and the /h/ is pre-rolled before it. | words: `HEY`, `WHOA`, `HO`, `HA`, `YEAH` |
 | `Crowd()` | Pink-noise vocal-band roar, 26 synthetic cheering voices, whistles and scattered claps. | `cheer` / `roar`; `dur` = length |
 
-### Samples (later)
+### Sampled instruments
 
-`instruments.base.Sampler(zones, base_dir)` plays WAV one-shots or multisamples:
+Real recordings replace the weakest synth parts: drums, piano, guitar cab and gang shouts. They are drop-in
+alternatives, with the same event API, pieces/words, lanes and onset conventions. You switch them **per song** with
+`Palette`:
+
+```python
+from instruments.palette import Palette
+P = Palette(use_samples=True)                     # or {"drums", "piano", "cab", "shouts"} subset; False = all synth
+kit  = s.track("drums", P.kit(), ...)             # RockKit        -> SampledKit
+gtr  = s.track("gtr", P.rhythm_guitar(voicing="crunch", gain=1.1), ...)   # RhythmGuitar -> IRRhythmGuitar
+lead = s.track("lead", P.lead_guitar(gain=1.0), ...)                      # LeadGuitar   -> IRLeadGuitar
+pno  = s.track("piano", P.piano(), ...)           # HonkyTonkPiano -> SampledPiano(honky=9)
+hey  = s.track("shouts", P.shouts(voices=10), ...)                        # GangShouts   -> SampledGangShouts
+if not P.sampled("drums"): ...                    # family-specific mix choices
+```
+
+- **One-sided kwargs.** Kwargs are passed to whichever class is chosen. Put kwargs that only one side accepts in
+  `synth=`/`sampled=`, e.g. `P.piano(sampled=dict(honky=12, bright=4), synth=dict(detune_cents=11))`.
+- **Missing cache.** If the cache is missing, sampled families warn and fall back to synth, so a fresh checkout still
+  renders. Pass `strict=True` to fail instead.
+- **Example.** `songs/palette_demo_sampled.py` renders the palette demo with everything sampled.
+
+| Instrument | Source | Behaviour / knobs |
+|---|---|---|
+| `SampledKit(levels, pans, tune, synth_layer, kick_sub=0.7)` | DRSKit 2.1 (13 mics mixed to stereo, audience perspective) + VCSL percussion | Pieces: kick snare rimshot sidestick tom tom2 floortom hat halfhat openhat hatfoot crash china ride ridebell · cowbell cowbell2 clap tamb tambshake shaker gong bassdrum anvil clash. 3–6 velocity layers × 3–4 round-robins, never the same take twice in a row. Each piece is **loudness-matched to the RockKit piece** at the same velocity, so existing balances hold, and gets a rock drum EQ (low-mid scoop, click, cymbal air). A sine sub-kick layer adds back the 40–80 Hz the acoustic kick lacks. `stomp` (and any unknown piece) is played by the synth RockKit. `rimshot` is a max-velocity snare because the DRSKit rim samples are cross-sticks (`sidestick`). The open hat is choked by the next hat. Hits are aligned on their perceptual attack. |
+| `SampledPiano(honky=0, honky_width, bright=6, width, release)` | Salamander Grand V3 (8 of 16 layers, a sample every minor third, shifted ≤ ±1 st) | `honky` = cents of the honky-tonk chorus: two copies at ±honky/2 cents, 0.3–1.2 ms apart, spread L/R. `Palette.piano()` uses `honky=9`. `bright` is a 2.5 kHz shelf plus a presence peak, because the concert grand is dark in a band. Damper release is scaled by pitch. |
+| `IRRhythmGuitar(cabs=("greenback", "v30"), cab_lp=9000, **RhythmGuitar kwargs)` | Science Amplification 4x12 IRs | The same DI, amp and double-tracking as `RhythmGuitar`, but each take goes through a **real cab IR**: L = G12H-75 Creamback (SM57 + MD421), R = V30 (SM57 + N22 ribbon). Presets live in `sampled.CAB_PRESETS`. A single IR name also works. `CAB_EQ` trims 200/500 Hz by 2–2.5 dB and adds 2.5 dB at 2.6 kHz. It uses the `cab_fir` hook in `guitar.amp_chain`. |
+| `IRLeadGuitar(cab="greenback", **LeadGuitar kwargs)` | same | The lead through a real cab. |
+| `SampledGangShouts(voices=10, spread, group_layers=2, pitch_spread=0.9, synth_blend=0)` | Freesound CC0/CC-BY shout recordings | Words: HEY (5 group + 33 solo takes), HUP (7 group + 2 solo), HO (12 solo), HA (5 solo), YEAH (2 group + 2 solo), WHOA (1 group + 9 solo). Each hit layers 2 real **group** recordings doubled hard L/R and `voices-4` solo takes, each pitch-shifted N(0, 0.9) st, 0–18 ms late and spread across the field. `stretch>1` prefers longer takes and plays ~1 st lower. The onset is self-calibrated like `GangShouts`, so the 50 % envelope point lands on the beat and the beat map's `shouts` lane is unchanged. Other words fall back to the synth gang. `synth_blend` layers the synth gang underneath. |
+
+**Setup.** The raw libraries live in `tools/music/samples/` (several GB) and the trimmed 48 kHz working set lives in
+`tools/music/samples_cache/` (~350 MB). Renders only read the cache. Both folders are gitignored. `SAMPLES.md` has the
+download commands, and `python3 tools/music/instruments/sample_cache.py [kit perc piano cab shouts] [--force]`
+rebuilds the cache in about 3 minutes. **Credit the CC-BY sources in the game credits:** DRSKit, Salamander and the
+listed Freesound authors (the block is at the bottom of `SAMPLES.md`).
+
+**Synth vs sampled palette demo.** Same score, same mix settings except that the sampled kit drops the synth kit's
+−4 dB 11 kHz shelf. Values below are from `reports/palette_demo*.analysis.json`:
+
+| | synth | sampled |
+|---|---|---|
+| integrated / true peak | −14.0 LUFS / −2.1 dBTP | −14.0 LUFS / −1.6 dBTP |
+| crest factor / PLR | 13.9 / 11.9 dB | 14.5 / 12.4 dB |
+| kick punch (master / premaster) | 10.2 / 11.1 dB | **13.4 / 15.8 dB** |
+| octave deviation vs rock ref, 125 → 16 k | −2.5 +0.6 +2.2 +3.0 +3.7 +3.4 +0.3 +2.2 | −1.6 +1.0 +3.2 +3.7 +3.9 +2.9 −2.5 −2.5 |
+| stereo correlation / S/M | 0.78 / −9.0 dB | 0.69 / −7.3 dB (real overheads/rooms, doubled group shouts) |
+| lane onsets p90 | ≤ 4.6 ms | ≤ 3.3 ms (hits aligned on their perceptual attack) |
+| flags | none | none |
+
+The first sampled pass was flagged at +6 dB for 500 Hz–2 kHz. The raw multi-mic kit has more boxy low-mids and less
+sub than the synth kit, and real 4x12s add about +5 dB at 125–250 Hz. `PIECE_EQ`, the sub-kick and `CAB_EQ` fix
+this. The remaining difference is darker top octaves. Add air on the drum bus if a song needs it.
+
+### Generic sampler
+
+`instruments.base.Sampler(zones, base_dir)` plays arbitrary WAV one-shots or multisamples:
 
 - velocity zones;
 - round-robin across the files a glob matches;
@@ -164,19 +223,11 @@ Only gameplay tracks export lanes.
 - note-off release;
 - chord expansion.
 
-`Layered(RockKit(), {"snare": Sampler([...]), "crash": Sampler([...])})` swaps individual pieces for samples and
-leaves the rest synthesized. Example:
-
-```python
-Sampler([{"piece": "snare", "glob": "drs/snare_v*_rr*.wav", "vel_lo": 0.0, "vel_hi": 0.6},
-         {"piece": "snare", "glob": "drs/snare_hard_*.wav", "vel_lo": 0.6, "vel_hi": 1.0}], base_dir="samples")
-Sampler([{"glob": "salamander/C4v10.wav", "root": 60, "lo": 58, "hi": 62}, ...])
-```
-
-Put downloaded packs in `tools/music/samples/` and gitignore them. Credit CC-BY packs in the game credits.
+`Layered(RockKit(), {"snare": Sampler([...])})` swaps individual pieces for samples and leaves the rest
+synthesized.
 
 **Why the `say` voices aren't used:** the macOS licence limits the output of `say` to personal, non-commercial use.
-Real recorded shouts through the `Sampler` (piece = word) are the upgrade path.
+Real recorded shouts are in `SampledGangShouts`.
 
 ## Mix chain
 

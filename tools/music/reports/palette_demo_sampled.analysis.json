@@ -1,0 +1,610 @@
+{
+ "loudness": {
+  "integrated_lufs": -14.02,
+  "true_peak_dbtp": -1.64,
+  "sample_peak_dbfs": -1.66,
+  "short_term_max_lufs": -12.13,
+  "short_term_range_lu_p10_p95": 2.57,
+  "PLR_db": 12.38,
+  "crest_factor_db": 14.46,
+  "ffmpeg_ebur128": {
+   "I": -14.0,
+   "LRA": 2.6,
+   "truePeak": -1.6
+  }
+ },
+ "clipping": {
+  "samples_over_-0.1dBFS": 0,
+  "dc_offset": [
+   0.000736,
+   0.000718
+  ]
+ },
+ "section_lufs": {
+  "intro": -16.7,
+  "riff": -13.5,
+  "piano": -14.7,
+  "shouts": -14.7,
+  "break": -15.2,
+  "finale": -12.5,
+  "end": -12.3
+ },
+ "octave_balance": {
+  "31.5": {
+   "rel_db": -7.9,
+   "ref_db": -9,
+   "dev_db": 1.1
+  },
+  "63": {
+   "rel_db": 0.0,
+   "ref_db": -2,
+   "dev_db": 2.0
+  },
+  "125": {
+   "rel_db": -2.5,
+   "ref_db": -1,
+   "dev_db": -1.5
+  },
+  "250": {
+   "rel_db": -4.4,
+   "ref_db": -5,
+   "dev_db": 0.6
+  },
+  "500": {
+   "rel_db": -4.8,
+   "ref_db": -8,
+   "dev_db": 3.2
+  },
+  "1000": {
+   "rel_db": -6.4,
+   "ref_db": -10,
+   "dev_db": 3.6
+  },
+  "2000": {
+   "rel_db": -8.6,
+   "ref_db": -12.5,
+   "dev_db": 3.9
+  },
+  "4000": {
+   "rel_db": -12.7,
+   "ref_db": -15.5,
+   "dev_db": 2.8
+  },
+  "8000": {
+   "rel_db": -22.1,
+   "ref_db": -19.5,
+   "dev_db": -2.6
+  },
+  "16000": {
+   "rel_db": -32.5,
+   "ref_db": -30,
+   "dev_db": -2.5
+  }
+ },
+ "stereo": {
+  "correlation": 0.667,
+  "side_to_mid_db": -7.0,
+  "band_correlation": {
+   "sub<120": 0.976,
+   "low-mid 120-1k": 0.446,
+   "mid 1k-5k": 0.44,
+   "high>5k": 0.387
+  }
+ },
+ "stem_band_share_pct": {
+  "31.5": {
+   "drums": 59.3,
+   "bass": 40.6,
+   "guitars": 0.0,
+   "lead": 0.0,
+   "keys": 0.0,
+   "vox": 0.0
+  },
+  "63": {
+   "drums": 71.6,
+   "bass": 27.2,
+   "guitars": 0.2,
+   "lead": 0.0,
+   "keys": 0.9,
+   "vox": 0.0
+  },
+  "125": {
+   "drums": 33.0,
+   "bass": 42.3,
+   "guitars": 18.0,
+   "lead": 0.0,
+   "keys": 6.4,
+   "vox": 0.3
+  },
+  "250": {
+   "drums": 39.8,
+   "bass": 14.1,
+   "guitars": 23.8,
+   "lead": 3.2,
+   "keys": 13.7,
+   "vox": 5.4
+  },
+  "500": {
+   "drums": 14.2,
+   "bass": 15.3,
+   "guitars": 12.9,
+   "lead": 21.9,
+   "keys": 17.7,
+   "vox": 18.0
+  },
+  "1000": {
+   "drums": 7.1,
+   "bass": 16.4,
+   "guitars": 10.8,
+   "lead": 28.6,
+   "keys": 10.5,
+   "vox": 26.6
+  },
+  "2000": {
+   "drums": 11.3,
+   "bass": 5.2,
+   "guitars": 18.6,
+   "lead": 38.8,
+   "keys": 3.4,
+   "vox": 22.7
+  },
+  "4000": {
+   "drums": 28.5,
+   "bass": 0.4,
+   "guitars": 18.7,
+   "lead": 42.0,
+   "keys": 5.8,
+   "vox": 4.6
+  },
+  "8000": {
+   "drums": 81.4,
+   "bass": 0.1,
+   "guitars": 1.6,
+   "lead": 13.5,
+   "keys": 0.7,
+   "vox": 2.8
+  },
+  "16000": {
+   "drums": 99.2,
+   "bass": 0.0,
+   "guitars": 0.0,
+   "lead": 0.1,
+   "keys": 0.1,
+   "vox": 0.7
+  }
+ },
+ "track_band_share_pct": {
+  "31.5": {
+   "drums": 61.7,
+   "bass": 38.3,
+   "gtr": 0.0,
+   "lead": 0.0,
+   "piano_lh": 0.0,
+   "piano_rh": 0.0,
+   "organ": 0.1,
+   "shouts": 0.0,
+   "crowd": 0.0
+  },
+  "63": {
+   "drums": 77.3,
+   "bass": 20.9,
+   "gtr": 0.4,
+   "lead": 0.0,
+   "piano_lh": 0.8,
+   "piano_rh": 0.0,
+   "organ": 0.6,
+   "shouts": 0.0,
+   "crowd": 0.0
+  },
+  "125": {
+   "drums": 34.9,
+   "bass": 30.5,
+   "gtr": 26.9,
+   "lead": 0.0,
+   "piano_lh": 2.6,
+   "piano_rh": 0.0,
+   "organ": 4.8,
+   "shouts": 0.2,
+   "crowd": 0.0
+  },
+  "250": {
+   "drums": 36.6,
+   "bass": 9.9,
+   "gtr": 34.4,
+   "lead": 2.3,
+   "piano_lh": 1.1,
+   "piano_rh": 0.9,
+   "organ": 11.9,
+   "shouts": 2.6,
+   "crowd": 0.3
+  },
+  "500": {
+   "drums": 12.2,
+   "bass": 12.4,
+   "gtr": 20.2,
+   "lead": 17.2,
+   "piano_lh": 2.6,
+   "piano_rh": 16.3,
+   "organ": 8.3,
+   "shouts": 8.6,
+   "crowd": 2.3
+  },
+  "1000": {
+   "drums": 7.1,
+   "bass": 14.5,
+   "gtr": 19.1,
+   "lead": 24.5,
+   "piano_lh": 1.7,
+   "piano_rh": 15.4,
+   "organ": 0.8,
+   "shouts": 15.1,
+   "crowd": 1.9
+  },
+  "2000": {
+   "drums": 10.5,
+   "bass": 4.4,
+   "gtr": 33.1,
+   "lead": 31.0,
+   "piano_lh": 1.2,
+   "piano_rh": 5.0,
+   "organ": 0.1,
+   "shouts": 14.5,
+   "crowd": 0.4
+  },
+  "4000": {
+   "drums": 22.7,
+   "bass": 0.3,
+   "gtr": 31.6,
+   "lead": 32.2,
+   "piano_lh": 0.4,
+   "piano_rh": 9.9,
+   "organ": 0.0,
+   "shouts": 2.9,
+   "crowd": 0.1
+  },
+  "8000": {
+   "drums": 80.3,
+   "bass": 0.1,
+   "gtr": 3.2,
+   "lead": 12.7,
+   "piano_lh": 0.0,
+   "piano_rh": 1.5,
+   "organ": 0.0,
+   "shouts": 2.2,
+   "crowd": 0.0
+  },
+  "16000": {
+   "drums": 99.2,
+   "bass": 0.0,
+   "gtr": 0.0,
+   "lead": 0.1,
+   "piano_lh": 0.0,
+   "piano_rh": 0.1,
+   "organ": 0.0,
+   "shouts": 0.5,
+   "crowd": 0.0
+  }
+ },
+ "stem_lufs": {
+  "drums": -17.8,
+  "bass": -19.5,
+  "guitars": -19.1,
+  "lead": -17.6,
+  "keys": -22.5,
+  "vox": -19.6
+ },
+ "section_stem_lufs": {
+  "intro": {
+   "drums": -19.6,
+   "bass": -19.9,
+   "guitars": -18.7,
+   "lead": null,
+   "keys": null,
+   "vox": -20.7
+  },
+  "riff": {
+   "drums": -17.6,
+   "bass": -19.3,
+   "guitars": -18.7,
+   "lead": -17.5,
+   "keys": -24.8,
+   "vox": -20.6
+  },
+  "piano": {
+   "drums": -18.8,
+   "bass": -19.1,
+   "guitars": -21.9,
+   "lead": -36.8,
+   "keys": -20.5,
+   "vox": -31.1
+  },
+  "shouts": {
+   "drums": -18.5,
+   "bass": -22.0,
+   "guitars": -20.6,
+   "lead": null,
+   "keys": -21.2,
+   "vox": -18.8
+  },
+  "break": {
+   "drums": -16.4,
+   "bass": null,
+   "guitars": null,
+   "lead": null,
+   "keys": -48.9,
+   "vox": -19.0
+  },
+  "finale": {
+   "drums": -17.1,
+   "bass": -19.2,
+   "guitars": -18.0,
+   "lead": -17.0,
+   "keys": -22.3,
+   "vox": -20.9
+  },
+  "end": {
+   "drums": -22.7,
+   "bass": -20.3,
+   "guitars": -17.9,
+   "lead": -17.5,
+   "keys": -21.8,
+   "vox": -16.3
+  }
+ },
+ "section_track_lufs": {
+  "intro": {
+   "drums": -19.9,
+   "bass": -19.9,
+   "gtr": -15.7,
+   "lead": null,
+   "piano_lh": null,
+   "piano_rh": null,
+   "organ": null,
+   "shouts": -22.0,
+   "crowd": null
+  },
+  "riff": {
+   "drums": -16.7,
+   "bass": -19.3,
+   "gtr": -15.7,
+   "lead": -17.9,
+   "piano_lh": null,
+   "piano_rh": null,
+   "organ": -24.7,
+   "shouts": -21.8,
+   "crowd": null
+  },
+  "piano": {
+   "drums": -18.7,
+   "bass": -19.1,
+   "gtr": -18.7,
+   "lead": -39.2,
+   "piano_lh": -24.9,
+   "piano_rh": -19.2,
+   "organ": -25.2,
+   "shouts": -31.3,
+   "crowd": null
+  },
+  "shouts": {
+   "drums": -17.1,
+   "bass": -22.0,
+   "gtr": -17.5,
+   "lead": null,
+   "piano_lh": -22.5,
+   "piano_rh": -18.9,
+   "organ": -26.9,
+   "shouts": -20.3,
+   "crowd": null
+  },
+  "break": {
+   "drums": -15.4,
+   "bass": null,
+   "gtr": null,
+   "lead": null,
+   "piano_lh": -50.8,
+   "piano_rh": -67.4,
+   "organ": null,
+   "shouts": -22.6,
+   "crowd": -24.9
+  },
+  "finale": {
+   "drums": -16.5,
+   "bass": -19.2,
+   "gtr": -14.5,
+   "lead": -17.5,
+   "piano_lh": null,
+   "piano_rh": -22.6,
+   "organ": -25.0,
+   "shouts": -21.7,
+   "crowd": -47.9
+  },
+  "end": {
+   "drums": -19.4,
+   "bass": -20.3,
+   "gtr": -14.6,
+   "lead": -17.9,
+   "piano_lh": -25.2,
+   "piano_rh": -20.3,
+   "organ": -23.5,
+   "shouts": -18.3,
+   "crowd": -25.8
+  }
+ },
+ "melody_salience_db": {
+  "riff": -2.1,
+  "piano": -33.3,
+  "break": -90.4,
+  "finale": -1.1,
+  "end": -2.9
+ },
+ "kick_punch_db": {
+  "master": 13.4,
+  "premaster": 15.9
+ },
+ "beat_alignment": {
+  "kick": {
+   "n": 24,
+   "median_ms": 0.96,
+   "p90_abs_ms": 1.06,
+   "max_abs_ms": 1.15,
+   "track": "drums"
+  },
+  "cowbell": {
+   "n": 24,
+   "median_ms": 1.23,
+   "p90_abs_ms": 1.54,
+   "max_abs_ms": 1.54,
+   "track": "drums"
+  },
+  "floortom": {
+   "n": 24,
+   "median_ms": 1.5,
+   "p90_abs_ms": 1.56,
+   "max_abs_ms": 1.58,
+   "track": "drums"
+  },
+  "clap": {
+   "n": 4,
+   "median_ms": 1.55,
+   "p90_abs_ms": 1.61,
+   "max_abs_ms": 1.62,
+   "track": "drums"
+  },
+  "snare": {
+   "n": 24,
+   "median_ms": 0.79,
+   "p90_abs_ms": 0.94,
+   "max_abs_ms": 1.04,
+   "track": "drums"
+  },
+  "tom": {
+   "n": 9,
+   "median_ms": 1.54,
+   "p90_abs_ms": 1.69,
+   "max_abs_ms": 1.71,
+   "track": "drums"
+  },
+  "crash": {
+   "n": 12,
+   "median_ms": 0.19,
+   "p90_abs_ms": 0.9,
+   "max_abs_ms": 0.9,
+   "track": "drums"
+  },
+  "hat": {
+   "n": 24,
+   "median_ms": 0.34,
+   "p90_abs_ms": 1.88,
+   "max_abs_ms": 2.27,
+   "track": "drums"
+  },
+  "bass": {
+   "n": 24,
+   "median_ms": 1.39,
+   "p90_abs_ms": 2.1,
+   "max_abs_ms": 2.17,
+   "track": "bass"
+  },
+  "riff": {
+   "n": 24,
+   "median_ms": 2.21,
+   "p90_abs_ms": 3.08,
+   "max_abs_ms": 3.08,
+   "track": "gtr"
+  },
+  "melody": {
+   "n": 24,
+   "median_ms": 0.5,
+   "p90_abs_ms": 0.6,
+   "max_abs_ms": 0.62,
+   "track": "lead"
+  },
+  "melody:piano_rh": {
+   "n": 24,
+   "median_ms": 1.71,
+   "p90_abs_ms": 3.29,
+   "max_abs_ms": 4.56,
+   "track": "piano_rh"
+  },
+  "shouts": {
+   "n": 18,
+   "median_ms": 0.0,
+   "p90_abs_ms": 0.0,
+   "max_abs_ms": 0.0,
+   "track": "shouts"
+  },
+  "engine_check@master": {
+   "n": 85,
+   "meanMs": -1.62,
+   "meanAbsMs": 4.1,
+   "maxAbsMs": 58.95
+  }
+ },
+ "tail_rms_dbfs": -65.0,
+ "preroll_peak_dbfs": -240.0,
+ "guitars_energy_above_12k_db": -84.8,
+ "flags": [],
+ "mixer": {
+  "tracks": {
+   "drums": {
+    "peak_db": 2.7022567846954044
+   },
+   "bass": {
+    "gr_max_db": 10.588702126560264,
+    "gr_mean_db": 8.492973748008115,
+    "peak_db": -6.834781009047556
+   },
+   "gtr": {
+    "peak_db": -5.109689884569795
+   },
+   "lead": {
+    "gr_max_db": 19.371326603887432,
+    "gr_mean_db": 16.43014812792077,
+    "peak_db": 0.5767766334137759
+   },
+   "piano_lh": {
+    "peak_db": -9.994426381699597
+   },
+   "piano_rh": {
+    "peak_db": -2.870579709171665
+   },
+   "organ": {
+    "peak_db": -15.67203440469562
+   },
+   "shouts": {
+    "peak_db": -5.612063336899911
+   },
+   "crowd": {
+    "peak_db": -13.279865921920686
+   }
+  },
+  "buses": {
+   "drums": {
+    "gr_max_db": 6.034566082000108,
+    "gr_mean_db": 1.5407052492859388
+   },
+   "bass": {},
+   "guitars": {
+    "gr_max_db": 3.9625168061327223,
+    "gr_mean_db": 3.062682686306959
+   },
+   "lead": {},
+   "keys": {
+    "gr_max_db": 6.618198889091248,
+    "gr_mean_db": 1.4787146146750194
+   },
+   "vox": {}
+  },
+  "master": {
+   "premaster_lufs": -12.901347238758136,
+   "glue_gr_mean_db": 1.4421143806224233,
+   "glue_gr_max_db": 3.458814674281079,
+   "limiter_gr_max_db": 0.00869023548037314,
+   "limiter_gr_mean_db": 0.008690235480373138,
+   "limiter_active_pct": 0.0,
+   "final_lufs": -14.02425123861475,
+   "true_peak_db": -1.6444957666404825,
+   "master_gain_db": 8.142960976116688
+  }
+ }
+}

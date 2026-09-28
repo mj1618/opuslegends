@@ -36,7 +36,7 @@ def lane_events(sc: Score):
         if not tr.gameplay:
             continue
         drum_map = tr.drum_lanes if tr.drum_lanes is not None else DEFAULT_DRUM_LANES
-        kind = type(tr.instrument).__name__
+        kind = getattr(tr.instrument, "lane_kind", None) or type(tr.instrument).__name__   # sampled alternatives set lane_kind
         for ev in tr.resolve():
             p = ev.params
             if ev.pitch is None and ev.piece is not None:

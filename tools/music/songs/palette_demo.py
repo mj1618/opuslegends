@@ -5,20 +5,21 @@ off the instrument palette and the beat-map lanes.
     -> drum break (2) -> finale (2) -> final hit (1)
 
 Render:  python3 tools/music/render.py tools/music/songs/palette_demo.py
+         python3 tools/music/render.py tools/music/songs/palette_demo_sampled.py   # same score, sampled instruments
 """
 from producer.score import Score
 from producer.patterns import boogie_guitar, pump_bass, walking_boogie, piano_boogie_lh, piano_tremolo, piano_gliss, triplet_run
-from instruments.drums import RockKit
-from instruments.guitar import RhythmGuitar, LeadGuitar
 from instruments.bass import Bass
-from instruments.keys import HonkyTonkPiano, Organ
-from instruments.vocals import GangShouts, Crowd
+from instruments.keys import Organ
+from instruments.palette import Palette
+from instruments.vocals import Crowd
 
 MASTER = dict(target_lufs=-14.0, ceiling_db=-1.0)
 
 
-def build() -> Score:
-    s = Score("palette_demo", "Palette Demo (stomp boogie)", bpm=164, key="E2", scale="mixolydian", swing_ratio=0.67,
+def build(use_samples=False, id="palette_demo", title="Palette Demo (stomp boogie)") -> Score:
+    P = Palette(use_samples)
+    s = Score(id, title, bpm=164, key="E2", scale="mixolydian", swing_ratio=0.67,
               pre_roll=0.25, tail=2.2, artist="OpusLegends synth band")
 
     intro = s.section("intro", 2, "Stomp intro", energy=0.35)
@@ -36,24 +37,24 @@ def build() -> Score:
     s.bus("keys", comp=dict(thresh=-20, ratio=2, attack_ms=10, release_ms=120))
 
     # ---------------------------------------------------------------- tracks
-    kit = s.track("drums", RockKit(), bus="drums", gameplay=True, lufs=-17, sends={"room": 0.35, "plate": 0.05},
-                  eq=[("hs", 11000, 0.7, -4)],
+    kit = s.track("drums", P.kit(), bus="drums", gameplay=True, lufs=-17, sends={"room": 0.35, "plate": 0.05},
+                  eq=[("hs", 11000, 0.7, -4)] if not P.sampled("drums") else [],     # tame synth fizz; real cymbals need their air
                   humanize={"vel": 0.05})
     bass = s.track("bass", Bass(drive=0.6), bus="bass", gameplay=True, lane="bass", lufs=-19.5,
                    eq=[("peak", 130, 0.9, 3)], comp=dict(thresh=-20, ratio=4, attack_ms=6, release_ms=70))
-    gtr = s.track("gtr", RhythmGuitar(voicing="crunch", gain=1.1, spread=0.9, presence=0.0), bus="guitars", gameplay=True,
+    gtr = s.track("gtr", P.rhythm_guitar(voicing="crunch", gain=1.1, spread=0.9, presence=0.0), bus="guitars", gameplay=True,
                   accent_lane="riff", lufs=-16, eq=[("hp", 75), ("peak", 140, 1.0, 1.5), ("peak", 320, 1.0, -2.5), ("lp", 10000)],
                   sends={"room": 0.08})
-    lead = s.track("lead", LeadGuitar(gain=1.0), bus="lead", gameplay=True, lane="melody", lufs=-18, pan=0.08,
+    lead = s.track("lead", P.lead_guitar(gain=1.0), bus="lead", gameplay=True, lane="melody", lufs=-18, pan=0.08,
                    comp=dict(thresh=-22, ratio=3, attack_ms=10, release_ms=100),
                    eq=[("hp", 150), ("peak", 3000, 1.0, -1.5)], sends={"delay": 0.22, "plate": 0.22})
-    plh = s.track("piano_lh", HonkyTonkPiano(), bus="keys", humanize={"timing_ms": 4, "vel": 0.08}, lufs=-24,
+    plh = s.track("piano_lh", P.piano(), bus="keys", humanize={"timing_ms": 4, "vel": 0.08}, lufs=-24,
                   eq=[("hp", 70)], sends={"plate": 0.12})
-    prh = s.track("piano_rh", HonkyTonkPiano(), bus="keys", gameplay=True, lane="melody", humanize={"vel": 0.06},
+    prh = s.track("piano_rh", P.piano(), bus="keys", gameplay=True, lane="melody", humanize={"vel": 0.06},
                   lufs=-19.5, eq=[("hp", 120)], sends={"plate": 0.15})
     org = s.track("organ", Organ(drawbars="888500000", drive=0.6), bus="keys", humanize={"timing_ms": 3}, lufs=-25,
                   sends={"hall": 0.12})
-    hey = s.track("shouts", GangShouts(voices=10), bus="vox", gameplay=True, lufs=-21,
+    hey = s.track("shouts", P.shouts(voices=10), bus="vox", gameplay=True, lufs=-21,
                   sends={"room": 0.3, "hall": 0.22})
     crowd = s.track("crowd", Crowd(), bus="vox", gameplay=True, lufs=-26, sends={"hall": 0.35})
 

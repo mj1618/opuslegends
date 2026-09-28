@@ -43,9 +43,10 @@ def cab_ir(sr, kind="4x12", seed=0, n_taps=2048):
 
 
 def amp_chain(di, sr, *, gain=1.0, voicing="crunch", bass=0.0, mid=0.0, treble=0.0, presence=0.0, cab="4x12",
-              cab_seed=0, os=4, gate_db=None):
+              cab_seed=0, os=4, gate_db=None, cab_fir=None):
     """Guitar amp sim. voicing: 'crunch' (AC/DC-ish boogie), 'fuzz' (fuzz pedal into crunch), 'lead' (saturated,
-    mid-forward). gain scales the pre-gain (1.0 = voicing default)."""
+    mid-forward). gain scales the pre-gain (1.0 = voicing default). cab_fir: optional real cab impulse response
+    (1-D array at sr) used instead of the synthesized cab (see instruments/sampled.py: IRRhythmGuitar)."""
     x = di / (np.max(np.abs(di)) + 1e-9)
     if voicing == "lead":
         pre = [("hp", 180, 0.7), ("peak", 750, 0.9, 7), ("lp", 6000, 0.7)]
@@ -73,7 +74,7 @@ def amp_chain(di, sr, *, gain=1.0, voicing="crunch", bass=0.0, mid=0.0, treble=0
                     ("peak", 3800, 1.2, presence)])
     u = np.tanh(g3 * u) / math.tanh(g3)
     y = dsp.downsample(u, os)
-    y = dsp.fftconv(y, cab_ir(sr, cab, cab_seed))
+    y = dsp.fftconv(y, cab_ir(sr, cab, cab_seed) if cab_fir is None else cab_fir)
     y = filt(y, "hp", 70, sr)
     if gate_db is not None:
         y = _gate(y, sr, gate_db)
@@ -140,9 +141,10 @@ class RhythmGuitar(Instrument):
     mono = False
 
     def __init__(self, voicing="crunch", gain=1.0, spread=0.85, double=True, bass=1.0, mid=0.0, treble=1.0,
-                 presence=1.5, level=1.0):
+                 presence=1.5, level=1.0, cab_firs=None):
         super().__init__()
         self.amp_kw = dict(voicing=voicing, gain=gain, bass=bass, mid=mid, treble=treble, presence=presence)
+        self.cab_firs = cab_firs      # optional [take0_ir, take1_ir] real cab IRs (default: synthesized cabs)
         self.spread = spread
         self.double = double
         self.level = level
@@ -161,7 +163,8 @@ class RhythmGuitar(Instrument):
                     d = int(trng.uniform(0.0, 0.005) * sr)
                     evs.append(Resolved(**{**e.__dict__, "start": e.start + d}))
             di = di_inst.render(evs, n, sr, trng)
-            wet = amp_chain(di, sr, cab="4x12" if take == 0 else "2x12", cab_seed=take * 7 + 1, **self.amp_kw)
+            fir = None if self.cab_firs is None else self.cab_firs[take % len(self.cab_firs)]
+            wet = amp_chain(di, sr, cab="4x12" if take == 0 else "2x12", cab_seed=take * 7 + 1, cab_fir=fir, **self.amp_kw)
             takes.append(wet)
         if n_takes == 1:
             return dsp.to_stereo(takes[0] * self.level, 0.0)
@@ -177,8 +180,9 @@ class LeadGuitar(Instrument):
     params: bend=st, bend_at, bend_time, bend_rel, slide=st, vib=depth, fall=st, let=s."""
     mono = True
 
-    def __init__(self, gain=1.0, voicing="lead", level=1.0, octave_double=False):
+    def __init__(self, gain=1.0, voicing="lead", level=1.0, octave_double=False, cab_fir=None):
         super().__init__()
+        self.cab_fir = cab_fir        # optional real cab IR (default: synthesized 4x12)
         self.gain = gain
         self.voicing = voicing
         self.level = level
@@ -191,5 +195,5 @@ class LeadGuitar(Instrument):
             up = [Resolved(**{**e.__dict__, "pitch": (np.atleast_1d(e.pitch) + 12).tolist()[0]}) for e in events]
             di = di + 0.35 * di_inst.render(up, n, sr, rng)
         y = amp_chain(di, sr, voicing=self.voicing, gain=self.gain, cab="4x12", cab_seed=3, bass=-2, mid=2,
-                      treble=1, presence=2)
+                      treble=1, presence=2, cab_fir=self.cab_fir)
         return y * self.level
