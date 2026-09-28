@@ -6,7 +6,7 @@ film pass, theatre audience. The toolkit underneath is theme-agnostic.
 
 ## Art Lab
 `npm run dev` → **/artlab.html**. Tabs: **Slim** (every pose, strike filmstrip, 25% check) · **42nd St** · **Bar** ·
-**Stress** · **Rig** (mannequin rig test) · **FX** · **Lighting** (keyframe board) · **World** (greybox framework demo).
+**Stress** · **Skins** (every gameplay entity skin by danger class + the Bluffer beat cycle) · **Rig** (mannequin rig test) · **FX** · **Lighting** (keyframe board) · **World** (greybox framework demo).
 Keys: `1`–`=` poses · `Tab` next view · `L` next light · `G` greyscale+blur readability test · `S` slow-mo · `Space` pause.
 Panel: light keyframe dropdown + slider (scrubs the whole arc), auto-cycle, BPM, time scale, hold camera (pose buttons
 drive the hero in world views), bones, onion skin. Top-right: fps · JS draw ms (avg/p95) · cached MPx · relights.
@@ -19,6 +19,25 @@ URL params (for screenshots): `view= pose= light= blend= t=<s freeze> preroll=<s
 Measured (M5 Pro, 1920×1080, DPR 1): every view 60 fps. JS per frame: street 1.3 ms, bar 0.4 ms, stress (~40 cars and
 pedestrians + full-house audience + film + Slim) 1.4 ms, stress while relighting every frame 1.6 ms (max 2.5 ms).
 Caches ≈ 25 MPx (TintBake channels; distant layers bake at 0.4–0.6 res).
+
+## In the game (iteration 2)
+The toolkit is live in the game through `src/render/` (see CLAUDE.md): `music.ts` fills `BeatInfo` from the song's
+beat-map lanes (kick/snare ← `kick`|`stomps`/`snare`|`claps`, riff ← `riff`|`tom`|`fills` accents, piano ← `stabs`|`hooks`,
+hey ← `shouts`, crash = section starts + big fills + 8-bar lines, hats = swung 8ths; grid fallback when a lane is missing)
+and per-bar `energy` (energy lane `intensity` blended with the section role; `hit()` scales by it, so verses breathe);
+`stage.ts` owns `makeStreet`/`makeBar` with one LightingDirector each (level `sky` cues → keyframes, cross-faded over
+2 bars in musical time; `ground` cues split the scenes at a doorway); `slimDriver.ts` drives `drawSlim` from the
+player; `director.ts` makes the world answer the music (chorus zoom-out, accent zoom-punch + projector flash, flying
+bottles / pool balls / hats in the upper screen, dust off the ceiling on the kick); `entityDraw.ts` holds every
+gameplay skin; `screens.ts` the marquee title / HUD / poster. Brawlers (bar + a new street brawl) punch on the SNARE.
+
+Readability pass (review fix 7): bar bottle wall and street marquee boards at ~half glow, a play-band value wash behind
+the action, a follow-spot + contact shadow under Slim, Slim at 1.1x (~155 px on screen via render-only camera framing).
+Greyscale+blur check: `node src/art/lab/gameshot.mjs --gray ...` (in game) or `G` in the lab (Skins tab).
+
+`node src/art/lab/gameshot.mjs --out=<dir> [--start=<beat>] [--secs] [--every] [--gray] [--title] [--end] [--dpr=2]`
+runs the REAL game (Vite dev server, GPU, 1920x1080) and prints fps + `renderer.perf()`. Measured (M5 Pro): 60 fps at
+DPR 1 and 2 with everything on; renderer JS avg 0.9–1.7 ms, p95 ≤ 2.4 ms.
 
 ## Integration recipe (per frame)
 ```ts
@@ -99,7 +118,15 @@ Hero: tangerine + film-black ink outline, nothing else uses tangerine; backgroun
 `lit()`; every walkable top has a dark edge line; background actors are dim silhouettes; the lab's greyscale+blur toggle
 (`G`) is the check.
 
+## Danger language (entity skins, `src/render/entityDraw.ts`)
+LETHAL = lacquer red `#B3201B` + hot edge `#FF4A3D` (glow/rims), black void, jagged teeth / chevrons — pits, the Burn.
+STUMBLE = film-black ink silhouette, red only on POINTS (cue tips, splinters, broken bulbs) — snapped cues, Bluffers,
+low signs. REWARD = gold rim/glint the beat before + gold ring on the beat — tokens, pendulum targets (bar sign / pool
+lamp / giant 8-ball), breakables (bottle / glass / jug / crate / neon letter). TERRAIN = 4 px black edge + cream lip
+(dimmed + dashed when a keg lift is up = not solid). Tangerine = Slim only. `SKINS` + `drawKind()` give any new entity
+kind a generic silhouette in its class until bespoke art lands.
+
 ## Known weaknesses / next
-No gameplay entities yet for the new theme (tokens, dummies/targets, presses, enforcers, marks, splice checkpoint,
-the Burn) and no Big Jim; brawler silhouettes are crude; background actors crowd the play band behind the hero in the
-street (tune density / depth per section); the bar needs platform props (bar top, tables, stools) as terrain helpers.
+No Big Jim yet (title/poster use type + a tiny silhouette); the Bluffer is a single rigid puppet (no rig); the scene
+split at the doorway is a hard clip (fine behind the door frame, visible if the camera lingers); flying debris is
+screen-space (does not parallax); later acts (lanes, pool room, casino, roof) need their scenes.

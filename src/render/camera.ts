@@ -7,6 +7,14 @@ import { VIEW_H, VIEW_W } from '../engine/display';
 import { clamp, damp, noise1 } from '../engine/math';
 import { Tun } from '../game/tunables';
 
+/**
+ * Presentation framing (render-owned, never touches physics): Rayman heroes are BIG. The art's Slim
+ * is ~143 world px tall (drawn at 1.1x over the 56x100 hitbox, DESIGN §2), so the camera zooms in by
+ * `zoomMul` on top of the level's zoom (0.95 x 1.14 = 1.08 -> Slim ~155 px at 1080p) and moves the hero
+ * left to `leadFraction` so the runway stays ~3.5 beats (was 3.7).
+ */
+export const FRAMING = { zoomMul: 1.14, leadFraction: 0.25 };
+
 export class Camera {
   /** world point at the view center */
   x = 0;
@@ -16,6 +24,10 @@ export class Camera {
   zoomPunch = 0;
   /** additive zoom from beat pulses */
   beatZoom = 0;
+  /** additive zoom from the music director: slow section framing (chorus zoom-out) — render-owned */
+  musicZoom = 0;
+  /** additive zoom from the music director: fast punches on big hits (not used for framing) */
+  hitZoom = 0;
   trauma = 0;
   private lead = 1;
   private t = 0;
@@ -31,12 +43,17 @@ export class Camera {
     this.y = this.targetYForGround(groundY);
   }
 
+  /** level zoom x framing (what the follow maths frames with) */
+  get frameZoom(): number {
+    return this.zoom * FRAMING.zoomMul * (1 + this.musicZoom);
+  }
+
   private targetX(px: number): number {
-    return px + (0.5 - Tun.camera.leadFraction) * (VIEW_W / this.zoom) * this.lead;
+    return px + (0.5 - FRAMING.leadFraction) * (VIEW_W / this.frameZoom) * this.lead;
   }
 
   private targetYForGround(gy: number): number {
-    return gy - (Tun.camera.groundFraction - 0.5) * (VIEW_H / this.zoom);
+    return gy - (Tun.camera.groundFraction - 0.5) * (VIEW_H / this.frameZoom);
   }
 
   /**
@@ -53,7 +70,7 @@ export class Camera {
       const wantLead = Math.abs(vxNorm) > 0.2 ? Math.sign(vxNorm) : this.lead;
       this.lead = damp(this.lead, wantLead, 2.5, dt);
       this.x = damp(this.x, this.targetX(px), C.followX, dt);
-      const vh = VIEW_H / this.zoom;
+      const vh = VIEW_H / this.frameZoom;
       let ty = this.targetYForGround(groundY);
       const top = ty - vh / 2;
       if (py - ph < top + C.topMargin * vh) ty = py - ph - C.topMargin * vh + vh / 2;
@@ -69,7 +86,7 @@ export class Camera {
     this.rx = this.x + C.maxShakeOffset * s * noise1(this.t * f, 1);
     this.ry = this.y + C.maxShakeOffset * s * noise1(this.t * f, 2);
     this.rangle = C.maxShakeAngle * s * noise1(this.t * f, 3);
-    this.rzoom = this.zoom * (1 + this.zoomPunch + this.beatZoom);
+    this.rzoom = this.zoom * FRAMING.zoomMul * (1 + this.zoomPunch + this.beatZoom + this.musicZoom + this.hitZoom);
   }
 
   addTrauma(a: number): void {

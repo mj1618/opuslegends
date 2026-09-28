@@ -377,9 +377,10 @@ export const NEWSPAPER: ActorKind = {
 export const BRAWLERS: ActorKind = {
   id: 'brawlers',
   draw(g, a, c) {
-    // two patrons trade punches: A lands on beats 1 & 3, B on 2 & 4; the loser reels
-    const bi = Math.floor(c.b.beat) % 2;
-    const k = Math.exp(-c.b.beatPhase * 5);
+    // two patrons trade punches ON THE SNARE (2 & 4): they alternate who lands it; the loser reels.
+    // Strength follows the section energy (hit() scales by it), so verses spar and choruses brawl.
+    const bi = (c.b.count.snare + Math.round(a.seed * 10)) % 2;
+    const k = Math.min(1, hit(c.b, 'snare', 0.11) * 1.15);
     const sil = col(c, '#241A1C', 0.4);
     const rim = css(mix(lit(c.L, H('#241A1C'), 0.4, c.depth), c.L.rim, 0.5), 0.8);
     for (let p = 0; p < 2; p++) {

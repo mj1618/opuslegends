@@ -71,8 +71,11 @@ export function makeBar(light: LightingDirector): ParallaxScene {
           p.detail.fillRect(bx, sy + 110, 900, 10);
           for (let x = bx + 12; x < bx + 880; x += 22 + r() * 10) {
             const h = 50 + r() * 40;
+            // backlit bottles at ~half glow: the wall must sit well below the play band in value (review fix 7)
+            p.glow.globalAlpha = 0.38 + r() * 0.2;
             p.glow.fillRect(x, sy + 110 - h, 14, h);
             p.glow.fillRect(x + 4, sy + 110 - h - 16, 6, 16);
+            p.glow.globalAlpha = 1;
             p.detail.globalAlpha = 0.5;
             p.detail.fillRect(x + 9, sy + 110 - h + 6, 3, h - 10);
             p.detail.globalAlpha = 1;
@@ -338,7 +341,7 @@ function barFloorBake(): TintBake {
 }
 
 /** Varnished bar floorboards + dark underfloor with a brass rail. rect.y = walkable surface. */
-export function drawBarFloor(g: Ctx, rect: { x: number; y: number; w: number; h: number }, style: { light: Lighting }): void {
+export function drawBarFloor(g: Ctx, rect: { x: number; y: number; w: number; h: number }, style: { light: Lighting; capL?: boolean; capR?: boolean }): void {
   const L = style.light;
   const b = barFloorBake();
   b.compose([
@@ -358,9 +361,13 @@ export function drawBarFloor(g: Ctx, rect: { x: number; y: number; w: number; h:
     g.drawImage(b.out, sx * b.res, 0, w * b.res, hTop * b.res, x, rect.y - 24, w, hTop);
     x += w;
   }
+  if (rect.h > SEG_H) {
+    g.fillStyle = css(lit(L, H('#140C08'), 0.3));
+    g.fillRect(rect.x, rect.y + SEG_H - 1, rect.w, rect.h - SEG_H + 1);
+  }
   g.fillStyle = CF.filmBlack;
-  g.fillRect(rect.x - 3, rect.y - 5, 6, rect.h + 5);
-  g.fillRect(x1 - 3, rect.y - 5, 6, rect.h + 5);
+  if (style.capL !== false) g.fillRect(rect.x - 3, rect.y - 5, 6, rect.h + 5);
+  if (style.capR !== false) g.fillRect(x1 - 3, rect.y - 5, 6, rect.h + 5);
 }
 
 export type { BeatInfo };

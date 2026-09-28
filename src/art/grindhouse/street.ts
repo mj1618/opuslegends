@@ -26,7 +26,7 @@ import { type Lighting, type LightingDirector, atmos, lit } from '../world/light
 import { ParallaxScene, type SceneFrame, skyLayer, stripLayer } from '../world/parallax';
 import './lights';
 import { LifeLayer } from '../life/life';
-import { LETTER, NEWSPAPER, PEDESTRIAN, PIGEONS, SEDAN, TAXI, VAN } from './actors';
+import { BRAWLERS, LETTER, NEWSPAPER, PEDESTRIAN, PIGEONS, SEDAN, TAXI, VAN } from './actors';
 
 const H = hex;
 const MARQUEE_FONT = '"Impact", "Haettenschweiler", "Arial Narrow Bold", "Helvetica Neue", sans-serif';
@@ -266,6 +266,20 @@ export function makeStreet(light: LightingDirector): StreetScene {
       rules: [{ kind: LETTER, on: 'riff', chance: 0.35, y: -380, ySpread: 60, from: 'view', max: 3 }],
     }),
   );
+  // a background brawl outside the grindhouses (DESIGN §4 rule 6): punches land on the snare
+  scene.add(
+    new LifeLayer({
+      id: 'life-brawl',
+      factor: 0.62,
+      depth: 0.42,
+      wrapW: 2300,
+      pinned: [
+        { kind: BRAWLERS, x: 520, y: -30, s: 0.72 },
+        { kind: BRAWLERS, x: 1650, y: -30, s: 0.68 },
+      ],
+      rules: [],
+    }),
+  );
   scene.add(
     new LifeLayer({
       id: 'life-crowd',
@@ -375,7 +389,10 @@ function paintFacades(
       const my = street - 380;
       const mh = 100;
       det.fillRect(mx - 10, my - 10, mw + 20, mh + 20);
+      // board at half glow: it sits right above the play band and must stay below the hero in value
+      glow.globalAlpha = 0.5;
       glow.fillRect(mx, my, mw, mh);
+      glow.globalAlpha = 1;
       const [title, sub] = BILLS[bill++];
       for (const c of [det, glow]) {
         c.save();

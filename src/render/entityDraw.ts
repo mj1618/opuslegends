@@ -1,802 +1,1284 @@
 /**
- * PLACEHOLDER DRAW FUNCTIONS for the vertical slice — one small function per thing, each drawing
- * at a given world position with plain canvas calls. Deliberately simple and isolated so the
- * real art module (src/art/, built separately) can replace them one by one.
+ * ENTITY SKINS — the swap point between game mechanics and art (grindhouse theme, docs/DESIGN.md).
+ * Every gameplay thing is drawn by one function here in the art lab's style (inked shapes, film-black
+ * outlines, procedural, cached where heavy). Mechanics stay neutral; this file decides the look.
  *
- * Skin: a scratched 1970s grindhouse feature (docs/DESIGN.md) — Slim, a muscly tattooed pool shark,
- * fights up 42nd Street into a honky-tonk bar with his pool cue.
- *   HERO = tangerine #FF8A1F (Slim only) · REWARD = gold #E0B64A (brass tokens, dummy cracks)
- *   DANGER = lacquer red #B3201B (snapped-cue tips, Bluff Master staff tips) · film black #1A1410
- * Mechanic -> skin: lums = brass tokens, pendulum targets = sparring dummies (Dummy Crack),
- * spikes = snapped cues, slam platforms = Stamp Presses, jabbers = Bluff Masters (bow on the
- * "and" — the back is a bounce platform — jacket flung open + jab on the beat), crowd = the theatre
- * audience strip, chaser = the Burn, checkpoints = film splices, scansion = choreographer's chalk.
+ * DANGER LANGUAGE (review fix 7) — one rule per class, the same on every entity, readable in greyscale:
+ *   LETHAL  (death)    lacquer red #B3201B + hot edge #FF4A3D rim/glow, black void, jagged teeth / chevrons
+ *                      -> pits, the Burn. Anything new that kills: `drawLethalFrame` / DANGER colours.
+ *   STUMBLE (knock)    film-black ink silhouette with RED POINTS only (cue tips, shards), no glow
+ *                      -> snapped cues, Bluffer cue tips.
+ *   REWARD             gold #E0B64A + shine, glints, never red -> tokens, pendulum targets (gold rim), splices.
+ *   HERO               tangerine: Slim only (src/art/grindhouse/slim.ts).
+ *   TERRAIN            4 px film-black edge + cream lip on every walkable top (floors, awnings, keg lifts).
+ *
+ * DATA-DRIVEN: `SKINS[kind]` maps an entity kind (Enemy.kind, Hazard.kind, ... or any new kind the level
+ * adds) to a skin with a danger class; `skinFor(kind, danger)` falls back to a generic silhouette in the
+ * right danger language, so a new entity type is readable the moment it exists, then gets proper art here.
+ *
+ * Mechanic -> skin: lum = brass 8-ball token · pendulum = swinging bar sign (street) / green pool lamp
+ * (bar) / giant 8-ball (big) · spike = snapped cues in a spittoon (stumble) · gap = lethal furnace pit
+ * (stage.ts) · slam = cellar keg lift on a hydraulic ram · jabber = Bluffer (flex on the "and", cue-jab on
+ * the beat, wind-up tell the beat before its jab) · phrase = chalked HUP·HUP·HEY! · chaser = the Burn ·
+ * checkpoint = film splice · scansion = cue-chalk marks · platform = awning / bar shelf · block = crates.
  */
-import { VIEW_H, VIEW_W, makeCanvas } from '../engine/display';
-import { lerp } from '../engine/math';
+import { type BeatInfo, hit } from '../art/core/beat';
+import { type Ctx, drawSprite, sprite } from '../art/core/canvas';
+import { drawGlow, star4 } from '../art/core/draw';
+import { TAU, clamp01, easeOut, hash } from '../art/core/math';
+import { CF } from '../art/palette';
+import { blobPath, cartoonEye, type Ink } from '../art/rig/parts';
 
+export const DANGER = { red: '#B3201B', hot: '#FF4A3D', void: '#0B0706', ink: '#1A1410' } as const;
+export const REWARD = { gold: '#E0B64A', shine: '#FFE08A', dark: '#8A6A1E', glow: '#FFD878' } as const;
+const INK = CF.filmBlack;
+const LIP = '#F4EFE2';
+const K: Ink = { line: INK, w: 3 };
+
+/** legacy palette names still used by the HUD / screens */
 export const PAL = {
-  heroAccent: '#FF8A1F',
-  heroAccentDark: '#C45A0E',
-  heroStripe: '#FFF6E8',
-  heroInk: '#1A1410',
-  gold: '#E0B64A',
-  goldDark: '#9C7A22',
-  lacquer: '#B3201B',
-  filmBlack: '#1A1410',
-  film: '#E9D8B4',
-  beam: '#F8F1DC',
-  jade: '#2FA37A',
-  fig: '#5E2B4E',
-  subtitle: '#FFE24A',
-  wood: '#9A6B45',
-  woodDark: '#5A3A24',
-  iron: '#3A3A42',
-  timber: '#8A6A4F',
-  timberDark: '#4E3A2C',
-  asphalt: '#2B2530',
-  asphaltLine: '#3A3340',
-  paper: '#EFE6CF',
-  lip: '#F4EFE2',
-  shine: '#FFE08A',
-  audience: '#0D0A08',
+  heroAccent: CF.tangerine,
+  gold: REWARD.gold,
+  goldDark: REWARD.dark,
+  lacquer: DANGER.red,
+  filmBlack: INK,
+  film: CF.filmHi,
+  beam: CF.beamHaze,
+  jade: CF.jade,
+  fig: CF.fig,
+  lip: LIP,
+  shine: REWARD.shine,
+  cream: CF.cream,
 } as const;
 
-const TAU = Math.PI * 2;
+export type DangerClass = 'lethal' | 'stumble' | 'reward' | 'neutral';
+export type EnvKind = 'street' | 'bar';
 
-// ---------------------------------------------------------------------------- the hero
-
-export interface HeroPose {
-  /** squash & stretch */
-  sx: number;
-  sy: number;
-  facing: number;
-  /** leg cycle phase (footfalls = integer crossings) */
-  runPhase: number;
-  running: boolean;
-  grounded: boolean;
-  /** strike animation 0..1 (NaN = idle) */
-  strike: number;
-  /** idle bob (0..1 on each beat) */
-  beatBob: number;
-  /** spin 0..1 during a stumble (NaN = none) */
-  spin: number;
-  /** blink for i-frames */
-  hidden: boolean;
-  dead: boolean;
-  /** speed lines (catch-up surge) */
-  surging: boolean;
-  /** time (s) for small idle motions */
-  t: number;
+/** per-frame context every skin gets */
+export interface SkinCtx {
+  b: BeatInfo;
+  env: EnvKind;
+  /** presentation clock (s) */
+  time: number;
+  /** world beat (song beat minus hitstop debt) */
+  wb: number;
+  swing: number;
 }
 
-/** Slim at feet-centre (x, y): a muscly, tattooed pool shark, ~130 px tall around a 56x100 hitbox, cue in hand. */
-export function drawHero(ctx: CanvasRenderingContext2D, x: number, y: number, p: HeroPose): void {
-  if (p.hidden) return;
-  ctx.save();
-  ctx.translate(x, y);
-  if (p.surging) {
-    ctx.strokeStyle = 'rgba(248,241,220,0.8)';
-    ctx.lineWidth = 4;
-    for (const [oy, len] of [[-30, 60], [-60, 90], [-90, 50]]) {
-      const w = (p.t * 23 + oy) % 1;
-      ctx.beginPath();
-      ctx.moveTo(-40 - w * 30, oy);
-      ctx.lineTo(-40 - w * 30 - len, oy);
-      ctx.stroke();
-    }
-  }
-  if (!Number.isNaN(p.spin)) {
-    ctx.translate(0, -50);
-    ctx.rotate(p.spin * TAU * p.facing);
-    ctx.translate(0, 50);
-  }
-  if (p.dead) {
-    ctx.translate(0, -50);
-    ctx.rotate(p.t * 10);
-    ctx.translate(0, 50);
-  }
-  ctx.scale(p.sx * p.facing, p.sy);
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  const SKIN = '#D9A07A';
-  const INK = PAL.heroInk;
+// ============================================================================ helpers
 
-  // legs: dark jeans + boots; stride on the run, tuck in the air
-  const ph = p.runPhase * Math.PI;
-  for (const side of [-1, 1]) {
-    let fx: number;
-    let fy: number;
-    if (p.running) {
-      const s = Math.sin(ph + (side > 0 ? 0 : Math.PI));
-      fx = s * 24;
-      fy = -Math.max(0, Math.cos(ph + (side > 0 ? 0 : Math.PI))) * 14;
-    } else if (!p.grounded) {
-      fx = side * 14;
-      fy = -22 + side * 8;
-    } else {
-      fx = side * 16;
-      fy = 0;
-    }
-    const hx = side * 9;
-    const hy = -46;
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = 17;
-    ctx.beginPath();
-    ctx.moveTo(hx, hy);
-    ctx.lineTo((hx + fx) / 2 + 4, (hy + fy) / 2);
-    ctx.lineTo(fx, fy - 6);
-    ctx.stroke();
-    ctx.strokeStyle = '#2E3550';
-    ctx.lineWidth = 12;
-    ctx.stroke();
-    ctx.fillStyle = INK; // boots
-    ctx.beginPath();
-    ctx.ellipse(fx + 5, fy - 5, 12, 7, 0, 0, TAU);
-    ctx.fill();
+function fillInk(g: Ctx, fill: string, w = 3): void {
+  g.lineJoin = 'round';
+  g.lineWidth = w * 2;
+  g.strokeStyle = INK;
+  g.stroke();
+  g.fillStyle = fill;
+  g.fill();
+}
+
+function roundRectPath(g: Ctx, x: number, y: number, w: number, h: number, r: number): void {
+  const rr = Math.max(0, Math.min(r, w / 2, h / 2));
+  g.beginPath();
+  g.moveTo(x + rr, y);
+  g.arcTo(x + w, y, x + w, y + h, rr);
+  g.arcTo(x + w, y + h, x, y + h, rr);
+  g.arcTo(x, y + h, x, y, rr);
+  g.arcTo(x, y, x + w, y, rr);
+  g.closePath();
+}
+
+/** walkable-top rule: 4 px film-black edge + 2-3 px cream lip */
+export function walkTop(g: Ctx, x: number, y: number, w: number, alpha = 1): void {
+  g.fillStyle = INK;
+  g.fillRect(x, y - 1, w, 5);
+  g.globalAlpha *= alpha;
+  g.fillStyle = LIP;
+  g.fillRect(x, y - 3, w, 3);
+  g.globalAlpha = 1;
+}
+
+// ============================================================================ REWARD: brass tokens (lums)
+
+function tokenSprite() {
+  return sprite('skin-token', 52, 52, 26, 26, (g) => {
+    g.beginPath();
+    g.arc(0, 0, 18, 0, TAU);
+    fillInk(g, REWARD.gold, 2.5);
+    g.strokeStyle = REWARD.dark;
+    g.lineWidth = 2;
+    g.beginPath();
+    g.arc(0, 0, 14, 0, TAU);
+    g.stroke();
+    // 8-ball stamp
+    g.fillStyle = INK;
+    g.beginPath();
+    g.arc(0, 0, 9.5, 0, TAU);
+    g.fill();
+    g.fillStyle = CF.cream;
+    g.beginPath();
+    g.arc(0, -0.5, 4.6, 0, TAU);
+    g.fill();
+    g.fillStyle = INK;
+    g.font = 'bold 8px "Arial Black", Impact, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('8', 0, 0);
+    g.fillStyle = 'rgba(255,240,190,0.9)';
+    g.beginPath();
+    g.ellipse(-8, -9, 4, 2.4, -0.7, 0, TAU);
+    g.fill();
+  });
+}
+
+/** brass pool-hall token: spins (x-scale) as it bobs, flares gold on its beat */
+export function drawToken(g: Ctx, x: number, y: number, angle: number, scale: number, glint: number, alpha = 1): void {
+  const spin = 0.3 + 0.7 * Math.abs(Math.cos(angle * 2 + glint * 0.5));
+  if (glint > 0.05) drawGlow(g, x, y, REWARD.glow, 34 * scale, 0.35 * glint * alpha);
+  const a0 = g.globalAlpha;
+  g.globalAlpha = a0 * alpha;
+  drawSprite(g, tokenSprite(), x, y, 0, scale * spin, scale);
+  if (glint > 0.6) star4(g, x + 9 * scale, y - 11 * scale, 7 * glint * scale, 0.3, `rgba(255,240,190,${(glint - 0.6) * 2.2 * alpha})`);
+  g.globalAlpha = a0;
+}
+/** @deprecated name kept for the HUD */
+export const drawLum = drawToken;
+
+// ============================================================================ REWARD: pendulum targets
+
+export interface PendulumView {
+  pivotX: number;
+  pivotY: number;
+  x: number;
+  y: number;
+  r: number;
+  big: boolean;
+  /** 0..1 star glint (1 beat before the bottom of the swing) */
+  glint: number;
+  /** 0..1 at the bottom of the swing (strike now) */
+  bottom: number;
+  /** struck: seconds since (NaN = intact) */
+  struckT: number;
+  /** stable per-target seed */
+  seed: number;
+  /** top of the view (world y) for the hanging cable */
+  viewTop: number;
+}
+
+const SIGN_WORDS = ['POOL', 'BAR', 'EATS', 'CUES', 'HOTEL', '8-BALL', 'LIQUOR', 'DINER'];
+
+/** Swinging target: bar blade sign (street) / green-shade pool lamp (bar) / giant 8-ball (big ones). Gold = reward. */
+export function drawPendulum(g: Ctx, p: PendulumView, c: SkinCtx): void {
+  const { pivotX, pivotY, x, y, r } = p;
+  // cable to the top of the frame + an iron bracket at the pivot
+  g.strokeStyle = 'rgba(26,20,16,0.85)';
+  g.lineWidth = 3;
+  g.beginPath();
+  g.moveTo(pivotX, p.viewTop);
+  g.lineTo(pivotX, pivotY);
+  g.stroke();
+  g.fillStyle = INK;
+  g.fillRect(pivotX - 14, pivotY - 6, 28, 8);
+  g.beginPath();
+  g.arc(pivotX, pivotY, 6, 0, TAU);
+  g.fill();
+  const ang = -Math.atan2(x - pivotX, y - pivotY);
+  if (!Number.isNaN(p.struckT)) {
+    // smashed: gold ring + tumbling halves
+    const k = clamp01(p.struckT / 0.5);
+    g.globalAlpha = 1 - k;
+    g.strokeStyle = REWARD.gold;
+    g.lineWidth = 7 * (1 - k);
+    g.beginPath();
+    g.arc(x, y, r + 90 * easeOut(k), 0, TAU);
+    g.stroke();
+    star4(g, x, y, r * (1 + 2 * k), k * 2, REWARD.shine);
+    g.globalAlpha = 1;
+    return;
   }
-  // belt
-  ctx.fillStyle = INK;
-  ctx.fillRect(-20, -52, 40, 8);
-  ctx.fillStyle = '#C9B99A';
-  ctx.fillRect(-4, -52, 8, 8);
-
-  // torso: broad V in a tangerine tank top (the hero's sacred colour)
-  const bob = p.beatBob * 2;
-  ctx.fillStyle = PAL.heroAccent;
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(-18, -50);
-  ctx.lineTo(-30, -92 - bob);
-  ctx.quadraticCurveTo(0, -104 - bob, 30, -92 - bob);
-  ctx.lineTo(18, -50);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = SKIN; // neck/chest V
-  ctx.beginPath();
-  ctx.moveTo(-10, -97 - bob);
-  ctx.lineTo(0, -84 - bob);
-  ctx.lineTo(10, -97 - bob);
-  ctx.closePath();
-  ctx.fill();
-
-  // head: square jaw, slicked-back black hair, sideburns
-  const hy = -114 - bob;
-  ctx.fillStyle = SKIN;
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = 3.5;
-  ctx.beginPath();
-  ctx.moveTo(-10, hy - 12);
-  ctx.lineTo(14, hy - 12);
-  ctx.lineTo(16, hy + 6);
-  ctx.lineTo(8, hy + 14);
-  ctx.lineTo(-8, hy + 12);
-  ctx.lineTo(-12, hy);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = INK;
-  ctx.beginPath();
-  ctx.moveTo(-14, hy - 4);
-  ctx.quadraticCurveTo(-12, hy - 22, 8, hy - 20);
-  ctx.quadraticCurveTo(20, hy - 18, 17, hy - 9);
-  ctx.lineTo(-6, hy - 10);
-  ctx.lineTo(-8, hy + 4);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillRect(9, hy - 3, 5, 2.5); // brow
-  ctx.beginPath();
-  ctx.arc(11, hy + 1, 2, 0, TAU);
-  ctx.fill();
-
-  // arms + THE CUE: held diagonally at idle; the Cue Swing (power shot) arcs up-forward
-  let ang: number;
-  if (!Number.isNaN(p.strike)) {
-    const k = p.strike;
-    const up = k < 0.3 ? k / 0.3 : 1 - (k - 0.3) / 0.7;
-    const e = 1 - (1 - Math.min(1, up)) ** 3;
-    ang = lerp(0.6, -1.8, e);
-    if (k < 0.55) {
-      const a1 = lerp(0.6, -1.8, Math.min(1, k / 0.3));
-      ctx.fillStyle = `rgba(248,241,220,${0.75 * (1 - k / 0.55)})`; // swing smear (cream edge, tangerine core)
-      ctx.beginPath();
-      ctx.arc(8, -80, 124, 0.65, a1, true);
-      ctx.arc(8, -80, 84, a1, 0.65, false);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = `rgba(255,138,31,${0.35 * (1 - k / 0.55)})`;
-      ctx.beginPath();
-      ctx.arc(8, -80, 110, 0.65, a1, true);
-      ctx.arc(8, -80, 96, a1, 0.65, false);
-      ctx.closePath();
-      ctx.fill();
-    }
+  // rope
+  g.strokeStyle = '#3A2E26';
+  g.lineWidth = 3;
+  g.beginPath();
+  g.moveTo(pivotX, pivotY);
+  g.lineTo(x - Math.sin(ang) * -r * 1.2, y - Math.cos(ang) * r * 1.2);
+  g.stroke();
+  if (p.bottom > 0.02) drawGlow(g, x, y, REWARD.glow, r * 3.2, 0.5 * p.bottom);
+  g.save();
+  g.translate(x, y);
+  g.rotate(ang);
+  const goldRim = 0.5 + 0.5 * Math.max(p.glint, p.bottom);
+  if (p.big) {
+    // giant 8-ball chandelier
+    const R = r * 1.25;
+    g.beginPath();
+    g.arc(0, 0, R, 0, TAU);
+    fillInk(g, '#15110F', 3);
+    g.strokeStyle = REWARD.gold;
+    g.lineWidth = 4;
+    g.globalAlpha = goldRim;
+    g.stroke();
+    g.globalAlpha = 1;
+    g.fillStyle = CF.cream;
+    g.beginPath();
+    g.arc(R * 0.18, -R * 0.1, R * 0.42, 0, TAU);
+    g.fill();
+    g.fillStyle = INK;
+    g.font = `bold ${Math.round(R * 0.62)}px "Arial Black", Impact, sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('8', R * 0.18, -R * 0.07);
+    g.fillStyle = 'rgba(255,255,255,0.35)';
+    g.beginPath();
+    g.ellipse(-R * 0.45, -R * 0.5, R * 0.28, R * 0.14, -0.7, 0, TAU);
+    g.fill();
+    g.fillStyle = REWARD.dark;
+    g.fillRect(-6, -R - 10, 12, 12);
+  } else if (c.env === 'bar') {
+    // green-shade pool-hall lamp: the bulb under the shade is the target
+    const w = r * 2.6;
+    g.beginPath();
+    g.moveTo(-w * 0.22, -r * 1.2);
+    g.lineTo(w * 0.22, -r * 1.2);
+    g.lineTo(w * 0.5, r * 0.2);
+    g.lineTo(-w * 0.5, r * 0.2);
+    g.closePath();
+    fillInk(g, CF.felt, 3);
+    g.fillStyle = 'rgba(255,255,255,0.18)';
+    g.fillRect(-w * 0.18, -r * 1.1, w * 0.1, r * 1.2);
+    g.fillStyle = REWARD.gold;
+    g.globalAlpha = goldRim;
+    g.fillRect(-w * 0.5, r * 0.12, w, 5);
+    g.globalAlpha = 1;
+    g.fillStyle = CF.lampPool;
+    g.beginPath();
+    g.ellipse(0, r * 0.38, r * 0.5, r * 0.28, 0, 0, TAU);
+    g.fill();
+    drawGlow(g, 0, r * 0.5, CF.lampPool, r * 2.2, 0.35 + 0.3 * hit(c.b, 'hat', 0.06));
   } else {
-    ang = 0.6 - p.beatBob * 0.1;
-  }
-  ctx.save();
-  ctx.translate(8, -80);
-  ctx.rotate(ang);
-  // cue
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = 10;
-  ctx.beginPath();
-  ctx.moveTo(-60, 0);
-  ctx.lineTo(118, 0);
-  ctx.stroke();
-  ctx.strokeStyle = '#E7C48A';
-  ctx.lineWidth = 6;
-  ctx.stroke();
-  ctx.strokeStyle = '#2A1E16';
-  ctx.beginPath();
-  ctx.moveTo(-60, 0);
-  ctx.lineTo(-30, 0);
-  ctx.stroke();
-  ctx.strokeStyle = PAL.heroStripe;
-  ctx.beginPath();
-  ctx.moveTo(110, 0);
-  ctx.lineTo(118, 0);
-  ctx.stroke();
-  // big tattooed forearms + fists on the cue
-  for (const hx of [-10, 22]) {
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = 17;
-    ctx.beginPath();
-    ctx.moveTo(hx - 12, 20);
-    ctx.lineTo(hx, 0);
-    ctx.stroke();
-    ctx.strokeStyle = SKIN;
-    ctx.lineWidth = 12;
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(26,20,16,0.75)'; // tattoo bands
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(hx - 10, 12);
-    ctx.lineTo(hx - 4, 16);
-    ctx.moveTo(hx - 7, 6);
-    ctx.lineTo(hx - 1, 10);
-    ctx.stroke();
-    ctx.fillStyle = SKIN;
-    ctx.beginPath();
-    ctx.arc(hx, 0, 8, 0, TAU);
-    ctx.fill();
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-  }
-  ctx.restore();
-  // shoulder caps (muscle) over the tank top
-  ctx.fillStyle = SKIN;
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = 3;
-  for (const sx of [-26, 26]) {
-    ctx.beginPath();
-    ctx.arc(sx, -88 - bob, 10, 0, TAU);
-    ctx.fill();
-    ctx.stroke();
-  }
-  ctx.fillStyle = 'rgba(26,20,16,0.7)'; // shoulder tattoo (a star)
-  ctx.beginPath();
-  for (let k = 0; k < 10; k++) {
-    const r = k % 2 ? 2.5 : 6;
-    const a = (k / 10) * TAU - Math.PI / 2;
-    ctx.lineTo(26 + Math.cos(a) * r, -88 - bob + Math.sin(a) * r);
-  }
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-}
-
-// ---------------------------------------------------------------------------- the audience (crowd)
-
-/**
- * The theatre audience: film-black silhouettes along the bottom of the frame (SCREEN space).
- * `standing` of `seats` are on their feet (the streak); standing ones cheer on the beat, and a
- * strike sends a wave along the row (`wave` 0..1 = position of the wave, <0 = none). Popcorn
- * pops over them on the backbeat.
- */
-export function drawAudience(ctx: CanvasRenderingContext2D, seats: number, standing: number, beat: number, beatPulse: number, backbeat: number, wave: number, full: boolean): void {
-  const y0 = VIEW_H + 6;
-  const step = VIEW_W / seats;
-  for (let i = 0; i < seats; i++) {
-    const order = (i * 7) % seats; // spread the standing members along the row
-    const up = order < standing;
-    const x = step * (i + 0.5) + ((i * 37) % 11) - 5;
-    const cheer = up ? beatPulse * (0.6 + (0.4 * ((i * 13) % 3)) / 2) : 0;
-    const w = wave < 0 ? 0 : Math.max(0, 1 - Math.abs(wave - i / seats) * 6);
-    const rise = up ? 24 + 6 * cheer + 10 * w : 3 * w;
-    const h = 40 + ((i * 29) % 8);
-    ctx.fillStyle = PAL.audience;
-    ctx.beginPath();
-    ctx.ellipse(x, y0 - h * 0.3 - rise, 26, h * 0.4, 0, Math.PI, TAU);
-    ctx.lineTo(x + 26, y0);
-    ctx.lineTo(x - 26, y0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(x, y0 - h * 0.62 - rise, 12, 0, TAU);
-    ctx.fill();
-    if (up && (cheer > 0.25 || w > 0.3)) {
-      ctx.strokeStyle = PAL.audience;
-      ctx.lineWidth = 7;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(x - 16, y0 - h * 0.45 - rise);
-      ctx.lineTo(x - 22, y0 - h * 0.95 - rise - 6 * cheer);
-      ctx.moveTo(x + 16, y0 - h * 0.45 - rise);
-      ctx.lineTo(x + 22, y0 - h * 0.95 - rise - 6 * cheer);
-      ctx.stroke();
-    }
-    ctx.strokeStyle = full ? 'rgba(224,182,74,0.6)' : 'rgba(233,216,180,0.25)'; // rim light from the screen
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(x, y0 - h * 0.62 - rise, 12, Math.PI * 1.1, Math.PI * 1.9);
-    ctx.stroke();
-    if (up && backbeat > 0.2 && (i + Math.floor(beat)) % 3 === 0) {
-      ctx.fillStyle = `rgba(248,241,220,${backbeat})`; // popcorn on the backbeat
-      for (let k = 0; k < 3; k++) {
-        const px = x + (k - 1) * 10 + Math.sin(i + k) * 5;
-        const py = y0 - h - rise - 14 - (1 - backbeat) * 36 - k * 5;
-        ctx.beginPath();
-        ctx.arc(px, py, 4, 0, TAU);
-        ctx.fill();
-      }
+    // blade sign on two chains: cream face, marquee lettering, gold rim
+    const w = r * 2.9;
+    const h = r * 1.9;
+    g.strokeStyle = INK;
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(-w * 0.35, -h * 0.5);
+    g.lineTo(0, -r * 1.2);
+    g.lineTo(w * 0.35, -h * 0.5);
+    g.stroke();
+    roundRectPath(g, -w / 2, -h / 2, w, h, 6);
+    fillInk(g, '#2A2230', 3);
+    roundRectPath(g, -w / 2 + 5, -h / 2 + 5, w - 10, h - 10, 4);
+    g.fillStyle = CF.cream;
+    g.fill();
+    g.strokeStyle = REWARD.gold;
+    g.lineWidth = 3;
+    g.globalAlpha = goldRim;
+    roundRectPath(g, -w / 2 + 1, -h / 2 + 1, w - 2, h - 2, 6);
+    g.stroke();
+    g.globalAlpha = 1;
+    g.fillStyle = CF.fig;
+    g.font = `italic ${Math.round(h * 0.46)}px "Impact", "Haettenschweiler", "Arial Narrow Bold", sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(SIGN_WORDS[p.seed % SIGN_WORDS.length], 0, 2);
+    // bulbs on the rim chase on the 8ths
+    const ch = Math.floor(c.b.beat * 2);
+    for (let i = 0; i < 6; i++) {
+      const on = (i + ch) % 3 === 0;
+      g.fillStyle = on ? CF.bulb : '#6A5A48';
+      g.beginPath();
+      g.arc(-w / 2 + 8 + i * ((w - 16) / 5), -h / 2 + 1, 3, 0, TAU);
+      g.fill();
     }
   }
-}
-
-/** a small audience head for the HUD */
-export function drawAudienceIcon(ctx: CanvasRenderingContext2D, x: number, y: number, cheer: number): void {
-  ctx.fillStyle = PAL.film;
-  ctx.beginPath();
-  ctx.arc(x, y - 12 - cheer * 4, 9, 0, TAU);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(x, y + 6, 16, 12, 0, Math.PI, TAU);
-  ctx.fill();
-}
-
-// ---------------------------------------------------------------------------- brass tokens (lums)
-
-/** brass pool-hall token stamped with an 8-ball; spins (x-scale) as it bobs */
-export function drawLum(ctx: CanvasRenderingContext2D, x: number, y: number, angle: number, scale: number, glint: number, alpha = 1): void {
-  ctx.save();
-  ctx.globalAlpha *= alpha;
-  ctx.translate(x, y);
-  const spin = 0.35 + 0.65 * Math.abs(Math.cos(angle * 2 + glint));
-  ctx.scale(scale * spin, scale);
-  ctx.fillStyle = `rgba(224,182,74,${0.15 + 0.25 * glint})`;
-  ctx.beginPath();
-  ctx.arc(0, 0, 26, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = PAL.gold;
-  ctx.strokeStyle = PAL.goldDark;
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(0, 0, 15, 0, TAU);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = PAL.filmBlack; // the 8-ball stamp
-  ctx.beginPath();
-  ctx.arc(0, 0, 8, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = PAL.gold;
-  ctx.beginPath();
-  ctx.arc(0, 0, 3.6, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = `rgba(255,224,138,${0.5 + 0.5 * glint})`;
-  ctx.beginPath();
-  ctx.arc(-6, -7, 2.5, 0, TAU);
-  ctx.fill();
-  ctx.restore();
-}
-
-// ---------------------------------------------------------------------------- snapped cues (spikes)
-
-/** a bundle of splintered cue shafts with lacquer-red tips (the basic "spike") */
-export function drawSpike(ctx: CanvasRenderingContext2D, x: number, y: number, pulse: number, rot: number): void {
-  ctx.save();
-  ctx.translate(x, y + 22);
-  ctx.rotate(rot);
-  const s = 1 + 0.1 * pulse;
-  ctx.scale(s, s);
-  ctx.lineCap = 'round';
-  const shafts: [number, number][] = [
-    [-0.5, 40],
-    [-0.2, 50],
-    [0.05, 46],
-    [0.3, 52],
-    [0.55, 38],
-  ];
-  for (const [a, len] of shafts) {
-    const tx = Math.sin(a) * len;
-    const ty = -Math.cos(a) * len;
-    ctx.strokeStyle = PAL.filmBlack;
-    ctx.lineWidth = 9;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(tx, ty);
-    ctx.stroke();
-    ctx.strokeStyle = '#E7C48A';
-    ctx.lineWidth = 5;
-    ctx.stroke();
-    ctx.fillStyle = PAL.lacquer; // splintered red tip
-    ctx.beginPath();
-    ctx.moveTo(tx - 5, ty + 4);
-    ctx.lineTo(tx + Math.sin(a) * 12, ty - Math.cos(a) * 12);
-    ctx.lineTo(tx + 5, ty + 4);
-    ctx.closePath();
-    ctx.fill();
+  g.restore();
+  if (p.glint > 0.01) {
+    const s = r * (0.7 + p.glint * 0.9);
+    star4(g, x - r * 0.4, y - r * 0.8, s, 0, `rgba(255,232,150,${p.glint})`);
   }
-  ctx.fillStyle = PAL.filmBlack; // binding
-  ctx.fillRect(-12, -10, 24, 8);
-  ctx.restore();
 }
 
-// ---------------------------------------------------------------------------- Bluff Master (jabber)
+// ============================================================================ STUMBLE: snapped cues
+
+const SHAFTS: [number, number][] = [
+  [-0.62, 34],
+  [-0.3, 44],
+  [-0.02, 40],
+  [0.26, 46],
+  [0.55, 36],
+];
+
+function spikeSprite() {
+  return sprite('skin-spike', 110, 100, 55, 92, (g) => {
+    g.lineCap = 'round';
+    for (const [a, len] of SHAFTS) {
+      const tx = Math.sin(a) * len;
+      const ty = -18 - Math.cos(a) * len;
+      g.strokeStyle = INK;
+      g.lineWidth = 11;
+      g.beginPath();
+      g.moveTo(0, -12);
+      g.lineTo(tx, ty);
+      g.stroke();
+      g.strokeStyle = CF.cueMaple;
+      g.lineWidth = 5.5;
+      g.stroke();
+      // splintered red point (the ONLY red on a stumble hazard)
+      g.beginPath();
+      g.moveTo(tx - Math.cos(a) * 6, ty - Math.sin(a) * 6);
+      g.lineTo(tx + Math.sin(a) * 18, ty - Math.cos(a) * 18);
+      g.lineTo(tx + Math.cos(a) * 6, ty + Math.sin(a) * 6);
+      g.closePath();
+      fillInk(g, DANGER.red, 2);
+    }
+    // dented brass spittoon
+    g.beginPath();
+    g.moveTo(-26, -24);
+    g.quadraticCurveTo(-34, -6, -22, 0);
+    g.lineTo(22, 0);
+    g.quadraticCurveTo(34, -6, 26, -24);
+    g.closePath();
+    fillInk(g, '#4A3E36', 3);
+    g.fillStyle = '#6E5E4E';
+    g.fillRect(-28, -28, 56, 8);
+    g.strokeStyle = INK;
+    g.lineWidth = 3;
+    g.strokeRect(-28, -28, 56, 8);
+    g.fillStyle = 'rgba(255,255,255,0.18)';
+    g.fillRect(-18, -18, 6, 14);
+  });
+}
+
+/** snapped cues bristling out of a spittoon (stumble hazard). (x, y) = feet on the floor. */
+export function drawSpike(g: Ctx, x: number, y: number, pulse: number, rot: number): void {
+  drawSprite(g, spikeSprite(), x, y, rot, 1 + 0.06 * pulse, 1 + 0.1 * pulse);
+}
+
+// ============================================================================ STUMBLE enemy: the Bluffer (jabber)
 
 export interface JabberPose {
-  /** 0..1 polite bow (offbeat) — the flat back is a bounce platform */
-  bow: number;
-  /** 0..1 jab (on the beat): jacket flung open (eyespots) + staff thrust */
+  /** 0..1 flex on the swung "and" (double-biceps bluff; shoulders = bounce platform) */
+  flex: number;
+  /** 0..1 cue jab on the beat */
   jab: number;
-  /** wind-up before the jab (lapel tug) */
+  /** 0..1 wind-up tell during the beat before ITS jab beat (leans back, cue cocked, tip glows red) */
   windup: number;
-  /** leaving (after landing a jab) / flung (struck) */
   flying: boolean;
   dead: boolean;
   rot: number;
   scale: number;
   squash: number;
+  /** presentation clock */
+  time: number;
+  seed: number;
 }
 
-/** Bluff Master at feet-centre (x, y), facing LEFT toward the hero: squat box, flared lapels, flat cap, red-tipped staff. */
-export function drawJabber(ctx: CanvasRenderingContext2D, x: number, y: number, g: JabberPose): void {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(g.scale, g.scale);
-  if (g.rot) {
-    ctx.translate(0, -50);
-    ctx.rotate(g.rot);
-    ctx.translate(0, 50);
+const FIG = CF.fig;
+const FIG_HI = '#8A4A76';
+const SKIN = '#B98262';
+const PANTS = '#2A2230';
+
+/** Bluffer at feet-centre (x, y), facing LEFT toward the hero: round-shouldered bruiser, fig vest, flat cap, red-tipped cue. */
+export function drawJabber(g: Ctx, x: number, y: number, P: JabberPose): void {
+  g.save();
+  g.translate(x, y);
+  g.scale(P.scale * (1 + P.squash), P.scale * (1 - P.squash));
+  if (P.rot) {
+    g.translate(0, -60);
+    g.rotate(P.rot);
+    g.translate(0, 60);
   }
-  ctx.scale(1 + g.squash, 1 - g.squash);
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-  ctx.strokeStyle = '#2A1F28'; // legs
-  ctx.lineWidth = 13;
-  ctx.beginPath();
-  ctx.moveTo(-10, -36);
-  ctx.lineTo(-14, -4);
-  ctx.moveTo(10, -36);
-  ctx.lineTo(14, -4);
-  ctx.stroke();
-  const bow = g.dead ? 0 : g.bow * 1.1;
-  ctx.save();
-  ctx.translate(0, -36);
-  ctx.rotate(-bow);
-  // squat box body in a fig jacket
-  ctx.fillStyle = PAL.fig;
-  ctx.strokeStyle = PAL.filmBlack;
-  ctx.lineWidth = 4;
-  ctx.fillRect(-28, -54, 56, 54);
-  ctx.strokeRect(-28, -54, 56, 54);
-  const open = g.jab;
-  if (open > 0.05) {
-    // BLUFF: jacket flung open on a lining with two huge staring eyespots
-    ctx.fillStyle = '#E9D8B4';
-    ctx.fillRect(-28 - 22 * open, -54, 22 * open, 50);
-    ctx.fillRect(28, -54, 22 * open, 50);
-    for (const ex of [-12, 12]) {
-      ctx.fillStyle = PAL.film;
-      ctx.beginPath();
-      ctx.arc(ex, -30, 12 * open, 0, TAU);
-      ctx.fill();
-      ctx.fillStyle = PAL.lacquer;
-      ctx.beginPath();
-      ctx.arc(ex, -30, 7 * open, 0, TAU);
-      ctx.fill();
-      ctx.fillStyle = PAL.filmBlack;
-      ctx.beginPath();
-      ctx.arc(ex - 2, -30, 3.5 * open, 0, TAU);
-      ctx.fill();
+  const dead = P.dead || P.flying;
+  const wind = dead ? 0 : P.windup;
+  const flex = dead || wind > 0.05 ? 0 : P.flex;
+  const jab = dead ? 0 : P.jab;
+  // lean: back on the wind-up, forward on the jab
+  const lean = wind * 0.2 - jab * 0.16;
+  // legs (planted, wide)
+  g.lineCap = 'round';
+  for (const s of [-1, 1]) {
+    g.strokeStyle = INK;
+    g.lineWidth = 19;
+    g.beginPath();
+    g.moveTo(s * 12, -44);
+    g.lineTo(s * 17, -6);
+    g.stroke();
+    g.strokeStyle = PANTS;
+    g.lineWidth = 13;
+    g.stroke();
+    g.beginPath();
+    g.ellipse(s * 17 - 5, -4, 13, 7, 0, 0, TAU);
+    fillInk(g, '#1E1614', 2);
+  }
+  g.save();
+  g.translate(0, -44);
+  g.rotate(lean);
+  // cue behind the body on the flex (tucked under an arm), in hand otherwise
+  const shoulderY = -56;
+  const tipGlow = wind;
+  // torso: barrel in a fig vest over a cream undershirt
+  blobPath(g, 0, -30, 31, 34, 0.45);
+  fillInk(g, '#E9DCC4', 3);
+  g.beginPath();
+  g.moveTo(-31, -28);
+  g.quadraticCurveTo(-30, -62, -6, -64);
+  g.lineTo(-10, -20);
+  g.lineTo(-6, 4);
+  g.quadraticCurveTo(-28, 2, -31, -28);
+  g.closePath();
+  fillInk(g, FIG, 2.5);
+  g.beginPath();
+  g.moveTo(31, -28);
+  g.quadraticCurveTo(30, -62, 6, -64);
+  g.lineTo(10, -20);
+  g.lineTo(6, 4);
+  g.quadraticCurveTo(28, 2, 31, -28);
+  g.closePath();
+  fillInk(g, FIG, 2.5);
+  g.fillStyle = FIG_HI;
+  g.fillRect(14, -52, 5, 40);
+  // belt
+  g.fillStyle = INK;
+  g.fillRect(-28, -2, 56, 7);
+  g.fillStyle = REWARD.dark;
+  g.fillRect(-5, -2, 10, 7);
+  // arms
+  const arm = (sx: number, ex: number, ey: number, hx: number, hy: number) => {
+    g.strokeStyle = INK;
+    g.lineWidth = 21;
+    g.beginPath();
+    g.moveTo(sx, shoulderY);
+    g.lineTo(ex, ey);
+    g.lineTo(hx, hy);
+    g.stroke();
+    g.strokeStyle = SKIN;
+    g.lineWidth = 15;
+    g.stroke();
+    g.beginPath();
+    g.arc(hx, hy, 9, 0, TAU);
+    fillInk(g, SKIN, 2.5);
+  };
+  let tip: [number, number];
+  let butt: [number, number];
+  if (flex > 0.05) {
+    // DOUBLE-BICEPS "W": upper arms level, fists up, cue tucked vertical behind
+    const k = easeOut(flex);
+    butt = [30, 10];
+    tip = [30 - 10 * k, -130];
+    drawCue(g, butt, tip, 0);
+    arm(-24, -52, shoulderY - 4 * k, -50 + 4 * k, shoulderY - 40 * k);
+    arm(24, 52, shoulderY - 4 * k, 50 - 4 * k, shoulderY - 40 * k);
+    // biceps bulge
+    for (const s of [-1, 1]) {
+      g.beginPath();
+      g.ellipse(s * 40, shoulderY - 8 * k, 11 * k + 4, 8 * k + 3, 0, 0, TAU);
+      fillInk(g, SKIN, 2);
+    }
+    // flat shoulders = bounce platform (cream lip)
+    g.fillStyle = INK;
+    g.fillRect(-46, shoulderY - 16, 92, 5);
+    g.fillStyle = LIP;
+    g.globalAlpha = k;
+    g.fillRect(-46, shoulderY - 18, 92, 3);
+    g.globalAlpha = 1;
+  } else {
+    // cue held two-handed, tip toward the hero (left); jab thrusts it, wind-up cocks it back + up
+    const reach = jab * 46 - wind * 26;
+    const cy = shoulderY + 24 - wind * 18;
+    butt = [44 - reach * 0.4, cy + 22 + wind * 10];
+    tip = [-96 - reach, cy - 6 - wind * 30];
+    drawCue(g, butt, tip, tipGlow);
+    arm(24, 30, shoulderY + 18, butt[0] - 10 + (tip[0] - butt[0]) * 0.06, butt[1] + (tip[1] - butt[1]) * 0.06);
+    arm(-24, -34 - reach * 0.3, shoulderY + 14, -44 - reach * 0.8, cy + 4 - wind * 12);
+  }
+  // shoulders (deltoid caps)
+  for (const s of [-1, 1]) {
+    g.beginPath();
+    g.arc(s * 26, shoulderY + 2, 13, 0, TAU);
+    fillInk(g, SKIN, 2.5);
+  }
+  // head: small, thick neck, flat cap, mutton chops, scowl
+  const hx = -4;
+  const hy = shoulderY - 22 + (wind > 0 ? -2 : 0);
+  g.fillStyle = SKIN;
+  g.fillRect(hx - 8, hy + 4, 16, 14);
+  g.beginPath();
+  g.ellipse(hx, hy, 14, 15, 0, 0, TAU);
+  fillInk(g, SKIN, 2.5);
+  g.fillStyle = '#3A2418';
+  g.fillRect(hx - 14, hy - 2, 5, 12);
+  g.fillRect(hx + 9, hy - 2, 5, 12);
+  if (dead) {
+    // X eyes
+    g.strokeStyle = INK;
+    g.lineWidth = 2.5;
+    for (const ex of [hx - 8, hx + 2]) {
+      g.beginPath();
+      g.moveTo(ex - 3, hy - 4);
+      g.lineTo(ex + 3, hy + 2);
+      g.moveTo(ex + 3, hy - 4);
+      g.lineTo(ex - 3, hy + 2);
+      g.stroke();
     }
   } else {
-    // wide lapel triangles
-    ctx.fillStyle = '#8A4A76';
-    ctx.beginPath();
-    ctx.moveTo(-6, -54);
-    ctx.lineTo(-24, -40);
-    ctx.lineTo(-4, -22);
-    ctx.closePath();
-    ctx.moveTo(6, -54);
-    ctx.lineTo(24, -40);
-    ctx.lineTo(4, -22);
-    ctx.closePath();
-    ctx.fill();
+    cartoonEye(g, hx - 7, hy - 1, { r: 4, style: wind > 0.3 ? 'wide' : 'angry', lookX: -1, ink: K });
+    cartoonEye(g, hx + 3, hy - 1, { r: 3.6, style: wind > 0.3 ? 'wide' : 'angry', lookX: -1, ink: K });
   }
-  if (g.bow > 0.3) {
-    ctx.fillStyle = `rgba(244,239,226,${g.bow})`; // the flat back: a bounce platform
-    ctx.fillRect(24, -54, 6, 50);
+  g.strokeStyle = INK;
+  g.lineWidth = 2.5;
+  g.beginPath();
+  if (flex > 0.3 || jab > 0.3) {
+    g.moveTo(hx - 9, hy + 8);
+    g.lineTo(hx + 3, hy + 7);
+  } else g.arc(hx - 3, hy + 11, 5, 1.1 * Math.PI, 1.9 * Math.PI);
+  g.stroke();
+  // flat cap, brim toward the hero
+  g.beginPath();
+  g.ellipse(hx + 1, hy - 11, 16, 8, -0.08, Math.PI, TAU);
+  g.lineTo(hx - 22, hy - 9);
+  g.lineTo(hx - 22, hy - 6);
+  g.lineTo(hx + 16, hy - 8);
+  g.closePath();
+  fillInk(g, '#3A3A42', 2.5);
+  g.restore();
+  // wind-up tell: strain marks + "!" over the head
+  if (wind > 0.05 && !dead) {
+    const a = clamp01(wind * 1.6);
+    g.strokeStyle = `rgba(26,20,16,${a})`;
+    g.lineWidth = 4;
+    for (let i = -1; i <= 1; i++) {
+      g.beginPath();
+      g.moveTo(-4 + i * 16, -150 - Math.abs(i) * 4);
+      g.lineTo(-4 + i * 22, -164 - Math.abs(i) * 6);
+      g.stroke();
+    }
+    g.font = 'bold 40px "Arial Black", Impact, sans-serif';
+    g.textAlign = 'center';
+    g.lineWidth = 7;
+    g.strokeStyle = `rgba(26,20,16,${a})`;
+    g.strokeText('!', -4, -168);
+    g.fillStyle = `rgba(255,74,61,${a})`;
+    g.fillText('!', -4, -168);
   }
-  // head + flat cap
-  ctx.fillStyle = '#C89070';
-  ctx.beginPath();
-  ctx.arc(-4, -66, 13, 0, TAU);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = PAL.filmBlack;
-  ctx.beginPath();
-  ctx.arc(-11, -67, 2.2, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = '#3A3A42';
-  ctx.beginPath();
-  ctx.ellipse(-2, -77, 18, 7, -0.1, Math.PI, TAU);
-  ctx.fill();
-  ctx.fillRect(-26, -79, 14, 4);
-  if (!g.dead) {
-    // short staff with a lacquer-red tip, thrust on the jab
-    const jx = -g.jab * 50;
-    ctx.strokeStyle = PAL.timberDark;
-    ctx.lineWidth = 7;
-    ctx.beginPath();
-    ctx.moveTo(14, -20);
-    ctx.lineTo(-74 + jx, -30);
-    ctx.stroke();
-    ctx.fillStyle = PAL.lacquer;
-    ctx.beginPath();
-    ctx.arc(-76 + jx, -30, 7, 0, TAU);
-    ctx.fill();
-  }
-  ctx.restore();
-  ctx.restore();
+  g.restore();
 }
 
-// ---------------------------------------------------------------------------- sparring dummy (pendulum target)
-
-export function drawPendulumRig(ctx: CanvasRenderingContext2D, pivotX: number, pivotY: number, groundY: number): void {
-  ctx.fillStyle = PAL.timberDark; // two posts and a beam (awning / dojo beam)
-  for (const dx of [-200, 200]) ctx.fillRect(pivotX + dx - 6, pivotY - 20, 12, groundY - pivotY + 20);
-  ctx.fillRect(pivotX - 214, pivotY - 24, 428, 14);
+function drawCue(g: Ctx, butt: [number, number], tip: [number, number], glow: number): void {
+  g.lineCap = 'round';
+  g.strokeStyle = INK;
+  g.lineWidth = 9;
+  g.beginPath();
+  g.moveTo(butt[0], butt[1]);
+  g.lineTo(tip[0], tip[1]);
+  g.stroke();
+  g.strokeStyle = CF.cueMaple;
+  g.lineWidth = 4.5;
+  g.stroke();
+  const mx = butt[0] + (tip[0] - butt[0]) * 0.3;
+  const my = butt[1] + (tip[1] - butt[1]) * 0.3;
+  g.strokeStyle = CF.cueButt;
+  g.lineWidth = 6;
+  g.beginPath();
+  g.moveTo(butt[0], butt[1]);
+  g.lineTo(mx, my);
+  g.stroke();
+  // red chalked tip (stumble language: red POINT)
+  if (glow > 0.05) drawGlow(g, tip[0], tip[1], DANGER.hot, 28 + 30 * glow, 0.5 * glow);
+  g.beginPath();
+  g.arc(tip[0], tip[1], 6.5 + glow * 2, 0, TAU);
+  fillInk(g, glow > 0.5 ? DANGER.hot : DANGER.red, 2);
 }
 
-/** straw-and-timber sparring dummy on a rope: a cross-shaped post */
-export function drawPendulumTarget(ctx: CanvasRenderingContext2D, pivotX: number, pivotY: number, x: number, y: number, r: number, glint: number, bottomGlow: number): void {
-  ctx.strokeStyle = '#8A7A60';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(pivotX, pivotY - 10);
-  ctx.lineTo(x, y - r * 1.5);
-  ctx.stroke();
-  const ang = -Math.atan2(x - pivotX, y - pivotY);
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(ang);
-  if (bottomGlow > 0.01) {
-    ctx.fillStyle = `rgba(224,182,74,${0.3 * bottomGlow})`;
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 2, 0, TAU);
-    ctx.fill();
-  }
-  ctx.fillStyle = PAL.timber;
-  ctx.strokeStyle = PAL.filmBlack;
-  ctx.lineWidth = 3;
-  ctx.fillRect(-r * 0.4, -r * 1.5, r * 0.8, r * 3); // post
-  ctx.strokeRect(-r * 0.4, -r * 1.5, r * 0.8, r * 3);
-  ctx.fillRect(-r * 1.4, -r * 0.7, r * 2.8, r * 0.55); // cross arm
-  ctx.strokeRect(-r * 1.4, -r * 0.7, r * 2.8, r * 0.55);
-  ctx.fillStyle = '#D9C38A'; // straw wrap
-  ctx.fillRect(-r * 0.4, -r * 0.1, r * 0.8, r * 0.9);
-  ctx.strokeStyle = 'rgba(26,20,16,0.5)';
-  ctx.lineWidth = 1.5;
-  for (let k = 0; k < 4; k++) {
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.4, k * r * 0.22);
-    ctx.lineTo(r * 0.4, k * r * 0.22 + 3);
-    ctx.stroke();
-  }
-  ctx.restore();
-  if (glint > 0.01) {
-    const s = r * (0.6 + glint * 0.9); // star glint: 1 beat before the bottom of the swing
-    const gx = x - r * 0.3;
-    const gy = y - r * 0.8;
-    ctx.fillStyle = `rgba(255,224,138,${glint})`;
-    ctx.beginPath();
-    ctx.moveTo(gx, gy - s);
-    ctx.lineTo(gx + s * 0.18, gy);
-    ctx.lineTo(gx, gy + s);
-    ctx.lineTo(gx - s * 0.18, gy);
-    ctx.closePath();
-    ctx.moveTo(gx - s, gy);
-    ctx.lineTo(gx, gy + s * 0.18);
-    ctx.lineTo(gx + s, gy);
-    ctx.lineTo(gx, gy - s * 0.18);
-    ctx.closePath();
-    ctx.fill();
-  }
-}
-
-// ---------------------------------------------------------------------------- Stamp Press (slam platform)
+// ============================================================================ TERRAIN: cellar keg lift (slam platform)
 
 export const SLAM_LIFT_PX = 150;
 
-/** the Dojo's training press: an iron-shod timber block on rails. `lift` 0 = slammed (solid: stand on it). */
-export function drawSlamPlatform(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, lift: number, pitY: number, slam: number): void {
+/** Cellar keg lift on a hydraulic ram: heavy oak deck, brass-hooped kegs slung under it. `lift` 0 = slammed (solid). */
+export function drawSlamPlatform(g: Ctx, x: number, y: number, w: number, h: number, lift: number, pitY: number, slam: number, b: BeatInfo): void {
   const oy = -lift * SLAM_LIFT_PX;
-  ctx.fillStyle = `rgba(0,0,0,${0.45 * (1 - lift) + 0.1})`; // shadow on the well floor sharpens as it comes down
-  ctx.beginPath();
-  ctx.ellipse(x + w / 2, pitY + 4, (w / 2) * (1 + lift * 0.4), 10 + lift * 8, 0, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = PAL.iron; // rails (fixed)
-  ctx.fillRect(x + 8, y - 1400, 8, 1400 + h);
-  ctx.fillRect(x + w - 16, y - 1400, 8, 1400 + h);
-  ctx.save();
-  ctx.globalAlpha = 1 - lift * 0.5;
-  ctx.translate(0, oy);
-  const bh = h + 26; // a heavy block (its top is the platform)
-  ctx.fillStyle = PAL.timber;
-  ctx.strokeStyle = PAL.filmBlack;
-  ctx.lineWidth = 4;
-  ctx.fillRect(x, y, w, bh);
-  ctx.strokeRect(x, y, w, bh);
-  ctx.fillStyle = PAL.iron; // iron shoe + straps
-  ctx.fillRect(x, y + bh - 10, w, 10);
-  ctx.fillRect(x + w * 0.25 - 4, y, 8, bh);
-  ctx.fillRect(x + w * 0.75 - 4, y, 8, bh);
-  // 4 px film-black edge + cream lip (walkable top rule); the lip brightens on the slam
-  ctx.fillStyle = PAL.filmBlack;
-  ctx.fillRect(x, y - 2, w, 4);
-  if (lift === 0) {
-    ctx.fillStyle = `rgba(244,239,226,${0.8 + 0.2 * slam})`;
-    ctx.fillRect(x, y - 4, w, 3);
-  }
-  ctx.restore();
-}
-
-// ---------------------------------------------------------------------------- the chaser: the film burns in
-
-export function drawChaser(ctx: CanvasRenderingContext2D, frontX: number, top: number, t: number, yBottom: number): void {
-  const left = frontX - 4000;
-  ctx.fillStyle = PAL.beam; // burned-through film: blinding projector light
-  ctx.fillRect(left, top, frontX - 20 - left, yBottom - top);
-  const seg = 28;
-  const edge = (yy: number, off: number) => frontX + off + Math.sin(yy * 0.03 + t * 9) * 10 + Math.sin(yy * 0.11 - t * 13) * 7;
-  const bands: [number, string, number][] = [
-    [-20, 'rgba(255,226,74,0.9)', 26],
-    [-2, 'rgba(179,32,27,0.85)', 14],
-    [10, 'rgba(26,20,16,0.95)', 14],
-  ];
-  for (const [off, col, wdt] of bands) {
-    ctx.strokeStyle = col;
-    ctx.lineWidth = wdt;
-    ctx.beginPath();
-    for (let yy = top; yy <= yBottom; yy += seg) {
-      const ex = edge(yy, off);
-      if (yy === top) ctx.moveTo(ex, yy);
-      else ctx.lineTo(ex, yy);
+  const cx = x + w / 2;
+  // guide rails (fixed) + the ram (extends with the lift)
+  g.fillStyle = '#2A262C';
+  g.fillRect(x + 4, y - 900, 7, 900 + h + 400);
+  g.fillRect(x + w - 11, y - 900, 7, 900 + h + 400);
+  g.fillStyle = '#6E7078';
+  g.fillRect(cx - 9, y + oy + h, 18, pitY + 400 - (y + oy + h));
+  g.fillStyle = CF.chrome;
+  g.fillRect(cx - 4, y + oy + h, 5, pitY + 400 - (y + oy + h));
+  g.strokeStyle = INK;
+  g.lineWidth = 3;
+  g.strokeRect(cx - 9, y + oy + h, 18, pitY + 400 - (y + oy + h));
+  g.save();
+  const up = lift > 0.02;
+  if (up) g.globalAlpha = 0.72;
+  g.translate(0, oy);
+  // keg slung under the deck
+  const kw = Math.min(w * 0.55, 70);
+  roundRectPath(g, cx - kw / 2, y + h - 2, kw, 40, 12);
+  fillInk(g, '#6A4A30', 3);
+  g.fillStyle = '#B8923A';
+  g.fillRect(cx - kw / 2, y + h + 6, kw, 5);
+  g.fillRect(cx - kw / 2, y + h + 26, kw, 5);
+  // oak deck + iron straps
+  g.beginPath();
+  g.rect(x, y, w, h);
+  fillInk(g, '#8A5A36', 3);
+  g.fillStyle = '#6A4428';
+  for (let px = x + 18; px < x + w - 6; px += 26) g.fillRect(px, y + 4, 3, h - 6);
+  g.fillStyle = '#3A3A42';
+  g.fillRect(x, y + h - 9, w, 9);
+  g.fillRect(x + w * 0.2 - 4, y, 8, h);
+  g.fillRect(x + w * 0.8 - 4, y, 8, h);
+  // walkable top: bright cream lip when down (solid), dim + dashed when up (not solid)
+  g.fillStyle = INK;
+  g.fillRect(x, y - 2, w, 5);
+  if (!up) {
+    g.fillStyle = LIP;
+    g.fillRect(x, y - 4, w, 3);
+    if (slam > 0.05) {
+      g.fillStyle = `rgba(255,246,232,${0.8 * slam})`;
+      g.fillRect(x - 4, y - 8, w + 8, 5);
     }
-    ctx.stroke();
-  }
-}
-
-// ---------------------------------------------------------------------------- film splice (checkpoint)
-
-/** splicing tape across the frame with a hand-lettered scene number ("SC. 17"), world space */
-export function drawBeacon(ctx: CanvasRenderingContext2D, x: number, y0: number, y1: number, lit: boolean, flash: number, scene: string): void {
-  ctx.fillStyle = lit ? `rgba(244,239,226,${0.22 + 0.4 * flash})` : 'rgba(244,239,226,0.14)';
-  ctx.fillRect(x - 28, y0, 56, y1 - y0);
-  ctx.fillStyle = 'rgba(26,20,16,0.35)'; // tape sprocket edge
-  for (let yy = y0 - (y0 % 40); yy < y1; yy += 40) {
-    ctx.fillRect(x - 26, yy, 8, 14);
-    ctx.fillRect(x + 18, yy, 8, 14);
-  }
-  ctx.save();
-  ctx.translate(x, y0 + 260);
-  ctx.rotate(-0.08);
-  ctx.font = 'bold 34px "Trebuchet MS", system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillStyle = lit ? PAL.filmBlack : 'rgba(26,20,16,0.6)';
-  ctx.fillText(scene, 0, 0);
-  ctx.restore();
-}
-
-/** cigarette-burn changeover dot in the top-right of the frame (flashes on checkpoints) */
-export function drawCueDot(ctx: CanvasRenderingContext2D, a: number): void {
-  if (a <= 0.01) return;
-  ctx.fillStyle = `rgba(248,241,220,${a})`;
-  ctx.beginPath();
-  ctx.arc(VIEW_W - 150, 190, 30, 0, TAU);
-  ctx.fill();
-}
-
-// ---------------------------------------------------------------------------- scansion + bar lines (chalk on the pavement)
-
-/** Scansion mark chalked on the ground: ∪ short / – long. `lit` jade on its beat, `gold` after a Perfect. */
-export function drawScansion(ctx: CanvasRenderingContext2D, glyph: 'short' | 'long', x: number, y: number, lit: number, gold: boolean): void {
-  const col = gold ? PAL.gold : lit > 0.02 ? `rgba(47,163,122,${0.6 + 0.4 * lit})` : 'rgba(233,216,180,0.85)';
-  ctx.strokeStyle = col;
-  ctx.lineCap = 'round';
-  ctx.lineWidth = 8 + 2 * lit;
-  ctx.beginPath();
-  if (glyph === 'short') ctx.arc(x, y - 6, 15, 0.15, Math.PI - 0.15);
-  else {
-    ctx.moveTo(x - 26, y + 4);
-    ctx.lineTo(x + 26, y + 4);
-  }
-  ctx.stroke();
-  if (lit > 0.02 || gold) {
-    ctx.strokeStyle = gold ? 'rgba(224,182,74,0.35)' : `rgba(47,163,122,${0.3 * lit})`;
-    ctx.lineWidth = 16;
-    ctx.stroke();
-  }
-}
-
-/** bar line: a gaffer-tape stroke on the ground at every downbeat (quiet metronome) */
-export function drawBarLine(ctx: CanvasRenderingContext2D, x: number, y: number, pulse: number): void {
-  ctx.fillStyle = `rgba(160,160,170,${0.55 + 0.4 * pulse})`;
-  ctx.fillRect(x - 5, y + 5, 10, 20 + 6 * pulse);
-}
-
-// ---------------------------------------------------------------------------- ground + pit
-
-export function makeGroundTile(style: 'street' | 'timber' = 'street'): HTMLCanvasElement {
-  const [c, ctx] = makeCanvas(384, 256);
-  if (style === 'timber') {
-    ctx.fillStyle = PAL.timber; // dojo floorboards
-    ctx.fillRect(0, 0, 384, 256);
-    ctx.fillStyle = PAL.timberDark;
-    for (let y = 0; y < 256; y += 32) ctx.fillRect(0, y, 384, 3);
-    for (let y = 0; y < 256; y += 32) ctx.fillRect(((y / 32) % 3) * 128 + 40, y, 3, 32);
   } else {
-    ctx.fillStyle = PAL.asphalt; // 42nd Street asphalt + kerb joints
-    ctx.fillRect(0, 0, 384, 256);
-    ctx.fillStyle = PAL.asphaltLine;
-    for (let x = 0; x < 384; x += 96) ctx.fillRect(x, 20, 3, 236);
-    for (let y = 20; y < 256; y += 80) ctx.fillRect(0, y, 384, 3);
+    g.fillStyle = 'rgba(244,239,226,0.5)';
+    for (let px = x; px < x + w; px += 18) g.fillRect(px, y - 4, 9, 3);
   }
-  return c;
+  g.restore();
+  // shadow on the deck's landing spot sharpens as it comes down
+  g.fillStyle = `rgba(0,0,0,${0.35 * (1 - lift)})`;
+  g.fillRect(x + 6, y + h + 44, w - 12, 6);
+  void b;
 }
 
-/** shallow puddle sitting in a dip of the ground (safe gap) */
-export function drawPool(ctx: CanvasRenderingContext2D, x0: number, x1: number, top: number, floorY: number, t: number): void {
-  ctx.fillStyle = 'rgba(47,90,110,0.85)';
-  ctx.fillRect(x0, top, x1 - x0, floorY - top);
-  ctx.fillStyle = 'rgba(248,241,220,0.5)';
-  for (let x = x0 + 8; x < x1 - 8; x += 26) ctx.fillRect(x, top + 2 + Math.sin(t * 3 + x * 0.05) * 2, 14, 3);
-}
+// ============================================================================ LETHAL: the Burn (chaser)
 
-/** the pit under gaps: a film-black void */
-export function drawPit(ctx: CanvasRenderingContext2D, x0: number, x1: number, pitY: number, yBottom: number): void {
-  const g = ctx.createLinearGradient(0, pitY - 60, 0, pitY + 300);
-  g.addColorStop(0, '#2A201A');
-  g.addColorStop(1, PAL.filmBlack);
-  ctx.fillStyle = g;
-  ctx.fillRect(x0, pitY - 60, x1 - x0, yBottom - pitY + 60);
-}
-
-// ---------------------------------------------------------------------------- film pass
-
-let vignette: HTMLCanvasElement | null = null;
-/** grindhouse film pass: vignette + a couple of flickering vertical scratches (screen space) */
-export function drawFilmPass(ctx: CanvasRenderingContext2D, t: number): void {
-  if (!vignette) {
-    const [c, v] = makeCanvas(VIEW_W / 4, VIEW_H / 4);
-    const g = v.createRadialGradient(c.width / 2, c.height / 2, c.height * 0.35, c.width / 2, c.height / 2, c.width * 0.62);
-    g.addColorStop(0, 'rgba(26,20,16,0)');
-    g.addColorStop(1, 'rgba(26,20,16,0.55)');
-    v.fillStyle = g;
-    v.fillRect(0, 0, c.width, c.height);
-    vignette = c;
+/** The film burning through from the left: blinding projector light, bubbling hot-red blister edge. World space. */
+export function drawChaser(g: Ctx, frontX: number, top: number, t: number, yBottom: number): void {
+  const left = frontX - 4200;
+  const seg = 24;
+  const edge = (yy: number, off: number) => frontX + off + Math.sin(yy * 0.021 + t * 7) * 14 + Math.sin(yy * 0.093 - t * 11) * 8;
+  // burnt-through: blinding light
+  g.fillStyle = CF.beamHaze;
+  g.beginPath();
+  g.moveTo(left, top);
+  for (let yy = top; yy <= yBottom + seg; yy += seg) g.lineTo(edge(yy, -40), yy);
+  g.lineTo(left, yBottom + seg);
+  g.closePath();
+  g.fill();
+  // hot glow bleeding past the edge
+  for (let yy = top + 60; yy < yBottom; yy += 220) drawGlow(g, edge(yy, 10), yy, DANGER.hot, 170, 0.4);
+  // bands: amber-white -> hot red -> lacquer -> char
+  const bands: [number, string, number][] = [
+    [-26, 'rgba(255,236,190,0.95)', 26],
+    [-6, DANGER.hot, 16],
+    [8, DANGER.red, 14],
+    [22, 'rgba(42,20,16,0.95)', 16],
+  ];
+  for (const [off, col, wd] of bands) {
+    g.strokeStyle = col;
+    g.lineWidth = wd;
+    g.beginPath();
+    for (let yy = top; yy <= yBottom + seg; yy += seg) {
+      const ex = edge(yy, off);
+      if (yy === top) g.moveTo(ex, yy);
+      else g.lineTo(ex, yy);
+    }
+    g.stroke();
   }
-  ctx.drawImage(vignette, 0, 0, VIEW_W, VIEW_H);
-  const seed = Math.floor(t * 12);
+  // blisters: bubbles swell and pop along the edge
+  for (let i = 0; i < 16; i++) {
+    const yy = top + ((i + 0.5) / 16) * (yBottom - top);
+    const ph = (t * (0.9 + hash(i) * 0.8) + hash(i + 4)) % 1;
+    const r = 6 + 22 * Math.sin(ph * Math.PI);
+    const ex = edge(yy, 30) + r * 0.3;
+    g.beginPath();
+    g.arc(ex, yy, r, 0, TAU);
+    g.fillStyle = 'rgba(42,20,16,0.92)';
+    g.fill();
+    g.strokeStyle = DANGER.hot;
+    g.lineWidth = 3;
+    g.stroke();
+    g.fillStyle = 'rgba(255,236,190,0.8)';
+    g.beginPath();
+    g.arc(ex - r * 0.3, yy - r * 0.3, r * 0.3, 0, TAU);
+    g.fill();
+  }
+}
+
+// ============================================================================ REWARD-ish: film splice (checkpoint)
+
+/** splice across the frame: a diagonal cut, cream tape with sprockets, "SC. n" in grease pencil. */
+export function drawSplice(g: Ctx, x: number, y0: number, y1: number, reached: boolean, flash: number, scene: string, groundY: number): void {
+  const a = reached ? 0.3 + 0.5 * flash : 0.22;
+  g.fillStyle = `rgba(244,239,226,${a})`;
+  g.beginPath();
+  g.moveTo(x - 34, y0);
+  g.lineTo(x + 26, y0);
+  g.lineTo(x + 34, y1);
+  g.lineTo(x - 26, y1);
+  g.closePath();
+  g.fill();
+  // the cut
+  g.strokeStyle = `rgba(26,20,16,${reached ? 0.5 : 0.7})`;
+  g.lineWidth = 3;
+  g.beginPath();
+  g.moveTo(x - 6, y0);
+  g.lineTo(x + 8, y1);
+  g.stroke();
+  g.fillStyle = 'rgba(26,20,16,0.35)';
+  for (let yy = y0 - (((y0 % 44) + 44) % 44); yy < y1; yy += 44) {
+    const k = (yy - y0) / Math.max(1, y1 - y0);
+    g.fillRect(x - 30 + k * 8, yy, 9, 16);
+    g.fillRect(x + 20 + k * 8, yy, 9, 16);
+  }
+  if (flash > 0.02) drawGlow(g, x, groundY - 200, CF.beamHaze, 260, 0.5 * flash);
+  // slate on a stand at the ground: "SC. n"
+  g.save();
+  g.translate(x - 60, groundY - 110);
+  g.rotate(-0.06);
+  roundRectPath(g, -58, -40, 116, 76, 6);
+  fillInk(g, '#1E1A1A', 3);
+  g.fillStyle = reached ? REWARD.gold : CF.cream;
+  g.font = 'bold 34px "Marker Felt", "Comic Sans MS", "Trebuchet MS", sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(scene, 0, 0);
+  // clapper stripes
+  for (let i = 0; i < 5; i++) {
+    g.fillStyle = i % 2 ? CF.cream : INK;
+    g.fillRect(-58 + i * 23.2, -52, 23.2, 12);
+  }
+  g.restore();
+  g.fillStyle = INK;
+  g.fillRect(x - 64, groundY - 74, 8, 74);
+}
+
+/** cigarette-burn changeover dot, top-right of the frame (screen space) */
+export function drawCueDot(g: Ctx, a: number): void {
+  if (a <= 0.01) return;
+  g.fillStyle = `rgba(248,241,220,${a})`;
+  g.beginPath();
+  g.arc(1920 - 150, 190, 30, 0, TAU);
+  g.fill();
+  g.strokeStyle = `rgba(26,20,16,${a * 0.6})`;
+  g.lineWidth = 4;
+  g.stroke();
+}
+
+// ============================================================================ chalk: scansion marks, bar lines, phrases
+
+const CHALK = '#E4EEF2';
+
+/** cue-chalk mark on the floor: ∪ short / – long. Lit jade on its beat, gold after a Perfect. */
+export function drawScansion(g: Ctx, glyph: 'short' | 'long', x: number, y: number, lit: number, gold: boolean): void {
+  const col = gold ? REWARD.gold : lit > 0.02 ? `rgba(70,214,160,${0.65 + 0.35 * lit})` : 'rgba(228,238,242,0.78)';
+  g.lineCap = 'round';
+  if (lit > 0.02 || gold) {
+    g.strokeStyle = gold ? 'rgba(224,182,74,0.35)' : `rgba(70,214,160,${0.35 * lit})`;
+    g.lineWidth = 20;
+    chalkGlyph(g, glyph, x, y);
+  }
+  g.strokeStyle = 'rgba(26,20,16,0.55)';
+  g.lineWidth = 12 + 2 * lit;
+  chalkGlyph(g, glyph, x, y);
+  g.strokeStyle = col;
+  g.lineWidth = 7 + 2 * lit;
+  chalkGlyph(g, glyph, x, y);
+  // chalk grain
+  g.fillStyle = 'rgba(26,20,16,0.35)';
+  for (let i = 0; i < 4; i++) g.fillRect(x - 14 + hash(i + x) * 28, y - 8 + hash(i * 3 + x) * 10, 2, 2);
+}
+
+function chalkGlyph(g: Ctx, glyph: 'short' | 'long', x: number, y: number): void {
+  g.beginPath();
+  if (glyph === 'short') g.arc(x, y - 8, 16, 0.2, Math.PI - 0.2);
+  else {
+    g.moveTo(x - 28, y + 2);
+    g.lineTo(x + 28, y);
+  }
+  g.stroke();
+}
+
+/** bar line: a chalk stroke on the curb at every downbeat (quiet metronome) */
+export function drawBarLine(g: Ctx, x: number, y: number, pulse: number): void {
+  g.fillStyle = `rgba(228,238,242,${0.45 + 0.45 * pulse})`;
+  g.save();
+  g.translate(x, y + 6);
+  g.rotate(0.08);
+  g.fillRect(-4, 0, 8, 20 + 6 * pulse);
+  g.restore();
+}
+
+/** Hup-Hup-HEY! phrase: chalk words over its three marks + a bracket (drawn where marks are on) */
+export function drawPhrase(g: Ctx, xs: [number, number, number], y: number, lit: number[], done: boolean): void {
+  const words = ['HUP', 'HUP', 'HEY!'];
+  g.save();
+  g.font = 'bold 30px "Marker Felt", "Comic Sans MS", "Trebuchet MS", sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.lineJoin = 'round';
+  for (let i = 0; i < 3; i++) {
+    const big = i === 2;
+    g.font = `bold ${big ? 40 : 30}px "Marker Felt", "Comic Sans MS", "Trebuchet MS", sans-serif`;
+    g.lineWidth = 7;
+    g.strokeStyle = 'rgba(26,20,16,0.7)';
+    g.strokeText(words[i], xs[i], y + 36);
+    g.fillStyle = done ? REWARD.gold : lit[i] > 0.05 ? `rgba(70,214,160,${0.7 + 0.3 * lit[i]})` : CHALK;
+    g.fillText(words[i], xs[i], y + 36);
+  }
+  g.strokeStyle = 'rgba(228,238,242,0.55)';
+  g.lineWidth = 3;
+  g.beginPath();
+  g.moveTo(xs[0] - 30, y + 58);
+  g.lineTo(xs[0] - 30, y + 64);
+  g.lineTo(xs[2] + 34, y + 64);
+  g.lineTo(xs[2] + 34, y + 58);
+  g.stroke();
+  g.restore();
+}
+
+// ============================================================================ TERRAIN: awnings / shelves / crates
+
+/** one-way platform: striped canvas awning (street) or a bar shelf on brass brackets (bar) */
+export function drawPlatform(g: Ctx, x: number, y: number, w: number, h: number, env: EnvKind, b: BeatInfo): void {
+  if (env === 'bar') {
+    g.beginPath();
+    g.rect(x, y, w, Math.max(16, h));
+    fillInk(g, '#5A3A26', 3);
+    g.fillStyle = '#B8923A';
+    for (const bx of [x + 20, x + w - 34]) {
+      g.beginPath();
+      g.moveTo(bx, y + h);
+      g.lineTo(bx + 14, y + h);
+      g.lineTo(bx + 14, y + h + 40);
+      g.closePath();
+      g.fill();
+    }
+  } else {
+    // scalloped awning, dusty teal + cream stripes (never a sacred colour), sways a hair on the hats
+    const sway = 2 * hit(b, 'hat', 0.08);
+    const d = 34;
+    g.save();
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + w, y);
+    g.lineTo(x + w + 10, y + d);
+    for (let sx = x + w + 10; sx > x - 10; sx -= 26) g.quadraticCurveTo(sx - 13, y + d + 14 + sway, sx - 26, y + d);
+    g.lineTo(x - 10, y + d);
+    g.closePath();
+    g.lineWidth = 6;
+    g.strokeStyle = INK;
+    g.stroke();
+    g.clip();
+    for (let sx = x - 10, i = 0; sx < x + w + 20; sx += 26, i++) {
+      g.fillStyle = i % 2 ? '#3E8C84' : '#E9DCC4';
+      g.fillRect(sx, y, 26, d + 20);
+    }
+    g.fillStyle = 'rgba(0,0,0,0.25)';
+    g.fillRect(x - 10, y + d - 8, w + 30, 30);
+    g.restore();
+    g.fillStyle = INK;
+    g.fillRect(x + 10, y + d, 5, 60);
+    g.fillRect(x + w - 15, y + d, 5, 60);
+  }
+  walkTop(g, x, y, w);
+}
+
+/** solid block: a stack of beer crates */
+export function drawBlock(g: Ctx, x: number, y: number, w: number, h: number): void {
+  const rows = Math.max(1, Math.round(h / 44));
+  const ch = h / rows;
+  for (let r = 0; r < rows; r++) {
+    const cy = y + r * ch;
+    g.beginPath();
+    g.rect(x, cy, w, ch);
+    fillInk(g, r % 2 ? '#7A5A3A' : '#8A6A48', 2.5);
+    g.fillStyle = '#4E3A2C';
+    g.fillRect(x + 6, cy + ch * 0.35, w - 12, 4);
+    g.fillStyle = '#2F5A3A';
+    for (let bx = x + 10; bx < x + w - 10; bx += 16) g.fillRect(bx, cy + 5, 8, ch * 0.3);
+  }
+  walkTop(g, x, y, w);
+}
+
+// ============================================================================ finish: end of reel
+
+/** "END OF REEL 1" marquee on two poles; bulbs chase on the 8ths */
+export function drawFinish(g: Ctx, x: number, y: number, b: BeatInfo, label = 'END OF REEL 1'): void {
+  const pulse = 1 + 0.04 * hit(b, 'kick', 0.1);
+  g.save();
+  g.translate(x, y);
+  g.scale(pulse, pulse);
+  g.fillStyle = INK;
+  g.fillRect(-150, -330, 10, 330);
+  g.fillRect(140, -330, 10, 330);
+  roundRectPath(g, -190, -470, 380, 150, 10);
+  fillInk(g, '#2A1E2A', 4);
+  roundRectPath(g, -176, -456, 352, 122, 6);
+  g.fillStyle = CF.cream;
+  g.fill();
+  g.fillStyle = CF.fig;
+  g.font = 'italic 50px "Impact", "Haettenschweiler", "Arial Narrow Bold", sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(label, 0, -395);
+  const ch = Math.floor(b.beat * 2);
+  for (let i = 0; i < 24; i++) {
+    const u = i / 24;
+    const px = u < 0.5 ? -186 + u * 2 * 372 : 186 - (u - 0.5) * 2 * 372;
+    const py = u < 0.5 ? -466 : -324;
+    const on = (i + ch) % 3 === 0;
+    g.fillStyle = on ? CF.bulb : '#6A5A48';
+    g.beginPath();
+    g.arc(px, py, 5, 0, TAU);
+    g.fill();
+    if (on) drawGlow(g, px, py, CF.bulb, 18, 0.5);
+  }
+  g.restore();
+}
+
+// ============================================================================ REWARD: breakable targets
+
+export interface BreakableView {
+  x: number;
+  y: number;
+  r: number;
+  baseY: number;
+  high: boolean;
+  big: boolean;
+  look: string;
+  /** 0..1 glint the beat before its strike beat */
+  glint: number;
+  /** 0..1 on its strike beat */
+  now: number;
+  /** seconds since it broke (NaN = intact) */
+  brokenT: number;
+  seed: number;
+  viewTop: number;
+}
+
+const NEON_LETTERS = 'JIMBIG8';
+
+/** Breakable target (reward): bottle / beer glass / crate / neon letter / moonshine jug on a stool or hanging. Gold rim = pays. */
+export function drawBreakable(g: Ctx, p: BreakableView, c: SkinCtx): void {
+  const { x, y, r } = p;
+  if (!Number.isNaN(p.brokenT)) {
+    const k = clamp01(p.brokenT / 0.45);
+    if (k >= 1) return;
+    g.globalAlpha = 1 - k;
+    g.strokeStyle = REWARD.gold;
+    g.lineWidth = 6 * (1 - k);
+    g.beginPath();
+    g.arc(x, y, r + 80 * easeOut(k), 0, TAU);
+    g.stroke();
+    g.fillStyle = p.look === 'crate' ? '#8A6A48' : p.look === 'neon' ? CF.neonRose : '#5A8A6A';
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * TAU + p.seed;
+      g.fillRect(x + Math.cos(a) * 90 * k, y + Math.sin(a) * 70 * k + 120 * k * k, 7, 5);
+    }
+    g.globalAlpha = 1;
+    return;
+  }
+  // support: a hanging cable (high) or a bar stool / crate stand (low)
+  if (p.high) {
+    g.strokeStyle = 'rgba(26,20,16,0.85)';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(x, p.viewTop);
+    g.lineTo(x, y - r);
+    g.stroke();
+  } else if (p.baseY - (y + r) > 8) {
+    const top = y + r * (p.look === 'crate' ? 1 : 0.95);
+    g.strokeStyle = INK;
+    g.lineWidth = 9;
+    g.beginPath();
+    g.moveTo(x - 20, p.baseY);
+    g.lineTo(x - 12, top);
+    g.moveTo(x + 20, p.baseY);
+    g.lineTo(x + 12, top);
+    g.stroke();
+    g.strokeStyle = '#6A5A4A';
+    g.lineWidth = 4;
+    g.stroke();
+    g.beginPath();
+    g.ellipse(x, top, 26, 7, 0, 0, TAU);
+    fillInk(g, '#8A2E3E', 2.5);
+  }
+  const hot = Math.max(p.glint, p.now);
+  if (hot > 0.02) drawGlow(g, x, y, REWARD.glow, r * 2.8, 0.45 * hot);
+  const bob = p.high ? Math.sin(c.time * 2 + p.seed) * 0.08 : 0;
+  g.save();
+  g.translate(x, y);
+  g.rotate(bob);
+  const s = r / 30;
+  g.scale(s, s);
+  switch (p.look) {
+    case 'crate': {
+      g.beginPath();
+      g.rect(-32, -30, 64, 60);
+      fillInk(g, '#8A6A48', 3);
+      g.fillStyle = '#5A4230';
+      g.fillRect(-32, -6, 64, 6);
+      g.strokeStyle = '#5A4230';
+      g.lineWidth = 5;
+      g.beginPath();
+      g.moveTo(-28, -26);
+      g.lineTo(28, 26);
+      g.stroke();
+      g.fillStyle = INK;
+      g.font = 'bold 13px "Arial Black", Impact, sans-serif';
+      g.textAlign = 'center';
+      g.fillText('XXX', 0, 20);
+      break;
+    }
+    case 'neon': {
+      const ch = NEON_LETTERS[p.seed % NEON_LETTERS.length];
+      g.font = 'italic 76px "Impact", "Haettenschweiler", "Arial Narrow Bold", sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.lineWidth = 12;
+      g.strokeStyle = INK;
+      g.strokeText(ch, 0, 2);
+      g.fillStyle = CF.neonRose;
+      g.fillText(ch, 0, 2);
+      drawGlow(g, 0, 0, CF.neonRose, 60, 0.35 + 0.3 * hit(c.b, 'hat', 0.06));
+      break;
+    }
+    case 'glass': {
+      g.beginPath();
+      g.moveTo(-18, -26);
+      g.lineTo(18, -26);
+      g.lineTo(15, 28);
+      g.lineTo(-15, 28);
+      g.closePath();
+      fillInk(g, 'rgba(232,200,106,0.95)', 3);
+      g.fillStyle = CF.cream;
+      g.beginPath();
+      g.ellipse(0, -26, 20, 9, 0, 0, TAU);
+      g.fill();
+      g.strokeStyle = INK;
+      g.lineWidth = 5;
+      g.beginPath();
+      g.arc(20, 0, 11, -1.2, 1.2);
+      g.stroke();
+      break;
+    }
+    case 'jug': {
+      blobPath(g, 0, 6, 24, 24, 0.3);
+      fillInk(g, '#C8B89A', 3);
+      g.beginPath();
+      g.rect(-7, -30, 14, 14);
+      fillInk(g, '#8A7A60', 2.5);
+      g.fillStyle = INK;
+      g.font = 'bold 14px "Arial Black", Impact, sans-serif';
+      g.textAlign = 'center';
+      g.fillText('XXX', 0, 12);
+      break;
+    }
+    default: {
+      // bottle
+      g.beginPath();
+      g.moveTo(-6, -40);
+      g.lineTo(6, -40);
+      g.lineTo(7, -16);
+      g.quadraticCurveTo(16, -10, 16, 2);
+      g.lineTo(16, 32);
+      g.lineTo(-16, 32);
+      g.lineTo(-16, 2);
+      g.quadraticCurveTo(-16, -10, -7, -16);
+      g.closePath();
+      fillInk(g, '#3E7A5A', 3);
+      g.fillStyle = CF.cream;
+      g.fillRect(-13, 2, 26, 16);
+      g.fillStyle = 'rgba(255,255,255,0.3)';
+      g.fillRect(-11, -8, 4, 36);
+    }
+  }
+  // the gold rim: it PAYS (brightens into its beat)
+  g.strokeStyle = REWARD.gold;
+  g.lineWidth = 3;
+  g.globalAlpha = 0.45 + 0.55 * hot;
+  g.beginPath();
+  g.arc(0, 0, 44, -2.4, -0.7);
+  g.stroke();
+  g.globalAlpha = 1;
+  g.restore();
+  if (p.glint > 0.05) star4(g, x + r * 0.6, y - r * 0.9, r * (0.6 + p.glint * 0.8), 0, `rgba(255,232,150,${p.glint})`);
+}
+
+// ============================================================================ TERRAIN: bounce pads (launch)
+
+/** Bounce pad: striped mattresses on the curb (street) / a pool table's rail cushion (bar). Chalk up-chevrons. */
+export function drawBouncePad(g: Ctx, cx: number, y: number, w: number, kick: number, env: EnvKind, b: BeatInfo): void {
+  const sq = kick; // 1 on launch
+  const h = 34 * (1 - 0.45 * sq);
+  const x = cx - w / 2;
+  if (env === 'bar') {
+    // a pool-table top on the floor: felt bed (the pad) in a walnut rail
+    g.beginPath();
+    g.rect(x - 6, y - h + 12, w + 12, h - 10);
+    fillInk(g, CF.walnut, 3);
+    g.beginPath();
+    g.rect(x, y - h, w, 16);
+    fillInk(g, CF.felt, 3);
+  } else {
+    // stack of ticking-striped mattresses
+    for (let i = 0; i < 2; i++) {
+      const my = y - h + i * (h / 2);
+      roundRectPath(g, x - i * 6, my, w + i * 12, h / 2 + 2, 8);
+      fillInk(g, i ? '#B8AE9A' : '#E4DCC8', 2.5);
+      g.save();
+      roundRectPath(g, x - i * 6, my, w + i * 12, h / 2 + 2, 8);
+      g.clip();
+      g.fillStyle = 'rgba(62,90,134,0.55)';
+      for (let sx = x - 10; sx < x + w + 10; sx += 14) g.fillRect(sx, my, 4, h);
+      g.restore();
+    }
+  }
+  walkTop(g, x, y - h, w, 0.8);
+  // chalk up-chevrons pulsing on the beat
+  const p = Math.exp(-b.beatPhase * 4);
+  g.strokeStyle = `rgba(228,238,242,${0.5 + 0.4 * p})`;
+  g.lineWidth = 5;
+  g.lineCap = 'round';
   for (let i = 0; i < 2; i++) {
-    const r = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453;
-    const f = r - Math.floor(r);
-    if (f > 0.55) continue;
-    ctx.fillStyle = 'rgba(233,216,180,0.16)';
-    ctx.fillRect((f / 0.55) * VIEW_W, 0, 2, VIEW_H);
+    const cy = y - h - 26 - i * 18 - sq * 30;
+    g.beginPath();
+    g.moveTo(cx - 20, cy + 10);
+    g.lineTo(cx, cy - 4);
+    g.lineTo(cx + 20, cy + 10);
+    g.stroke();
   }
+}
+
+// ============================================================================ STUMBLE: low hanging sign (slide under)
+
+/** Low sign across the lane: a heavy marquee panel on chains, broken-bulb RED POINTS along its bottom edge (stumble). */
+export function drawLowSign(g: Ctx, x: number, y: number, w: number, h: number, swing: number, hitK: boolean, b: BeatInfo, viewTop: number): void {
+  const rot = swing * 0.12;
+  // chains to the top of the frame
+  g.strokeStyle = 'rgba(26,20,16,0.9)';
+  g.lineWidth = 4;
+  g.beginPath();
+  g.moveTo(x + 16, viewTop);
+  g.lineTo(x + 16, y);
+  g.moveTo(x + w - 16, viewTop);
+  g.lineTo(x + w - 16, y);
+  g.stroke();
+  g.save();
+  g.translate(x + w / 2, y);
+  g.rotate(rot);
+  const hw = w / 2;
+  roundRectPath(g, -hw, 0, w, h, 8);
+  fillInk(g, '#2A2230', 4);
+  roundRectPath(g, -hw + 8, 8, w - 16, h - 16, 5);
+  g.fillStyle = '#E9DCC4';
+  g.fill();
+  g.fillStyle = CF.fig;
+  const fs = Math.min(h * 0.42, w * 0.28);
+  g.font = `italic ${Math.round(fs)}px "Impact", "Haettenschweiler", "Arial Narrow Bold", sans-serif`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText('DUCK!', 0, h * 0.42);
+  g.font = `bold ${Math.round(fs * 0.3)}px "Trebuchet MS", sans-serif`;
+  g.fillText('▼ SLIDE ▼', 0, h * 0.75);
+  // bulbs chase along the top edge
+  const ch = Math.floor(b.beat * 2);
+  for (let i = 0, n = Math.max(3, Math.round(w / 36)); i < n; i++) {
+    const on = (i + ch) % 3 === 0;
+    g.fillStyle = on ? CF.bulb : '#6A5A48';
+    g.beginPath();
+    g.arc(-hw + 18 + (i / (n - 1)) * (w - 36), 5, 4, 0, TAU);
+    g.fill();
+  }
+  // bottom edge: smashed bulbs = red points (stumble language)
+  for (let i = 0, n = Math.max(3, Math.round(w / 30)); i < n; i++) {
+    const sx = -hw + 14 + (i / (n - 1)) * (w - 28);
+    g.beginPath();
+    g.moveTo(sx - 7, h - 2);
+    g.lineTo(sx, h + 16);
+    g.lineTo(sx + 7, h - 2);
+    g.closePath();
+    fillInk(g, hitK ? '#6A5A48' : DANGER.red, 2);
+  }
+  g.restore();
+}
+
+// ============================================================================ generic fallback + registry
+
+/**
+ * Generic silhouette for an entity kind without bespoke art yet — already in the right danger language.
+ * (x, y) = feet centre, (w, h) = hitbox size.
+ */
+export function drawGeneric(g: Ctx, danger: DangerClass, x: number, y: number, w: number, h: number, b: BeatInfo): void {
+  const p = hit(b, 'kick', 0.12);
+  if (danger === 'lethal') {
+    drawGlow(g, x, y - h / 2, DANGER.hot, Math.max(w, h) * 1.2, 0.35 + 0.2 * p);
+    g.beginPath();
+    const n = 7;
+    for (let i = 0; i <= n * 2; i++) {
+      const a = (i / (n * 2)) * TAU;
+      const r = (i % 2 ? 0.42 : 0.6) * Math.max(w, h);
+      g.lineTo(x + Math.cos(a) * r * (w / Math.max(w, h)), y - h / 2 + Math.sin(a) * r * (h / Math.max(w, h)));
+    }
+    g.closePath();
+    fillInk(g, DANGER.red, 3);
+    g.strokeStyle = DANGER.hot;
+    g.lineWidth = 3;
+    g.stroke();
+  } else if (danger === 'stumble') {
+    g.beginPath();
+    g.rect(x - w / 2, y - h * 0.6, w, h * 0.6);
+    fillInk(g, '#3A302A', 3);
+    for (let i = 0; i < 4; i++) {
+      const sx = x - w / 2 + ((i + 0.5) / 4) * w;
+      g.beginPath();
+      g.moveTo(sx - 7, y - h * 0.6);
+      g.lineTo(sx, y - h);
+      g.lineTo(sx + 7, y - h * 0.6);
+      g.closePath();
+      fillInk(g, DANGER.red, 2);
+    }
+  } else if (danger === 'reward') {
+    drawToken(g, x, y - h / 2, b.beat, Math.max(w, h) / 36, p);
+  } else {
+    g.beginPath();
+    g.rect(x - w / 2, y - h, w, h);
+    fillInk(g, '#6A5A48', 3);
+    walkTop(g, x - w / 2, y - h, w);
+  }
+}
+
+export interface Skin {
+  danger: DangerClass;
+  /** optional bespoke draw; the renderer uses the typed functions above for the built-in kinds */
+  draw?: (g: Ctx, e: { x: number; y: number; w: number; h: number }, c: SkinCtx) => void;
+}
+
+/** kind -> skin. New entity kinds: add an entry (danger class first; bespoke draw when the art exists). */
+export const SKINS: Record<string, Skin> = {
+  jabber: { danger: 'stumble' },
+  spike: { danger: 'stumble' },
+  gap: { danger: 'lethal' },
+  chaser: { danger: 'lethal' },
+  pendulum: { danger: 'reward' },
+  lum: { danger: 'reward' },
+  slam: { danger: 'neutral' },
+  breakable: { danger: 'reward' },
+  bounce: { danger: 'neutral' },
+  lowSign: { danger: 'stumble' },
+  platform: { danger: 'neutral' },
+  block: { danger: 'neutral' },
+};
+
+/** the skin for a kind, or a generic one in the given danger class */
+export function skinFor(kind: string, fallback: DangerClass = 'stumble'): Skin {
+  return SKINS[kind] ?? { danger: fallback };
+}
+
+/** draw any entity of `kind` with its skin (bespoke or generic) */
+export function drawKind(g: Ctx, kind: string, e: { x: number; y: number; w: number; h: number }, c: SkinCtx, fallback: DangerClass = 'stumble'): void {
+  const s = skinFor(kind, fallback);
+  if (s.draw) s.draw(g, e, c);
+  else drawGeneric(g, s.danger, e.x, e.y, e.w, e.h, c.b);
 }
