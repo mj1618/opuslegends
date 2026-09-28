@@ -199,3 +199,52 @@ cues, ledge scramble, fall-out). Game now plays bars 1-60 and ends on the breakd
 - Open: sloppy ±85 dies less than the 1-2 target (0.2/run) — the bot's uniform jitter only fails on its 10% extra-late
   presses; more teeth should come from Burn tuning / combos, not tighter ms. Art/render: 'facade' / 'lanes' sky + ground
   presets need their lighting keys; audio: dedicated whistle/rumble SFX (currently windup/clack).
+
+## Iteration 3 — act 1 notes (gameplay: teeth, skill-weighted crowd, wow set-pieces)
+Driven by `docs/reviews/iter2.md` fixes 1, 2, 3, 5, 7 and the gameplay half of 6. Level table: `docs/level/act1_plan.md`
+("As shipped (iteration 3)"). Code: `game/events.ts` (new), `game.ts`, `crowd.ts`, `player.ts`, `tunables.ts`,
+`level/{dsl,build,slice,types}.ts`, `playtest/slack.mjs` (new).
+- **The Burn remembers** (`Tun.chaser`): a gap behind the music line (rest 1.75 beats); a stumble pulls it 0.75 beat,
+  a missed reward 0.2 (once it has risen), clean play relaxes it; it lunges 0.3 beat on every drum fill. Two
+  stumbles close together = caught; checkpoints snapshot the gap (respawn ≥ 1.1).
+- **Lethal combinations at every block peak** (bars 8, 16, 24, 33), mixed verbs on big accents (see the plan). Pit
+  timing presets `GAP_FIT` teach/std/tight/peak: bars 1–16 stay sloppy-safe; the chorus is tight on the EARLY side
+  (−60…−80 ms) while the late side stays +150 ms (protects uncalibrated-latency players, per the review). New
+  checkpoint 112 (walkdown).
+- **Crowd = skill meter**: P +1 / G +0.5 / Good 0 / Miss −2 / stumble −4 / death −6, decay 0.4/beat; judge Perfect
+  ±33 (+10 early). **Combo** = consecutive Great+ (`game.combo`). **Events** for audio/art: grade, miss, combo,
+  crowd, fullHouse, stumble, death, burn (lunge/pull/caught), setPiece, smash, hint (audio's StageAudio listens).
+- **Knee-slide fixed** (auto-crouch under signs + signs end 0.25 beat earlier): 0 sign stumbles in 30+ bot runs.
+- **Hidden hover removed**: an air strike used to zero a falling hero's speed (`airPop` 0 → `min(vy, -0)`), which
+  delayed landings and let air strikes rescue early jumps; now a true no-op.
+- **Hints**: 3 first-appearance prompts; failure hints after 2 fails of the same thing; a one-time "hitting late?
+  tune the latency with [ ]" tip when 16 graded presses average ≥ 45 ms off.
+- **Wow (gameplay side)**: 3-beat launch to a 250 px roof (~650 px apex) at bar 9, the chorus shot (camera 0.76 +
+  `fx shot` + `setPiece chorusShot`), four giant walkdown kegs with a real hitstop. Launch pads now fire at the pad's
+  centre so arc tokens/bottles are exact. Ground line 0.72 → 0.66 of the screen (fix 7).
+- **Tools**: `node playtest/slack.mjs` (lethal windows with the real controller, strike reach, late takeoffs,
+  predicted deaths per profile, `--trace`, `--hold`); bots `--skip=none|stumble`, `--max-deaths`; report adds
+  crowd trace, combo, burn stats, fail hints, per-target grades. Rubric: `setPiece` items count as set-piece
+  novelty, giant breakables are their own kind.
+
+Measured on act 1 (beats < 132 of the full-level run; `--dist=dist-act1`, rubric on act-1-filtered reports):
+
+| Profile | Runs | Deaths per act 1 | Other |
+|---|---|---|---|
+| autoplay | 1 | **0** | 100 % Perfect, max exec error 4.2 ms; the full-level playtest PASSES |
+| skilled ±40 ms | 5 | **0, 0, 0, 0, 0** | Perfect 92–96 % (Great 4–8 %) — no longer 99 % |
+| sloppy ±85 + 10 % late | 7 | **1, 0, 1, 1, 0, 1, 1 (0.71)** | 0 in bars 1–16, ≤ 1 per block per run; FULL HOUSE in 6/7 (late chorus) |
+| ±130 | 7 | **8, 1, 0, 2, 2, 2, 2 (2.43, median 2)** | crowd stays 3–13: never FULL HOUSE |
+| ±110 + 20 % late / ±160 + 20 % late | 1 / 1 | 0 / 2 | |
+| uncalibrated (every press 60–110 ms late, ±40) | 1 | **0** | crowd thin (Goods) → the latency tip |
+| lazy (`--skip=none`) | 1 | never finishes | the Burn catches it at bars 11–12 on every retry |
+| reckless (`--skip=stumble`) | 1 | never finishes | caught at bar 12 (cue rack 42 + goon 45) on every retry |
+
+Rubric (act 1): **gate 11/11**; **A11 Teeth PASS** (±85: 0.69 deaths/32 bars, ±130: 2.35, ±160+20 %: 1.94); A4 94 %
+lethal on strong accents (100 % with lift heads); B1 longest stretch without a twist 6 bars. A5 now FAILS by design
+(±130 dies ~2.4×/act). Still failing (non-gate): B5 (strike leads every block), C2 (no valley in one act), D3 (HUPs
+are hopped), E3 (4 threats in the chorus runway).
+- Watch: the Burn is global — in act 2 the thrown bottles stumble harsh bots close together (±160+20 % was caught 14×
+  there in one run, the uncalibrated bot 3×); act 2 may want a gentler `Tun.chaser` or fewer stumbles per bar.
+  `gapHop`'s default is now 'std' (−110/+150; was −120/+200). The playtest bot's 10 % late tail is the sloppy
+  model's only source of deaths, so the ±85 rate is sensitive to ~10 ms of early-side window.

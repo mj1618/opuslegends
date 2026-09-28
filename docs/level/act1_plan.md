@@ -122,3 +122,28 @@ low; bar 15 became a breather; the chorus got two more pits (27, 28) so the chor
 lethal lift run moved to the turnaround and carries the record's HUP HUP; strikes are never closer than 0.66 beat).
 112 actions: 84 reward / 15 stumble / 13 lethal (75% reward). Checkpoints 32, 64, 80, 96, 120.
 Rubric gate 11/11; sloppy bot (±85 ms + 10% late) 0 deaths over 5 seeds; see docs/ITERATIONS.md.
+
+## As shipped (iteration 3): teeth, a skill ceiling, three wow moments
+
+Driven by `docs/reviews/iter2.md` fixes 1, 2, 3, 5 and the gameplay half of 6 and 7. Windows below are measured
+with the real controller by `node playtest/slack.mjs` (early / late ms).
+
+| Where | Change | Why |
+|---|---|---|
+| Bar 8 (block-1 peak) | **Lethal combination**: pit on 1 (∪) → held jump over a long pit on the kick (–) → the BIG sign smashed **mid-air** on the HEY (X) | first lethal pair; 'teach' timing (−105/+200, −110/+235): a sloppy ±85 ms player never dies in bars 1–16 (A9) |
+| Bar 9 | **The big launch** (wow 1): pad on the kick, a 3-beat flight over the held note to a **250 px** roof (apex ~650 px on the kick of bar 10), neon smashed on the snare and at the apex; camera 0.8 | review fix 4: the launch read small |
+| Bars 10–12 | roofs 250 → 150 px; chimney hop on 44; the mid-drop bottle on 47 hangs high | the drop lands before 48 (no buffered hop) |
+| Bar 15 | the snare bottle became a hop | rooftop block leans on hops (fix 6) |
+| Bar 16 (block-2 peak) | **Lethal combination**: pit on 1 → goon on 2 → held jump over a long pit on 3 with the BIG sign mid-air on 4, landing on the versePeak downbeat | 'teach' timing |
+| Bar 18 | knee-slide: signs end 0.25 beat before the release and the hero **auto-crouches** while under one | the #1 unfair stumble (fix 3) |
+| Bar 22 | the HUP pit is 'tight' (−80/+150) | teeth start with the motto |
+| Bar 23 | **the chorus shot** (wow 3): `setPiece chorusShot`, camera 0.76, `fx shot` on the launch and on the BIG neon at the top of the arc; beat 4 rests | review: the chorus looked like the verse |
+| Bar 24 (block-3 peak) | **Lethal combination** on the record's HEY HEY: pit on the kick (1) · goon on HEY (2) · pit on HEY + kick (3, 'peak' −60/+150) · snare + fill bottles (4, &4) | ∪ X ∪ X X; a missed goon also feeds the Burn right before a fill lunge |
+| Bars 25–30 | pits on 98, 106, 108, 118 are 'tight' (−75…−80/+150); swinging lamps (pendulums) on 97 and 105 | the chorus body has teeth; the chorus gets its own target (fix 6) |
+| Bar 29 | **the walkdown = four GIANT kegs** (wow 2): 2x, 80 ms hitstop each (repaid), 7 % zoom punch, `smash` events with index 0–3, `setPiece walkdown`; **checkpoint 112** | the money shot; replays of the tight chorus restart on it |
+| Bars 32–33 (block-4 peak) | the lethal lift run has narrower press tops (first hop −70/+160) → HUP HUP → the HEY Heave | the turnaround combination |
+| Hints | 12 banners → **3 prompts** (bar 1 run/hop, bar 3 swing, bar 18 slide) + failure hints after 2 fails (pit, lifts, Burn, goon, cue rack, sign) | fix 5 |
+
+The late side of every pit stays ≥ +150 ms (an uncalibrated-latency player, presses 60–110 ms late, clears act 1 with
+0 deaths); the teeth are on the early side (jump too soon, land short). Checkpoints 32, 64, 80, 96, 112, 120.
+Rubric gate 11/11, A11 Teeth PASS; numbers in docs/ITERATIONS.md ("Iteration 3 — act 1 notes").

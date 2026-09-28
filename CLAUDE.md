@@ -59,8 +59,20 @@ World y grows DOWN; the base ground top is y = 0.
 - **Jump physics are in beats** (`Tun.jump.timeToApexBeats`): every tap ≤ `minHoldBeats` is the same
   ~0.93-beat hop (~92 px); hold 1 beat = ~1.96-beat jump (~250 px), at any tempo.
 - **Timing judge** (`game/judge.ts`): each hop/strike PRESS is graded against the nearest intended
-  action (Perfect ±45 / Great ±90 / Good ±135 ms, early +12). Grades drive score, feedback and the
+  action (Perfect ±33 / Great ±85 / Good ±135 ms, early +10). Grades drive score, feedback, the combo and the
   crowd (`game/crowd.ts`, skill meter → the music reward via `audio/stage.ts`) — never physics.
+- **Game events** (`game/events.ts`, iteration 3): `game.events.on(type, fn)` — grade / miss / combo / crowd /
+  fullHouse / stumble / death / burn (lunge, pull, caught) / setPiece / smash (giant index) / hint, emitted from
+  the fixed-step sim. Pollable state: `game.crowd.{value,count,norm,bigCatch}`, `game.combo` / `comboPeak`
+  (consecutive Great+), `game.chaser.{x,gap,lunge,danger,flare}`, `game.setPiece`. Presentation hooks here only.
+- **Crowd = skill meter** (`Tun.crowd`): Perfect +1 · Great +0.5 · Good 0 · Miss −2 · stumble −4 · death −6,
+  decays 0.4/beat, section caps (`crowd` items). FULL HOUSE (≥ 20) needs a near-clean chorus.
+- **The Burn** (`Tun.chaser`, `Game.updateChaser`): its front sits `gap` beats behind the music line (rest 1.75).
+  Every stumble PULLS it 0.75 beat closer, every missed reward 0.2 (after it rises), clean play relaxes it
+  (+0.04/beat, +0.06 per hit); it LUNGES 0.3 beat on every drum fill (`fills` lane). Two stumbles close together
+  (or a stumble into a fill) = caught. Checkpoints snapshot its gap (respawn ≥ 1.1).
+- **Failure hints**: only 3 first-appearance prompts in the level (`hint` items with an `icon`); anything else
+  is taught by placement + `Game.FAIL_HINTS`, shown once after the player fails the same thing twice.
 - **Mix** (`audio/audioSystem.ts`, `audio/mix.ts`): music (record at unity + overlay stems) → **projection
   booth** (`audio/booth.ts`) ┐ + SFX (+6 dB) → trim (**−4 dB headroom**, cancels the limiter makeup) → soft
   limiter (DynamicsCompressor, −2.5 dB) → tanh soft clip (safety, −0.2 dBFS ceiling) → master. The headroom
@@ -102,10 +114,18 @@ on its beat → token burst; `high` = only mid-air), `bounce` pads (automatic LA
 height), raised `floor`s (rooftops, bar top), shallow pools (safe gaps, walk out), slam lifts over a pool (teach);
 `lowSign` = knee-slide (hold ↓) on held notes (stumble). Per-section crowd caps (`crowd` items) keep FULL HOUSE for
 the chorus; `mode` / `follows` items are design tags read by `npm run rubric` (defaults to the level's songId map).
+**Teeth (iteration 3):** pit timing presets in `dsl.ts` (`GAP_FIT`: teach −100/+200 ms for bars 1–16, std
+−110/+150, tight −75/+150, peak −60/+150 — the LATE side stays generous for uncalibrated-latency players; a tight
+pit must not follow a hop within ~0.5 beat or the jump buffer hides its early side), `slamRun(first, n, top)`
+narrower lift tops, `giantKeg` (walkdown: 2x, 80 ms hitstop), high breakables inside a launch ride its arc, and
+`setPiece` items ('bigLaunch', 'chorusShot', 'walkdown', act 2's names) for the art/audio.
+**`node playtest/slack.mjs`** measures every lethal action's timing window with the real controller (headless,
+~2 s), checks every strike target is reachable on its beat and every hop leaves the ground on its beat, and
+predicts deaths per bot profile — run it after any geometry change, then confirm with real bots.
 **Internal names are neutral mechanics** (the skin keeps changing): lum (token), pendulum (swinging
 target, strike at the bottom of its 1-bar swing), spike (stumble hazard), gap (lethal pit), slam
 platform (solid from the beat to the swung "and"), jabber (enemy: bows on the "and", jabs on the beat),
-phrase (Hup-Hup-HEY: hop, hop, strike → Heave), crowd (streak meter), chaser (the Burn, 2 beats behind),
+phrase (Hup-Hup-HEY: hop, hop, strike → Heave), crowd (skill meter), chaser (the Burn, ~1.75 beats behind),
 awning (optional high route). The skin (Slim the pool shark, 42nd St → honky-tonk bar) is the art lab's
 grindhouse toolkit (`src/art/`, see `src/art/README.md`) wired in by `src/render/`; every gameplay entity is
 drawn by one function in `render/entityDraw.ts` (the swap point) in a strict DANGER LANGUAGE: lethal = lacquer
@@ -147,7 +167,8 @@ src/
                           stumble / death → checkpoint rewind → finish), mechanics, interactions, report
            player.ts      controller: run+surge, hop (beats), strike, stumble (constants in tunables.ts)
            physics.ts     AABB world (+ switchable dynamic solids)    judge.ts  timing grades
-           crowd.ts       streak meter + stem gains  autoplay.ts  bot (+ jitter / late / spatial catch-up)
+           crowd.ts       skill meter (weighted, decays)  autoplay.ts  bot (+ jitter / late / skip / spatial catch-up)
+           events.ts      typed gameplay → presentation event bus (grades, combo, crowd, the Burn, set-pieces)
            stats.ts       timing/frame stats         entities.ts  runtime records   jumpProfile.ts  jump arcs
            mech/          act-2 mechanics from level items the builder doesn't know: thrownBottle.ts, rollingBall.ts,
                           index.ts (Mechanics: step/reset/beat telegraphs, set-piece cues, ledge scramble, fall-out)
@@ -201,10 +222,11 @@ Presentation cues on beats: `{type:'fx', beat, fx:'flash'|'shake'|'zoom'|'bgPuls
   starts the cold open), Esc pause, `[`/`]` latency offset, `` ` `` / F1 debug overlay.
   Gamepad: A hop, X/B/RT strike, stick/dpad.
 - URL params: `?debug=1` overlay (fps, song/beat, clock, hitboxes, beat grid, green dashed *music line*,
-  intended-action markers) · `?start=<beat>` start mid-level (checkpoints: 32, 64, 80, 96, 120; act 2: 132, 164, 196, 220, 236) · `?coldopen=0` ·
+  intended-action markers) · `?start=<beat>` start mid-level (checkpoints: 32, 64, 80, 96, 112, 120; act 2: 132, 164, 196, 220, 236) · `?coldopen=0` ·
   `?autoplay=1` bot plays via the controller · `?jitter=<ms>` / `?late=<p>` / `?sloppy=1` sloppy bot ·
   `?judge=1` timing-grade popups · `?mute=1` · `?latency=<ms>` · `?song=edit|full|placeholder` · `?miss=37,28` bot deliberately skips those
-  actions once (stumble/death/respawn test) · `?probe=1` live audio sync probe.
+  actions once (stumble/death/respawn test) · `?skip=none|stumble` bot ALWAYS skips rewards (lazy) / stumble
+  threats (reckless) · `?probe=1` live audio sync probe.
 - `window.__game`: `state()`, `report()`, `start(beat?)`, `setLatency(ms)`, `debug(on)`, `level`, `game`.
 - `npm run playtest` — builds, serves, runs headless Chromium with autoplay, writes `playtest/out/`
   (`playtest.webm`, `shot-XX-beatYY.png` every 2 s, `report.json`). Exits non-zero unless: level completed,
@@ -216,7 +238,9 @@ Presentation cues on beats: `{type:'fx', beat, fx:'flash'|'shake'|'zoom'|'bgPuls
   Options: `--debug` (overlay in shots), `--start=<beat>`, `--miss=<beats>`, `--jitter=<ms>`, `--sloppy`
   (completion only; reports deaths per section), `--seed=<n>`, `--song=<id>`, `--out=<dir>` + `--dist=<dir>`
   (private folders for parallel agents; never let two agents share `dist/`), `--no-video`,
-  `--headed`, `--no-build`.
+  `--headed`, `--no-build`, `--skip=none|stumble` (lazy / reckless bots), `--max-deaths=<n>` (stop early).
+  Report extras: `crowd.trace` (value per bar), `crowd.fullHouseBeats`, `combo`, `burn` (pulls, lunges, min
+  margin, catches), `failHints`, `targetGrades` ([beat, grade] per target: split grades by act).
 - Art/perf probe on the real GPU at 1920x1080 (no build): `node src/art/lab/gameshot.mjs --out=<dir> [--start=<beat>]
   [--secs=20] [--every=2000] [--gray] [--title] [--end] [--dpr=2] [--query=miss=40]` → PNGs + live fps + renderer JS ms.
   `--gray` = the greyscale+blur readability test. Measured: 60 fps at 1080p DPR 1 and 2, renderer JS ~1-1.7 ms/frame.
