@@ -169,12 +169,22 @@ def main():
     ap.add_argument("--out", default=os.path.join(ROOT, "assets", "audio", "sfx"))
     ap.add_argument("--q", type=int, default=3)
     ap.add_argument("--synth", action="store_true", help="all-synth voices (default: sampled where the song is)")
+    ap.add_argument("--set", default="all", help="which sounds to render: all | core (iterations 1-3) | stage (the act-2/3 "
+                    "set, instruments/fx_stage.py). A partial render MERGES into the existing manifest (other ids kept)")
     args = ap.parse_args()
     W = Writer(args.out, args.q)
     rp, sc = riff_pitches(args.song)
-    P = Palette(use_samples=not args.synth)
-    sd = P.sampled("drums")
     R = lambda k: np.random.default_rng(k)
+    if args.set in ("all", "core"):
+        core_set(W, rp, args.synth, R)
+    if args.set in ("all", "stage"):
+        stage_set(W, R)
+    write_manifest(W, args, sc)
+
+
+def core_set(W, rp, synth, R):
+    P = Palette(use_samples=not synth)
+    sd = P.sampled("drums")
 
     # ------------------------------------------------------------------ voices (same shouts as the song)
     for i, (stretch, seed) in enumerate([(1.0, 11), (0.95, 23), (1.08, 37)]):
@@ -319,6 +329,75 @@ def main():
     W.add("bigjim_lens_crack", fx.lens_crack(1.0, SR, R(43)), "bigjim", "Big Jim cracks the lens (glass crack + tinkle)",
           -16.0)
 
+
+
+def stage_set(W, R):
+    """iteration 4: act 3 (the break shot, the BIG JIM letters, Big Jim, glass, the finale) + act 2's mechanics"""
+    from instruments import fx_stage as S
+    # ---- act 3
+    W.add("break_krak", S.break_krak(SR, R(300)), "act3", "THE BREAK SHOT, huge: cue-tip crack + the rack exploding + "
+          "KRAK + E1 sub + lamp glass + the audience's GASP (~110 ms after the hit). Lands on 271.65 inside the hush",
+          -12.0, stereo=True, _finish={"fade_ms": 200.0})
+    W.add("rack_collapse", S.rack_collapse(SR, R(301)), "act3", "the break MISSED: the rack caves in on its own (wood "
+          "crack + heap thud + balls rolling off; no gasp)", -18.0)
+    for i in range(6):
+        W.add(f"letter_creak_{i + 1}", S.letter_creak(i, SR, R(310 + i)), "act3", f"BIG JIM letter {i + 1} pivoting: "
+              "steel legs groaning over 1 beat (downbeat -> the slam)", -24.0, midi=S.LETTER_NOTES[i] + 12)
+        W.add(f"letter_slam_{i + 1}", S.letter_slam(i, SR, R(320 + i)), "act3", f"BIG JIM letter {i + 1} slams down "
+              "as a bridge (backbeat): steel clang on the descending E line (E D C# B A G = chord tones of A7 E7 A7 E7 "
+              "A7 A7) + sub + tube-pop cascade + the neon dying", -16.0, stereo=True, midi=S.LETTER_NOTES[i],
+              _finish={"fade_ms": 150.0})
+    W.add("bigjim_bluff", S.bigjim_bluff(SR, R(330)), "act3", "Big Jim's bluff display on the held B (304): bark on E2, "
+          "long roar on B1", -14.0, midi=35, _finish={"fade_ms": 150.0})
+    for i in range(3):
+        W.add(f"bigjim_fist_{i + 1}", S.bigjim_fist(i, SR, R(335 + i)), "act3", f"Big Jim's fist slam {i + 1} of 3 "
+              "(escalating; E1 sub; the 3rd splits the table)", -14.0, midi=28)
+    for i in range(4):
+        W.add(f"lens_crack_{i + 1}", S.lens_crack(i, SR, R(340 + i)), "act3", f"aviator lens crack {i + 1} of 4 "
+              "(escalating: crack -> web -> shards -> burst), chrome ring on an E chord tone", -17.0 + i, stereo=True,
+              midi=S.LENS_RINGS[i], _finish={"fade_ms": 120.0})
+    W.add("glass_skylight", S.glass_skylight(SR, R(350)), "act3", "skylight shatter (medium, bright)", -17.0, stereo=True,
+          _finish={"fade_ms": 150.0})
+    W.add("glass_wall", S.glass_wall(SR, R(351)), "act3", "the penthouse glass wall caving in: huge shatter + E1 thump + "
+          "long shard rain", -14.0, stereo=True, _finish={"fade_ms": 300.0})
+    W.add("iris_slam_big", S.iris_slam_big(SR, R(352)), "act3", "THE IRIS SLAM (final hit 340): blade shhk pre-roll (see "
+          "onsetSec) + iron clang on E3 + E1 sub", -13.0, stereo=True, midi=52, _finish={"fade_ms": 300.0})
+    W.add("film_runout", S.film_runout(SR, R(353)), "act3", "film snaps, the tail flaps on the reel slowing 20 -> 3 per "
+          "second, projector motor winding down (3.2 s)", -22.0, _finish={"fade_ms": 300.0})
+    W.add("crowd_mega_cheer", S.crowd_mega_cheer(SR, R(354)), "act3", "the whole theatre on its feet: gang YEAH on the "
+          "hit + 60-voice cheer + whistles + claps (4 s)", -13.0, stereo=True, _finish={"fade_ms": 500.0})
+    W.add("crowd_applause_long", S.crowd_applause_long(SR, R(355)), "act3", "curtain-call applause with whoops and "
+          "whistles, 9 s, thinning over the last 3 s (ring-out -> results poster)", -18.0, stereo=True,
+          _finish={"fade_ms": 1200.0})
+    W.add("marquee_clank", S.marquee_clank(SR, R(356)), "act3", "the usher hangs a steel marquee letter (hook clank on "
+          "E5 + rail rattle)", -20.0, midi=76)
+    # ---- act 2 mechanics (replacing the windup/clack/stomp/hit placeholders)
+    W.add("bottle_whistle", S.bottle_whistle(SR, R(360)), "act2", "thrown bottle whistling down its arc: breathy falling "
+          "whistle B5 -> E5 over 1 beat (starts 1 beat before the arrival)", -22.0, midi=83)
+    W.add("firebomb_whoosh", S.firebomb_whoosh(SR, R(361)), "act2", "lit firebomb tumbling in: fluttering fire whoosh "
+          "swelling to the arrival (1 beat)", -21.0)
+    W.add("firebomb_burst", S.firebomb_burst(SR, R(362)), "act2", "firebomb lands: bottle burst + FWOOMP (E2 whump) + "
+          "flame crackle", -16.0, stereo=True, _finish={"fade_ms": 200.0})
+    W.add("bottle_smash", S.bottle_smash(SR, R(363)), "act2", "a thrown bottle bursting (on you / on the floor)", -18.0,
+          stereo=True)
+    W.add("ball_rumble", S.ball_rumble(SR, R(364)), "act2", "bowling ball rolling in: E1/E2 hum + finger-hole thumps + "
+          "lane rumble, swelling to the arrival 0.36 s in (1 beat after the telegraph)", -18.0, midi=28)
+    W.add("ball_hit", S.ball_hit(SR, R(365)), "act2", "the bowling ball clobbers you (dull thud + knock)", -17.0)
+    W.add("pin_scatter", S.pin_scatter(SR, R(366)), "act2", "bowling pins knocked flying (a pin smash)", -20.0, stereo=True)
+    W.add("pin_scatter_big", S.pin_scatter(SR, R(367), big=True), "act2", "STRIKE: all ten pins + the ball (giant pins)",
+          -16.0, stereo=True, _finish={"fade_ms": 150.0})
+    W.add("window_crash", S.window_crash(SR, R(368)), "act2", "the Heave through the big window (bar 51): sash crack + "
+          "pane explosion + shard rain", -14.0, stereo=True, _finish={"fade_ms": 200.0})
+
+
+def write_manifest(W, args, sc):
+    path = os.path.join(args.out, "manifest.json")
+    items = W.items
+    if args.set != "all" and os.path.exists(path):
+        new = {i["id"] for i in items}
+        old = json.load(open(path)).get("sounds", [])
+        items = [i for i in old if i["id"] not in new] + items
+    W.items = items
     man = {"schema": "opuslegends.sfx/1", "generator": "tools/music/sfx.py", "song": sc.id, "bpm": BPM,
            "key": {"root": 40, "name": "E", "scale": E_MIXO, "scaleName": "mixolydian"}, "sampleRate": SR,
            "palette": "sampled" if not args.synth else "synth",
@@ -327,7 +406,7 @@ def main():
                     "Loops are exactly periodic. Theme: 70s grindhouse pool hustler. Pitched sounds are at A440, "
                     "matching the original recording (measured within +-8 cents).",
            "sounds": W.items}
-    with open(os.path.join(args.out, "manifest.json"), "w") as f:
+    with open(path, "w") as f:
         json.dump(man, f, indent=1)
         f.write("\n")
     tot = sum(i["bytes"] for i in W.items)

@@ -386,9 +386,15 @@ pitched, `midi, note, degree` (index into the key's scale). **`onsetSec`** is th
 perceptual attack (50 % envelope): start the file `onsetSec` early to land it on a beat (shouts pre-roll their /h/ by
 50 ms). **`mixGainDb`** is a suggested playback gain against the −14 LUFS master. Loops are exactly periodic.
 
+`--set=core|stage|all` (default all): `stage` renders only iteration 4's act-2/3 set (`instruments/fx_stage.py`: the
+break-shot KRAK, the BIG JIM letters' creaks + slams on a descending E line, Big Jim's roar/fists/lens cracks, glass,
+the iris slam, film run-out, mega cheer, curtain-call applause, marquee clank; act 2's bottle whistle, firebomb
+whoosh/burst, bottle smash, ball rumble/hit, pins, window crash) and MERGES it into the existing manifest, leaving
+every other file untouched. After a re-render, copy the new `onsetSec`s into `src/audio/samples.ts` SAMPLE_ONSETS.
+
 `flags` lists anything outside targets.
 
-## Game mix analysis (`mix_report.py`)
+## Game mix analysis (`mix_report.py`, `stage_report.py`)
 
 The game's own audio graph (record + overlay stems through the projection booth, SFX, headroom trim, limiter) is
 rendered offline by `node src/audio/lab/mixlab.mjs` (headless Chromium, OfflineAudioContext, the real TS classes).
@@ -396,7 +402,8 @@ rendered offline by `node src/audio/lab/mixlab.mjs` (headless Chromium, OfflineA
 beat-locked modulation (pumping), booth spectrum and stereo width, each overlay stem vs the record in the stem's
 own band during its lane events, grade bells and every theatre SFX vs the music, and HF clicks on a tone. It
 needs the licensed recording; nothing it writes is committed. Target numbers are in CLAUDE.md ("The music is
-the reward").
+the reward"). `stage_report.py <dir>` analyses the act-2/3 scenes (`mixlab.mjs --prefix=act`): each level audio cue
+vs the music, THE HUSH and THE FINALE (CLAUDE.md "Level audio cues").
 
 ## The original recording (`build_original.py`)
 

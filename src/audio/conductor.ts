@@ -40,6 +40,11 @@ export class Conductor {
   private stemBus: Record<string, GainNode> = {};
   /** unity taps of individual stems BEFORE their (crowd-driven) bus gain — for the sync probe */
   private taps: Record<string, GainNode> = {};
+  /**
+   * Per-source destinations instead of `out` ('record' = the recording; a stem name = that stem's bus output), e.g.
+   * the hush's Squeeze (StageAudio.forGame routes the record + the stomps stem through it). Set before the first play().
+   */
+  inserts: Record<string, AudioNode> = {};
 
   /** user latency offset, seconds */
   latency = 0;
@@ -192,7 +197,7 @@ export class Conductor {
       }
       this.sources.push({ src, gain: g });
     };
-    if (this.buffer) start(this.buffer, this.out);
+    if (this.buffer) start(this.buffer, this.inserts.record ?? this.out);
     for (const [name, buf] of Object.entries(this.stems)) start(buf, this.bus(name), this.taps[name]);
     // Song time `from` is at scheduled ctx time `when`; in the audible timeline that is the
     // same ctx time (getOutputTimestamp contextTime is on the same timeline).
@@ -208,10 +213,18 @@ export class Conductor {
     if (this.cueIndex < 0) this.cueIndex = this.cues.length;
   }
 
+  private stopListeners: ((mode: 'cut' | 'tape' | 'fade') => void)[] = [];
+
+  /** Called whenever the music stops (pause / quit = 'cut', death = 'tape', the end screen = 'fade'). */
+  onStop(fn: (mode: 'cut' | 'tape' | 'fade') => void): void {
+    this.stopListeners.push(fn);
+  }
+
   /** Stop the music. 'tape' = tape-stop effect (pitch dives), used on death. */
   stop(mode: 'cut' | 'tape' | 'fade' = 'cut'): void {
     if (!this.playing) return;
     this.playing = false;
+    for (const fn of this.stopListeners) fn(mode);
     const seg = this.segments[this.segments.length - 1];
     if (seg) seg.stopCtx = this.ctx.currentTime;
     const dur = mode === 'tape' ? 0.55 : mode === 'fade' ? 0.8 : 0.015;
@@ -250,7 +263,7 @@ export class Conductor {
     let b = this.stemBus[name];
     if (!b) {
       // the crowd-driven gain + the rule's zero-latency EQ / soft clip (audio/mix.ts OVERLAY_RULES)
-      b = makeOverlayBus(this.ctx, OVERLAY_RULES[name], this.out, this.song.stemGains?.[name] ?? 1);
+      b = makeOverlayBus(this.ctx, OVERLAY_RULES[name], this.inserts[name] ?? this.out, this.song.stemGains?.[name] ?? 1);
       this.stemBus[name] = b;
     }
     return b;

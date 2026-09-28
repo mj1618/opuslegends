@@ -254,6 +254,90 @@ export class Booth {
 }
 
 /**
+ * THE HUSH (act 3's break shot): a "booth squeeze" on the RECORD (and the stems routed through it), independent of
+ * the crowd booth. Two parallel paths, both always running, crossfaded with sample-accurate gain ramps:
+ *
+ *   input ─┬─ dry (1) ──────────────────────────────────────────────────────┬─ output
+ *          └─ mono ─ HP x2 (320 Hz) ─ horn honk (1.7 kHz) ─ LP x2 (3.4 kHz) ─ wet (0) ─┘
+ *
+ * The filters never move (no zipper, no filter-sweep thump on the release); only the two gains ramp. The squeeze
+ * goes in over `BOOTH.hush.inSec` from `from`, and the release is a `BOOTH.hush.outSec` crossfade CENTRED on `to`,
+ * so the drop's downbeat transient is already at full range. Zero latency (biquads + gains): the stems stay
+ * sample-aligned with the record.
+ */
+export class Squeeze {
+  readonly ctx: BaseAudioContext;
+  readonly input: GainNode;
+  readonly output: GainNode;
+  private dry: GainNode;
+  private wet: GainNode;
+  /** ctx time the last scheduled squeeze releases (for cancel) */
+  private until = -Infinity;
+
+  constructor(ctx: BaseAudioContext) {
+    this.ctx = ctx;
+    this.input = ctx.createGain();
+    this.output = ctx.createGain();
+    this.dry = ctx.createGain();
+    this.wet = ctx.createGain();
+    this.wet.gain.value = 0;
+    const mono = ctx.createGain();
+    mono.channelCount = 1;
+    mono.channelCountMode = 'explicit';
+    mono.channelInterpretation = 'speakers';
+    const H = BOOTH.hush;
+    let tail: AudioNode = this.input.connect(mono);
+    for (const [type, f, q] of [
+      ...BUTTER4_Q_DB.map((q) => ['highpass', H.hp, q] as const),
+      ['peaking', BOOTH.honk.freq, BOOTH.honk.q] as const,
+      ...BUTTER4_Q_DB.map((q) => ['lowpass', H.lp, q] as const),
+    ]) {
+      const b = ctx.createBiquadFilter();
+      b.type = type;
+      b.frequency.value = f;
+      b.Q.value = q;
+      if (type === 'peaking') b.gain.value = BOOTH.honk.db;
+      tail = tail.connect(b);
+    }
+    tail.connect(this.wet).connect(this.output);
+    this.input.connect(this.dry).connect(this.output);
+  }
+
+  /** Squeeze the record into the horn from ctx time `from`, slam back to full range centred on `to`. */
+  schedule(from: number, to: number, db: number = BOOTH.hush.db): void {
+    const H = BOOTH.hush;
+    const now = this.ctx.currentTime;
+    if (!(to > from) || to - H.outSec / 2 <= now) return;
+    const a = Math.max(from, now);
+    const r0 = Math.max(a + H.inSec, to - H.outSec / 2);
+    const g = dbToGain(db);
+    for (const [p, v] of [[this.dry.gain, 0], [this.wet.gain, g]] as const) {
+      p.setValueAtTime(p === this.dry.gain ? 1 : 0, a);
+      p.linearRampToValueAtTime(v, a + H.inSec);
+      p.setValueAtTime(v, r0);
+      p.linearRampToValueAtTime(p === this.dry.gain ? 1 : 0, r0 + H.outSec);
+    }
+    this.until = Math.max(this.until, r0 + H.outSec);
+  }
+
+  /** Drop every pending squeeze; if one is sounding, release it over 20 ms (deaths, rewinds). */
+  cancel(): void {
+    const now = this.ctx.currentTime;
+    if (this.until < now) return;
+    for (const [p, v] of [[this.dry.gain, 1], [this.wet.gain, 0]] as const) {
+      if (typeof p.cancelAndHoldAtTime === 'function') p.cancelAndHoldAtTime(now);
+      else {
+        const cur = p.value;
+        p.cancelScheduledValues(now);
+        p.setValueAtTime(cur, now);
+      }
+      p.linearRampToValueAtTime(v, now + 0.02);
+    }
+    this.until = -Infinity;
+  }
+}
+
+/**
  * Zero-latency soft clip (WaveShaper, no oversampling) with a peak `ceilingDb` (dBFS): identity up to 3 dB
  * under the ceiling, then a tanh knee. Accepts inputs up to +12 dBFS (pre-scaled by 1/4 into [-1, 1]).
  */

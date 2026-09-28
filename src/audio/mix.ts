@@ -24,6 +24,7 @@
  * the comments on OVERLAY_RULES / BOOTH / GRADE_SFX.
  * Stems not in the table stay at their SongDef.stemGains value.
  */
+import type { SampleId } from './samples';
 
 /** [crowd count, gain dB] points; -Infinity = silent. Below the first / above the last point: clamped. */
 type Curve = [number, number][];
@@ -125,6 +126,12 @@ export const BOOTH = {
   /** the film delay line's resting delay (s): every music sample is this late, the clocks know it */
   baseDelay: 0.006,
   rampBeats: 1,
+  /**
+   * THE HUSH (booth.ts Squeeze, StageAudio.hush): the record (+ the stomps/claps stem) forced into the horn band for
+   * the beat before act 3's drop, so only the dry cowbell overlay and the player's KRAK come through. Corners (Hz),
+   * the squeezed level (dB), the squeeze-in time and the release crossfade (s, centred on the release beat).
+   */
+  hush: { hp: 320, lp: 3400, db: -12, inSec: 0.03, outSec: 0.01 },
 } as const;
 
 export interface BoothState {
@@ -166,3 +173,91 @@ export const GRADE_SFX = {
   cheerDb: -15,
   gapCheerDb: -19,
 } as const;
+
+/**
+ * Stage sounds (iteration 4): named one-shot stacks the level's audio cues (audio/cues.ts) and the act-2 mechanics
+ * play through StageAudio. Each layer: a sample (assets/audio/sfx, tools/music/sfx.py --set=stage), its level (dB on
+ * the SFX bus, which is +6 dB, then the -4 dB headroom trim), an offset in BEATS from the cue beat (tempo-mapped), and
+ * `align` = land the sample's attack (manifest onsetSec) exactly on that beat (off = the file STARTS there: swells and
+ * telegraphs). Levels measured in the mix lab (the `act3_*` / `act2_*` scenarios; CLAUDE.md audio notes).
+ */
+export interface StageLayer {
+  id: SampleId;
+  db: number;
+  beats?: number;
+  rate?: number;
+  lp?: number;
+  align?: boolean;
+}
+
+const letter = (i: number): StageLayer[] => [
+  // the steel legs groan through the pivot beat (starts ON the downbeat), the letter slams ON the backbeat
+  { id: `letter_creak_${i}` as SampleId, db: -5 },
+  { id: `letter_slam_${i}` as SampleId, db: -12, beats: 1, align: true },
+];
+
+/**
+ * The stage sounds' bus (StageAudio): a zero-latency soft clip (peak ceiling, dBFS before the SFX bus's +6 dB and the
+ * -4 dB trim) so the big impacts (the KRAK, the iris, Big Jim's fists, giant pins) can be LOUD without their
+ * transients stacking on the record's peaks into the master limiter: shaving ~3 dB of attack reads as a driven,
+ * bigger hit (the cowbell trick), and the limiter stays a safety net.
+ */
+export const STAGE_BUS = { clipDb: -10 } as const;
+
+export const STAGE_SFX = {
+  // ---- act 3
+  /** THE BREAK SHOT (the hush's strike target smashed): the only full-range sound in the hush */
+  breakKrak: [{ id: 'break_krak', db: -6, align: true }],
+  /** the break missed: the rack caves in on its own */
+  rackCollapse: [{ id: 'rack_collapse', db: -8, align: true }],
+  /** the drop (the hush releases): the house comes down */
+  dropCheer: [{ id: 'crowd_mega_cheer', db: -11, align: true }],
+  letter1: letter(1),
+  letter2: letter(2),
+  letter3: letter(3),
+  letter4: letter(4),
+  letter5: letter(5),
+  letter6: letter(6),
+  bigJimBluff: [{ id: 'bigjim_bluff', db: -10, align: true }],
+  bigJimFist1: [{ id: 'bigjim_fist_1', db: -11, align: true }],
+  bigJimFist2: [{ id: 'bigjim_fist_2', db: -10, align: true }],
+  bigJimFist3: [{ id: 'bigjim_fist_3', db: -9, align: true }],
+  lensCrack1: [{ id: 'lens_crack_1', db: -4, align: true }],
+  lensCrack2: [{ id: 'lens_crack_2', db: 2, align: true }],
+  lensCrack3: [{ id: 'lens_crack_3', db: -8, align: true }],
+  lensCrack4: [{ id: 'lens_crack_4', db: -9, align: true }],
+  skylight: [{ id: 'glass_skylight', db: -13, align: true }],
+  glassWall: [{ id: 'glass_wall', db: -9, align: true }],
+  /** the usher hangs the marquee letters: three clanks up the E triad */
+  marquee: [
+    { id: 'marquee_clank', db: -15, align: true },
+    { id: 'marquee_clank', db: -16, beats: 0.66, rate: 2 ** (4 / 12), align: true },
+    { id: 'marquee_clank', db: -14, beats: 1, rate: 2 ** (7 / 12), align: true },
+  ],
+  /**
+   * THE FINAL HIT (the edit's 340: gang HEY x16 + crash + stomps, baked in): the iris slams ON it with the mega cheer,
+   * the film snaps and runs out on the next beat (THE END burns in), the curtain-call applause carries the ring-out
+   * into the results poster (the SFX bus outlives the music's fade).
+   */
+  finale: [
+    { id: 'iris_slam_big', db: -9.5, align: true },
+    // the house ERUPTS half a beat after the hit (a reaction; its gang YEAH on the beat doubled the record's HEY)
+    { id: 'crowd_mega_cheer', db: -8, beats: 0.5, align: true },
+    { id: 'film_runout', db: -4, beats: 1 },
+    { id: 'crowd_applause_long', db: -11, beats: 2, align: true },
+  ],
+  // ---- act 2 mechanics
+  /** thrown bottle: the whistle STARTS 1 beat before the arrival (the telegraph) */
+  bottleWhistle: [{ id: 'bottle_whistle', db: -13 }],
+  firebombWhoosh: [{ id: 'firebomb_whoosh', db: -6 }],
+  firebombBurst: [{ id: 'firebomb_burst', db: -12, align: true }],
+  bottleSmash: [{ id: 'bottle_smash', db: -8, align: true }],
+  /** bowling ball: the rumble STARTS 1 beat before the arrival; the file swells to it 0.36 s in */
+  ballRumble: [{ id: 'ball_rumble', db: -9 }],
+  ballHit: [{ id: 'ball_hit', db: -6, align: true }],
+  pinScatter: [{ id: 'pin_scatter', db: -11, align: true }],
+  pinStrike: [{ id: 'pin_scatter_big', db: -8, align: true }],
+  windowCrash: [{ id: 'window_crash', db: -9, align: true }],
+} satisfies Record<string, StageLayer[]>;
+
+export type StageSound = keyof typeof STAGE_SFX;

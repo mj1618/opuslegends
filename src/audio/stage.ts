@@ -14,8 +14,17 @@
  *   stage.onDeath()                    (the Conductor's tape-stop) + the audience groans
  *   stage.onCheckpoint()               projector changeover click on the next beat + the cue-dot flare
  *
+ *   stage.setCues(cues)                the level's AUDIO CUES (audio/cues.ts levelAudioCues): world sounds ON the
+ *                                      music (`at`: the BIG JIM letters, Big Jim, the finale), sounds on a target's
+ *                                      smash / miss, and THE HUSH (`hush(from, to)` / stage.hush()): the record is
+ *                                      squeezed into the booth horn for the beat before act 3's drop and slams back
+ *                                      full-range on it. Scheduled ~2.5 beats ahead on the audio clock (tempo map),
+ *                                      re-armed after every rewind, called off on a death.
+ *   stage.mechTelegraph(kind, beat)    act 2: the thrown bottle's whistle / the firebomb's whoosh / the bowling ball's
+ *   stage.mechFx(kind)                 rumble one beat ahead; bottle smash, firebomb burst, ball hit
+ *
  * In the game: `StageAudio.forGame(audio, conductor)` + `stage.listen(game.events)` (grade / miss / crowd /
- * stumble / death arrive as game events); Game calls setCrowd(value, true) on spawns and onCheckpoint().
+ * stumble / death / smash arrive as game events); Game calls setCrowd(value, true) on spawns and onCheckpoint().
  * Other code (art, HUD) can read `stage.combo` or call these directly; everything is idempotent-safe.
  *
  * Levels: audio/mix.ts (BOOTH, OVERLAY_RULES, GRADE_SFX). Everything goes through the master limiter.
@@ -23,10 +32,11 @@
  * theatre (SFX bus), so they stay full-range even when the film sounds thin.
  */
 import type { AudioSystem } from './audioSystem';
-import type { Booth } from './booth';
+import { type Booth, type Squeeze, makeSoftClip } from './booth';
 import type { Conductor } from './conductor';
-import { BOOTH, FULL_HOUSE, GRADE_SFX, boothState, dbToGain } from './mix';
-import { CHIME_NOTES, SampleBank, type SampleId } from './samples';
+import { type AudioCue, type LevelLike, levelAudioCues, levelFirebombs } from './cues';
+import { BOOTH, FULL_HOUSE, GRADE_SFX, STAGE_BUS, STAGE_SFX, type StageLayer, type StageSound, boothState, dbToGain } from './mix';
+import { CHIME_NOTES, SampleBank, type SampleId, type SampleVoice } from './samples';
 import { type SongDef, chordAt, mtof } from './song';
 
 export type StageGrade = 'perfect' | 'great' | 'good' | 'miss';
@@ -46,6 +56,8 @@ export interface StageClock {
 export interface StageHost {
   ctx: BaseAudioContext;
   booth: Booth;
+  /** the hush processor on the record (optional: no hush without it) */
+  squeeze?: Squeeze;
   /** SFX bus input (the theatre: not filtered by the booth) */
   sfxOut: AudioNode;
   song: SongDef;
@@ -56,12 +68,16 @@ export interface StageHost {
 
 /** The slice of the gameplay event bus (game/events.ts GameEvents) that StageAudio listens to. */
 export interface StageEventSource {
-  on(type: 'grade', fn: (e: { grade: 'perfect' | 'great' | 'good'; beat: number; combo: number }) => void): unknown;
+  on(type: 'grade', fn: (e: { grade: 'perfect' | 'great' | 'good'; beat: number; combo: number; verb?: 'jump' | 'strike' }) => void): unknown;
   on(type: 'miss', fn: (e: { beat: number; failKind: string }) => void): unknown;
   on(type: 'crowd', fn: (e: { value: number }) => void): unknown;
   on(type: 'stumble', fn: (e: { beat: number }) => void): unknown;
   on(type: 'death', fn: (e: { beat: number }) => void): unknown;
+  on(type: 'smash', fn: (e: { beat: number }) => void): unknown;
 }
+
+/** how far ahead (beats) `at` / `hush` cues are put on the audio clock */
+const CUE_LOOKAHEAD = 2.5;
 
 export class StageAudio {
   readonly host: StageHost;
@@ -72,10 +88,27 @@ export class StageAudio {
   private fullHouseArmed = true;
   private lastCheerBeat = -Infinity;
   private lastBoothKey = '';
+  /** the level's audio cues (sorted by start beat) */
+  private cues: AudioCue[] = [];
+  /** `at` / `hush` cues are scheduled up to this beat */
+  private horizon = -Infinity;
+  private lastTick = -Infinity;
+  /** cue sounds on the clock (called off / faded on a death or a rewind) */
+  private voices: SampleVoice[] = [];
+  /** smash cues already sounded this pass (a strike's grade and its smash both report it) */
+  private reacted = new Set<number>();
+  /** thrown-object arrival beats whose telegraph is the firebomb whoosh (the rest whistle) */
+  private firebombs = new Set<number>();
+
+  /** the stage sounds' bus: soft clip (STAGE_BUS) -> the SFX bus */
+  private readonly cueOut: AudioNode;
 
   constructor(host: StageHost) {
     this.host = host;
     this.samples = new SampleBank(host.ctx);
+    const clip = makeSoftClip(host.ctx, STAGE_BUS.clipDb);
+    clip.output.connect(host.sfxOut);
+    this.cueOut = clip.input;
   }
 
   /** The game's wiring: the Conductor is the clock, AudioSystem owns the booth and the buses. */
@@ -89,15 +122,21 @@ export class StageAudio {
       secondsPerBeat: (b) => c.tempo.secondsPerBeatAt(b),
       beatsPerBar: c.tempo.beatsPerBar,
     };
+    // the hush squeezes the record and the stomps/claps stem; the cowbell and shouts overlays stay dry
+    c.inserts = { record: audio.squeeze.input, stomps: audio.squeeze.input };
     const stage = new StageAudio({
       ctx: audio.ctx,
       booth: audio.booth,
+      squeeze: audio.squeeze,
       sfxOut: audio.sfx,
       song: c.song,
       clock,
       setOverlays: (n, when, instant) => c.setCrowdLevel(n, instant, when),
     });
     c.onBeat((b) => stage.beatTick(b));
+    // a pause / quit cuts the music: call off the cue sounds and the hush already on the clock (they re-arm when it
+    // plays again). The end screen's fade keeps them (the finale's applause outlives the music).
+    c.onStop((mode) => mode === 'cut' && stage.resetSchedule());
     void stage.load();
     return stage;
   }
@@ -107,7 +146,12 @@ export class StageAudio {
    * threat already sounds as its stumble / death), the crowd meter, stumbles and deaths.
    */
   listen(events: StageEventSource): void {
-    events.on('grade', (e) => this.onGrade(e.grade, e.beat, e.combo));
+    events.on('grade', (e) => {
+      this.onGrade(e.grade, e.beat, e.combo);
+      // a graded strike ON a smash cue's target: its sound goes on the PRESS (quantized like the bells), not on the
+      // hitbox contact a frame or three later (the KRAK must land on the fill's tom)
+      if (e.verb !== 'jump') this.onSmash(e.beat);
+    });
     events.on('miss', (e) => {
       if (e.failKind === 'none') this.onMiss(e.beat);
       else this.combo = 0;
@@ -115,6 +159,8 @@ export class StageAudio {
     events.on('crowd', (e) => this.setCrowd(e.value));
     events.on('stumble', () => this.onStumble());
     events.on('death', () => this.onDeath());
+    events.on('smash', (e) => this.onSmash(e.beat));
+    events.on('miss', (e) => this.onTargetMissed(e.beat));
   }
 
   /** Load the sampled one-shots and start the projector bed (best-effort; synth fallbacks otherwise). */
@@ -162,6 +208,8 @@ export class StageAudio {
     const key = `${s.open.toFixed(3)}|${s.house.toFixed(3)}`;
     // no music playing (cold open wake-up, death pause): nothing to glide against, set it now
     if (instant || !Number.isFinite(clock.graphBeat())) {
+      // a spawn / rewind: whatever the cues put on the clock belongs to the old timeline
+      if (instant) this.resetSchedule();
       const now = clock.now();
       booth.cancel(now);
       booth.setState(s, now, instant ? 0.012 : 0.06);
@@ -181,7 +229,9 @@ export class StageAudio {
     if (count >= FULL_HOUSE && prev < FULL_HOUSE && this.fullHouseArmed) {
       this.fullHouseArmed = false;
       const bar = this.nextGrid(clock.beatsPerBar, 0.02);
-      this.play('crowd_cheer_swell', bar.when, GRADE_SFX.cheerDb, { align: true });
+      // (a level cheer on that downbeat — act 3's drop, the finale — already brings the house down)
+      const cheerCue = this.cues.some((c) => c.type === 'at' && (c.sound === 'dropCheer' || c.sound === 'finale') && Math.abs(c.beat - bar.beat) <= 1);
+      if (!cheerCue) this.play('crowd_cheer_swell', bar.when, GRADE_SFX.cheerDb, { align: true });
       this.lastCheerBeat = Number.isFinite(bar.beat) ? bar.beat : this.lastCheerBeat;
     }
     if (count <= FULL_HOUSE - 4) this.fullHouseArmed = true;
@@ -192,6 +242,7 @@ export class StageAudio {
    * starting on the phrase's last beat when the singer rests ≥ 1.5 beats (at most one per 2 bars).
    */
   beatTick(beat: number): void {
+    this.scheduleCues(beat);
     if (this.crowd < FULL_HOUSE) return;
     const phrases = this.host.song.map?.lanes.vocalPhrases;
     if (!phrases || beat - this.lastCheerBeat < 8) return;
@@ -270,6 +321,7 @@ export class StageAudio {
   /** Death: the Conductor's tape-stop does the music; the audience groans under it. */
   onDeath(): void {
     this.combo = 0;
+    this.resetSchedule();
     this.play('crowd_ooh', this.host.clock.now() + 0.05, GRADE_SFX.groanDb, { rate: 0.78, lp: 1400 });
   }
 
@@ -278,6 +330,156 @@ export class StageAudio {
     const g = this.nextGrid(1, 0.01);
     if (!this.play('film_snap', g.when, GRADE_SFX.clickDb, { lp: 5000 })) this.synthThunk(g.when, 1800);
     this.play('burn_flare', g.when, GRADE_SFX.flareDb, { align: true });
+  }
+
+  // ------------------------------------------------------------------ level audio cues (audio/cues.ts)
+
+  /** Replace the level's audio cues (Game: `stage.setCues(levelAudioCues(levelDef, song))`). */
+  setCues(cues: readonly AudioCue[], mech: { firebombs?: number[] } = {}): void {
+    this.resetSchedule();
+    this.cues = [...cues].sort((a, b) => cueStart(a) - cueStart(b));
+    this.firebombs = new Set((mech.firebombs ?? []).map((b) => Math.round(b * 100)));
+  }
+
+  /** The level's audio: its cues (audio/cues.ts levelAudioCues) + the act-2 mechanics' telegraph voices. */
+  useLevel(def: LevelLike, song: SongDef): void {
+    this.setCues(levelAudioCues(def, song), { firebombs: levelFirebombs(def) });
+  }
+
+  /** the cues in effect (read-only) */
+  get audioCues(): readonly AudioCue[] {
+    return this.cues;
+  }
+
+  /**
+   * THE HUSH: squeeze the record into the booth horn from beat `from`, release to full range ON beat `to` (e.g.
+   * `hush(270.95, 271.95)`: the beat before act 3's drop). A persistent cue: it replays after every rewind.
+   */
+  hush(from: number, to: number, db?: number): void {
+    this.setCues([...this.cues, { type: 'hush', from, to, db }]);
+  }
+
+  /** the level ends on the finale stack (Game skips its own finish jingle) */
+  get hasFinale(): boolean {
+    return this.cues.some((c) => c.type === 'at' && c.sound === 'finale');
+  }
+
+  /** Call off everything the cues put on the clock (future: never starts; sounding: 60 ms fade) and re-arm. */
+  resetSchedule(): void {
+    const now = this.ctx.currentTime;
+    for (const v of this.voices) {
+      if (v.end <= now) continue;
+      try {
+        if (v.start > now + 0.002) v.src.stop();
+        else {
+          v.gain.gain.cancelScheduledValues(now);
+          v.gain.gain.setValueAtTime(v.gain.gain.value, now);
+          v.gain.gain.linearRampToValueAtTime(0, now + 0.06);
+          v.src.stop(now + 0.07);
+        }
+      } catch {
+        /* already stopped */
+      }
+    }
+    this.voices = [];
+    this.reacted.clear();
+    this.host.squeeze?.cancel();
+    this.horizon = -Infinity;
+    this.lastTick = -Infinity;
+  }
+
+  /** per music beat: put the `at` / `hush` cues of the next CUE_LOOKAHEAD beats on the audio clock */
+  private scheduleCues(beat: number): void {
+    if (beat < this.lastTick - 0.5) this.resetSchedule(); // the music jumped back without a spawn
+    this.lastTick = beat;
+    if (this.cues.length === 0) return;
+    const from = Math.max(this.horizon, beat - 0.02);
+    const to = beat + CUE_LOOKAHEAD;
+    if (to <= from) return;
+    this.horizon = to;
+    const { clock } = this.host;
+    for (const c of this.cues) {
+      const st = cueStart(c);
+      if (st < from) continue;
+      if (st >= to) break;
+      if (c.type === 'hush') {
+        const a = clock.ctxAtBeat(c.from);
+        const b = clock.ctxAtBeat(c.to);
+        if (Number.isFinite(a) && Number.isFinite(b)) this.host.squeeze?.schedule(a, b, c.db);
+      } else if (c.type === 'at') this.playSound(c.sound, c.beat, false);
+    }
+    const now = this.ctx.currentTime;
+    if (this.voices.length > 24) this.voices = this.voices.filter((v) => v.end > now);
+  }
+
+  /**
+   * A breakable burst (game `smash` event) or a strike graded on its beat (whichever comes first): its onSmash cue,
+   * on the beat if the press was early (≤ 150 ms), else right away. Once per target per pass.
+   */
+  onSmash(beat: number): void {
+    for (const c of this.cues) {
+      if (c.type !== 'onSmash' || Math.abs(c.beat - beat) >= 0.03) continue;
+      const key = Math.round(c.beat * 100);
+      if (this.reacted.has(key)) continue;
+      this.reacted.add(key);
+      this.playSound(c.sound, c.beat, true);
+    }
+  }
+
+  /** a strike target passed unhit (game `miss` event): its onMiss cue */
+  onTargetMissed(beat: number): void {
+    for (const c of this.cues) if (c.type === 'onMiss' && Math.abs(c.beat - beat) < 0.03) this.playSound(c.sound, c.beat, true);
+  }
+
+  /**
+   * Act 2's telegraphs (Mechanics → Game host), called 1 beat before an arrival: `beat` = the telegraph beat. The
+   * thrown bottle whistles down its arc, a firebomb whooshes, a bowling ball rumbles in. False = no samples (use
+   * the synth placeholder).
+   */
+  mechTelegraph(kind: 'whistle' | 'rumble', beat: number): boolean {
+    const sound: StageSound = kind === 'rumble' ? 'ballRumble' : this.firebombs.has(Math.round((beat + 1) * 100)) ? 'firebombWhoosh' : 'bottleWhistle';
+    return this.playSound(sound, beat, false, false);
+  }
+
+  /** Act 2's impacts, now: a bottle bursting, a firebomb going up, the ball hitting the hero. */
+  mechFx(kind: string): boolean {
+    const sound: StageSound | null = kind === 'shatter' ? 'bottleSmash' : kind === 'ignite' ? 'firebombBurst' : kind === 'ballHit' ? 'ballHit' : null;
+    if (!sound) return false;
+    const now = this.host.clock.now();
+    let ok = false;
+    for (const l of STAGE_SFX[sound] as StageLayer[]) ok = !!this.layer(l, now, false) || ok;
+    return ok;
+  }
+
+  /**
+   * Play a STAGE_SFX stack whose beat-0 is `beat` (tempo-mapped; each layer at its own beat offset). `react` = a
+   * gameplay reaction (a smash / miss): on the beat if that is ≤ 150 ms away, else right now (layers keep their
+   * spacing). Returns true if anything played.
+   */
+  playSound(sound: StageSound, beat: number, react: boolean, track = true): boolean {
+    const layers = STAGE_SFX[sound] as StageLayer[] | undefined;
+    if (!layers) return false;
+    const { clock } = this.host;
+    const now = clock.now();
+    const t0 = clock.ctxAtBeat(beat);
+    let shift = 0;
+    if (react) {
+      if (!Number.isFinite(t0) || t0 < now || t0 - now > 0.15) shift = now - (Number.isFinite(t0) ? t0 : now);
+    }
+    let ok = false;
+    for (const l of layers) {
+      const t = Number.isFinite(t0) ? clock.ctxAtBeat(beat + (l.beats ?? 0)) + shift : now;
+      if (!react && t < now - 0.005) continue; // stale: never late on the music
+      const v = this.layer(l, Math.max(t, now), track);
+      ok = !!v || ok;
+    }
+    return ok;
+  }
+
+  private layer(l: StageLayer, when: number, track: boolean): SampleVoice | null {
+    const v = this.samples.playNode(l.id, this.cueOut, when, { gain: dbToGain(l.db), rate: l.rate, lp: l.lp, align: l.align });
+    if (v && track) this.voices.push(v);
+    return v;
   }
 
   // ------------------------------------------------------------------ plumbing
@@ -328,3 +530,5 @@ export class StageAudio {
     o.stop(when + 0.15);
   }
 }
+
+const cueStart = (c: AudioCue): number => (c.type === 'hush' ? c.from : c.beat);

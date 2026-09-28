@@ -1,6 +1,7 @@
 /**
  * Owns the AudioContext and the mixer:
  *
+ *   record (+ stomps stem) ─> SQUEEZE (the hush) ┐
  *   music (record + overlay stems, MIX.music) ─> BOOTH (film sound, audio/booth.ts) ─┐
  *   sfx   (synth + sampled SFX, MIX.sfx) ─────────────────────────────────────────────┴─> trim ─> LIMITER
  *                                                                        ─> soft clip ─> master (mute) ─> destination
@@ -17,20 +18,22 @@
  * (the title screen's "press to start"), unless the browser's autoplay policy allows it
  * (headless playtests launch chromium with --autoplay-policy=no-user-gesture-required).
  */
-import { Booth } from './booth';
+import { Booth, Squeeze } from './booth';
 import { BOOTH, MIX, dbToGain } from './mix';
 
 export class AudioSystem {
   readonly ctx: AudioContext;
   /** the music bus's film-sound processor (the crowd reward; driven by audio/stage.ts) */
   readonly booth: Booth;
+  /** the hush (act 3's break shot): a booth squeeze on the record ahead of the music bus (StageAudio.hush) */
+  readonly squeeze: Squeeze;
   readonly master: GainNode;
   readonly music: GainNode;
   readonly sfx: GainNode;
   /** pre-limiter trim (cancels the compressor's makeup gain) */
   readonly trim: GainNode;
   readonly limiter: DynamicsCompressorNode;
-  /** safety soft clip after the limiter (linear below -1 dBFS): catches the compressor's residual overs */
+  /** safety soft clip after the limiter (linear below -1.5 dBFS): catches the compressor's residual overs */
   readonly clip: { input: AudioNode; output: AudioNode };
   /** measured look-ahead delay of the limiter (s) — see calibrate() */
   limiterDelay = 0.006;
@@ -55,6 +58,8 @@ export class AudioSystem {
     this.sfx.gain.value = MIX.sfx;
     this.booth = new Booth(this.ctx);
     this.music.connect(this.booth.input);
+    this.squeeze = new Squeeze(this.ctx);
+    this.squeeze.output.connect(this.music);
     this.booth.output.connect(this.trim);
     this.trim.gain.value = dbToGain(MIX.headroomDb);
     this.sfx.connect(this.trim);
@@ -79,8 +84,10 @@ export class AudioSystem {
   }
 
   /**
-   * Zero-latency safety soft clip (WaveShaper, no oversampling): identity below -1 dBFS, tanh knee up
-   * to a -0.2 dBFS ceiling, for inputs up to +6 dBFS (pre-scaled by 1/2 into the shaper's [-1, 1]).
+   * Zero-latency safety soft clip (WaveShaper, no oversampling): identity below -1.5 dBFS, tanh knee up
+   * to a -0.6 dBFS ceiling, for inputs up to +6 dBFS (pre-scaled by 1/2 into the shaper's [-1, 1]). The ceiling sits
+   * 0.6 dB down because an un-oversampled clip makes inter-sample peaks: act 3's stacked hits measured up to +0.3 dBTP
+   * with a -0.2 ceiling, <= -0.2 dBTP with this one (iteration 4 mix lab).
    * After the limiter it only ever touches the rare few-sample overs a compressor lets through.
    */
   static makeSoftClip(ctx: BaseAudioContext): { input: AudioNode; output: AudioNode } {
@@ -89,8 +96,8 @@ export class AudioSystem {
     const ws = ctx.createWaveShaper();
     const N = 4097;
     const curve = new Float32Array(N);
-    const knee = Math.pow(10, -1 / 20);
-    const ceil = Math.pow(10, -0.2 / 20);
+    const knee = Math.pow(10, -1.5 / 20);
+    const ceil = Math.pow(10, -0.6 / 20);
     for (let i = 0; i < N; i++) {
       const x = ((i / (N - 1)) * 2 - 1) * 2; // shaper input u in [-1, 1] = signal in [-2, 2]
       const a = Math.abs(x);

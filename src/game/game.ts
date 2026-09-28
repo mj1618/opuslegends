@@ -213,6 +213,8 @@ export class Game {
     this.stage.listen(this.events);
     this.levelDef = gameLevel;
     this.level = buildLevel(this.levelDef, this.tempo, this.song);
+    // the level's audio cues: act 3's hush + world sounds, act 2's mechanic voices (audio/cues.ts)
+    this.stage.useLevel(this.levelDef, this.song);
     this.mech = new Mechanics(this.level, this.mechHost());
     this.judge = new Judge(this.level.actions, this.tempo);
     this.background = new Background(params.seed);
@@ -518,7 +520,7 @@ export class Game {
     this.player.mode = 'finished';
     this.stats.finished = true;
     this.stats.finishedAt = performance.now();
-    this.sfx.finish(this.song.key.root + 24);
+    if (!this.stage.hasFinale) this.sfx.finish(this.song.key.root + 24); // (the edit's final hit has its own stack)
     this.flashScreen('#fff6c0', 0.6);
     this.camera.addTrauma(0.3);
     for (let i = 0; i < 5; i++) {
@@ -1031,11 +1033,13 @@ export class Game {
         }
         const fire = kind === 'ignite';
         this.particles.emit({ x, y: y - 10, count: fire ? 26 : 14, speed: [150, fire ? 700 : 500], angle: -Math.PI / 2, spread: fire ? 1.2 : 2.4, life: [0.25, 0.6], size: [6, 14], color: fire ? '#FF4A3D' : kind === 'ballHit' ? '#3A302A' : '#CFE8E0', shape: PShape.Spark, gravity: fire ? -200 : 1600, drag: 2, shrink: 1 });
+        if (this.stage.mechFx(kind)) return;
         if (fire) this.sfx.stomp();
         else this.sfx.hit();
       },
       telegraph: (kind, beat) => {
         const t = this.conductor.ctxTimeAtSongTime(this.tempo.beatToTime(beat));
+        if (this.stage.mechTelegraph(kind, beat)) return;
         if (kind === 'whistle') this.sfx.windup(t);
         else this.sfx.clack(t);
       },

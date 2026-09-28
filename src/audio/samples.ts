@@ -25,6 +25,45 @@ export const SAMPLE_ONSETS = {
   film_snap: 0,
   burn_flare: 0.0068,
   projector_loop: 0.0002,
+  // iteration 4 (tools/music/sfx.py --set=stage, instruments/fx_stage.py): act 3 + act 2's mechanics
+  break_krak: 0.0041,
+  rack_collapse: 0.0626,
+  letter_creak_1: 0.0977,
+  letter_slam_1: 0.002,
+  letter_creak_2: 0.1294,
+  letter_slam_2: 0.0016,
+  letter_creak_3: 0.1022,
+  letter_slam_3: 0.0005,
+  letter_creak_4: 0.1416,
+  letter_slam_4: 0.0009,
+  letter_creak_5: 0.1423,
+  letter_slam_5: 0.0027,
+  letter_creak_6: 0.1291,
+  letter_slam_6: 0.0018,
+  bigjim_bluff: 0.1284,
+  bigjim_fist_1: 0.0008,
+  bigjim_fist_2: 0.0009,
+  bigjim_fist_3: 0.0009,
+  lens_crack_1: 0.0,
+  lens_crack_2: 0.0,
+  lens_crack_3: 0.0,
+  lens_crack_4: 0.0,
+  glass_skylight: 0.0001,
+  glass_wall: 0.0001,
+  iris_slam_big: 0.0702,
+  film_runout: 0.0,
+  crowd_mega_cheer: 0.1224,
+  crowd_applause_long: 0.1339,
+  marquee_clank: 0.0006,
+  bottle_whistle: 0.023,
+  firebomb_whoosh: 0.1191,
+  firebomb_burst: 0.0306,
+  bottle_smash: 0.0001,
+  ball_rumble: 0.1901,
+  ball_hit: 0.0006,
+  pin_scatter: 0.0022,
+  pin_scatter_big: 0.0016,
+  window_crash: 0.0001,
 } as const;
 
 export type SampleId = keyof typeof SAMPLE_ONSETS;
@@ -52,6 +91,15 @@ export interface PlayOpts {
   align?: boolean;
   /** fade out over 60 ms starting this many seconds after the start */
   cut?: number;
+}
+
+/** a playing (or scheduled) one-shot */
+export interface SampleVoice {
+  src: AudioBufferSourceNode;
+  gain: GainNode;
+  /** ctx times it starts / ends */
+  start: number;
+  end: number;
 }
 
 export class SampleBank {
@@ -89,8 +137,13 @@ export class SampleBank {
 
   /** Play a one-shot at ctx time `when` into `dest`. Returns false if the sample isn't loaded. */
   play(id: SampleId, dest: AudioNode, when: number, o: PlayOpts = {}): boolean {
+    return this.playNode(id, dest, when, o) !== null;
+  }
+
+  /** play(), returning the voice (so a scheduled sound can be called off or faded), or null if not loaded */
+  playNode(id: SampleId, dest: AudioNode, when: number, o: PlayOpts = {}): SampleVoice | null {
     const buf = this.bufs.get(id);
-    if (!buf) return false;
+    if (!buf) return null;
     const ctx = this.ctx;
     const rate = o.rate ?? 1;
     const t = Math.max(when - (o.align ? SAMPLE_ONSETS[id] / rate : 0), ctx.currentTime);
@@ -118,6 +171,6 @@ export class SampleBank {
       s.disconnect();
       g.disconnect();
     };
-    return true;
+    return { src: s, gain: g, start: t, end: t + buf.duration / rate };
   }
 }

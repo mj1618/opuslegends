@@ -4,8 +4,12 @@
  * SFX, FULL HOUSE cheers) in an OfflineAudioContext, driven by a scripted clock. Run by mixlab.mjs,
  * which saves 4-channel float WAVs (ch 0-1 = master out, ch 2-3 = pre-limiter) for tools/music/mix_report.py.
  */
+import { gameLevel } from '../../level/index';
 import { AudioSystem } from '../audioSystem';
 import { Conductor } from '../conductor';
+import type { LevelLike } from '../cues';
+import { STAGE_SFX } from '../mix';
+import { Sfx } from '../sfx';
 import { loadSongBuffer, loadSongStems, makeTempoMap } from '../song';
 import { jimEdit } from '../songs';
 import { StageAudio, type StageClock, type StageGrade } from '../stage';
@@ -17,6 +21,17 @@ export interface LabEvent {
   miss?: boolean;
   stumble?: boolean;
   checkpoint?: boolean;
+  /** the player's strike ON `beat` (the synth whoosh + HEY, a Perfect bell) — the final hit's real stack */
+  strike?: boolean;
+  /** the breakable at `beat` bursts (game 'smash' event: its onSmash cue) */
+  smash?: boolean;
+  /** the strike target at `beat` passes unhit (onMiss cue) */
+  missTarget?: boolean;
+  /** act 2 telegraph for the arrival at `arrive` (the game calls it ~1.5 beats ahead: event `beat` = the call) */
+  mech?: 'whistle' | 'rumble';
+  arrive?: number;
+  /** act 2 impact at `beat` */
+  fx?: 'shatter' | 'ignite' | 'ballHit';
 }
 
 export interface Scenario {
@@ -34,6 +49,34 @@ export interface Scenario {
   ticks?: boolean;
   /** drop the stage SFX (click test: only the music moves) */
   nosfx?: boolean;
+  /** the level's audio cues: the real game level (acts 1-3) */
+  level?: boolean;
+  /** leave the hush out (A/B for the report) */
+  noHush?: boolean;
+  /** add the level's act-2 mechanic + smash events in [from, to) (thrown / ball / pins / firebombs) */
+  levelEvents?: boolean;
+  /** level events without the player's strikes (no synth whoosh/HEY, no bells): the cue sounds alone */
+  noStrikes?: boolean;
+  /** the player's strikes/bells only: no stage sounds (the iteration-3 baseline for the same play) */
+  legacy?: boolean;
+}
+
+type Item = { type: string; beat?: number; style?: string; look?: string; giant?: boolean; action?: { type?: string; beat?: number } };
+
+/** the level's gameplay audio events in [a, b): what the game would emit for a clean player */
+function levelEvents(a: number, b: number): LabEvent[] {
+  const ev: LabEvent[] = [];
+  for (const it of gameLevel.items as Item[]) {
+    const bt = it.beat;
+    if (typeof bt !== 'number' || bt < a || bt >= b) continue;
+    if (it.type === 'thrown') {
+      ev.push({ beat: bt - 1.5, mech: 'whistle', arrive: bt });
+      if (it.style === 'firebomb') ev.push({ beat: bt, fx: 'ignite' });
+      else ev.push({ beat: bt, strike: true });
+    } else if (it.type === 'ball') ev.push({ beat: bt - 1.5, mech: 'rumble', arrive: bt });
+    else if (it.type === 'breakable') ev.push({ beat: bt, smash: true, strike: true });
+  }
+  return ev;
 }
 
 const SR = 48000;
@@ -83,6 +126,7 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
 
   const cond = new Conductor(ctx as unknown as AudioContext, audio.music, song, tempo);
   cond.outputDelay = audio.outputDelay;
+  cond.inserts = { record: audio.squeeze.input, stomps: audio.squeeze.input }; // as StageAudio.forGame
   const mute = new Set(sc.mute ?? []);
   cond.buffer = sc.tone ? toneBuffer(ctx, tempo.beatToTime(sc.to) + song.audioOffset + 2) : mute.has('record') ? null : buf;
   cond.stems = Object.fromEntries(Object.entries(stems).filter(([k]) => !mute.has(k)));
@@ -95,22 +139,30 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
     beatsPerBar: tempo.beatsPerBar,
   };
   cond.filmDelay = audio.filmDelay;
+  const sfxOut = sc.nosfx ? ctx.createGain() : audio.sfx;
   const stage = new StageAudio({
     ctx,
     booth: audio.booth,
-    sfxOut: sc.nosfx ? ctx.createGain() : audio.sfx,
+    squeeze: audio.squeeze,
+    sfxOut,
     song,
     clock,
     setOverlays: (n, when, instant) => cond.setCrowdLevel(n, instant, when),
   });
   await stage.load();
   if (sc.nosfx) audio.booth.muteBed();
+  if (sc.level && !sc.legacy) {
+    stage.useLevel(gameLevel as unknown as LevelLike, song);
+    if (sc.noHush) stage.setCues(stage.audioCues.filter((c) => c.type !== 'hush'));
+  }
+  const synth = new Sfx(ctx, sfxOut);
   cond.play(t0, lead, 0.005);
   stage.setCrowd(sc.crowd, true);
 
-  const evs = [...(sc.events ?? [])];
+  const lev = sc.levelEvents ? levelEvents(sc.from, sc.to).map((e) => (sc.noStrikes ? { ...e, strike: false } : e)).filter((e) => e.strike || e.smash || e.mech || e.fx) : [];
+  const evs = [...(sc.events ?? []), ...lev];
   if (sc.ticks) for (let b = Math.ceil(sc.from); b < sc.to; b++) evs.push({ beat: b });
-  const at = (e: LabEvent): number => (e.miss ? 0.135 : e.grade ? -0.02 : e.crowd !== undefined ? -0.015 : 0);
+  const at = (e: LabEvent): number => (e.miss || e.missTarget ? 0.135 : e.grade || e.strike || e.smash ? -0.02 : e.crowd !== undefined ? -0.015 : 0);
   evs.sort((a, b) => a.beat + at(a) / 0.37 - (b.beat + at(b) / 0.37));
   for (const e of evs) {
     now = clock.ctxAtBeat(e.beat) + at(e);
@@ -119,7 +171,16 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
     if (e.stumble) stage.onStumble();
     if (e.checkpoint) stage.onCheckpoint();
     if (e.crowd !== undefined) stage.setCrowd(e.crowd);
-    if (!e.grade && !e.miss && !e.stumble && !e.checkpoint && e.crowd === undefined) stage.beatTick(e.beat);
+    if (e.strike) {
+      synth.strike(clock.ctxAtBeat(e.beat), true);
+      stage.onGrade('perfect', e.beat);
+    }
+    if (e.smash && !sc.legacy) stage.onSmash(e.beat);
+    if (e.missTarget && !sc.legacy) stage.onTargetMissed(e.beat);
+    if (e.mech && !sc.legacy) stage.mechTelegraph(e.mech, (e.arrive ?? e.beat + 1.5) - 1);
+    if (e.fx && !sc.legacy) stage.mechFx(e.fx);
+    const other = e.strike || e.smash || e.missTarget || e.mech || e.fx;
+    if (!e.grade && !e.miss && !e.stumble && !e.checkpoint && e.crowd === undefined && !other) stage.beatTick(e.beat);
   }
   const out = await ctx.startRendering();
   const channels: string[] = [];
@@ -145,6 +206,11 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
       limiterMakeup: audio.limiterMakeup,
       outputDelay: audio.outputDelay,
       samples: stage.samples.has('chime_E5'),
+      // the act-2/3 scenes (tools/music/stage_report.py): the cues in effect, the stacks, what the player did
+      cues: stage.audioCues,
+      stageSfx: STAGE_SFX,
+      smashes: evs.filter((e) => e.smash).map((e) => e.beat),
+      mechs: evs.filter((e) => e.mech || e.fx).map((e) => ({ kind: e.mech ?? e.fx, arrive: e.arrive ?? e.beat })),
     },
   };
 }

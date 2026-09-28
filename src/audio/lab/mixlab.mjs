@@ -4,7 +4,9 @@
  * OfflineAudioContext for a set of scripted scenarios, writes 4-channel float WAVs (ch 0-1 master out,
  * ch 2-3 pre-limiter) + meta JSON, then runs the analysis (tools/music/mix_report.py).
  *
- *   node src/audio/lab/mixlab.mjs [--out=playtest/out-audio/mixlab] [--only=full,booth] [--no-report]
+ *   node src/audio/lab/mixlab.mjs [--out=playtest/out-audio/mixlab] [--only=full,booth] [--prefix=act3_,act2_] [--no-report]
+ *
+ * The act-2/3 scenes (`act3_*`, `act2_*`) are analysed by tools/music/stage_report.py (run after mix_report.py).
  *
  * Needs the licensed recording (assets/audio/licensed/jim_edit.ogg). Nothing it writes is committed.
  */
@@ -79,7 +81,36 @@ const SCENARIOS = [
   // click test: a steady two-tone instead of the record through the whole journey (moves, snags, warble)
   { name: 'clicktest', from: 52, to: END, crowd: 3, events: journey.filter((e) => !e.grade && !e.checkpoint), tone: true, nosfx: true, mute: ['shouts', 'stomps', 'cowbell'] },
 ];
+// ---- iteration 4: the level's audio cues (acts 2-3) through the real graph. Each scene renders three ways: the mix,
+// `_music` (no SFX: record + overlays + the hush), `_cues` (the cue sounds alone: no music, no strikes/bells).
+// Scenes use the REAL game level (src/level/index.ts) and a clean player (every breakable struck + smashed ON its
+// beat, thrown bottles batted, firebombs / balls telegraphed) at FULL HOUSE.
+const MUSIC = ['record', 'shouts', 'stomps', 'cowbell'];
+const scene = (name, from, to, extra = {}) => {
+  const base = { from, to, crowd: 24, ticks: true, level: true, levelEvents: true, ...extra };
+  return [
+    { name, ...base },
+    { name: `${name}_music`, ...base, nosfx: true },
+    { name: `${name}_cues`, ...base, mute: MUSIC, noStrikes: true },
+    // the same play with only iteration 3's sounds (strikes + bells): what the stage sounds add
+    { name: `${name}_legacy`, ...base, legacy: true },
+  ];
+};
+SCENARIOS.push(
+  ...scene('act3_break', 262, 278),
+  // the same beat WITHOUT the hush (A/B: how deep the hush goes)
+  { name: 'act3_break_nohush_music', from: 262, to: 278, crowd: 24, ticks: true, level: true, noHush: true, nosfx: true },
+  // click test through the hush: a steady tone as the record, squeezed in and released
+  { name: 'act3_break_tone', from: 262, to: 278, crowd: 24, ticks: true, level: true, tone: true, nosfx: true, mute: ['shouts', 'stomps', 'cowbell'] },
+  // a mid-crowd player (no cowbell yet): the KRAK alone in the hush
+  { name: 'act3_break_mid', from: 262, to: 278, crowd: 12, ticks: true, level: true, levelEvents: true },
+  ...scene('act3_chorus', 270, 302),
+  ...scene('act3_gauntlet', 298, 334),
+  ...scene('act3_finale', 326, 360),
+  ...scene('act2_mech', 196, 240),
+);
 const only = args.only ? new Set(String(args.only).split(',')) : null;
+const prefix = args.prefix ? String(args.prefix).split(',') : null;
 
 function wav(path, sr, chans) {
   const n = chans[0].length;
@@ -102,7 +133,8 @@ function wav(path, sr, chans) {
   writeFileSync(path, buf);
 }
 
-const server = await createServer({ root, logLevel: 'error', server: { port: 5198, strictPort: false } });
+// no HMR / file watching: other agents edit the tree while a render runs (a reload would kill the page)
+const server = await createServer({ root, logLevel: 'error', server: { port: 5198, strictPort: false, hmr: false, watch: { ignored: ['**/*'] } } });
 await server.listen();
 const base = server.resolvedUrls.local[0];
 const browser = await chromium.launch({ headless: true, args: ['--autoplay-policy=no-user-gesture-required'] });
@@ -114,6 +146,7 @@ await page.waitForFunction(() => window.__mixlab, null, { timeout: 30000 });
 const metas = [];
 for (const sc of SCENARIOS) {
   if (only && !only.has(sc.name)) continue;
+  if (prefix && !prefix.some((p) => sc.name.startsWith(p))) continue;
   const t = Date.now();
   const r = await page.evaluate((s) => window.__mixlab.render(s), sc);
   const chans = r.channels.map((b64) => {
@@ -129,6 +162,9 @@ await browser.close();
 await server.close();
 if (!args['no-report']) {
   const py = join(root, 'tools/music/.venv/bin/python');
-  const r = spawnSync(py, [join(root, 'tools/music/mix_report.py'), out], { stdio: 'inherit' });
-  process.exit(r.status ?? 1);
+  const names = metas.map((m) => m.name);
+  let status = 0;
+  if (names.some((n) => !n.startsWith('act'))) status ||= spawnSync(py, [join(root, 'tools/music/mix_report.py'), out], { stdio: 'inherit' }).status ?? 1;
+  if (names.some((n) => n.startsWith('act'))) status ||= spawnSync(py, [join(root, 'tools/music/stage_report.py'), out], { stdio: 'inherit' }).status ?? 1;
+  process.exit(status);
 }

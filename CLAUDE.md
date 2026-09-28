@@ -86,7 +86,9 @@ World y grows DOWN; the base ground top is y = 0.
   is taught by placement + `Game.FAIL_HINTS`, shown once after the player fails the same thing twice.
 - **Mix** (`audio/audioSystem.ts`, `audio/mix.ts`): music (record at unity + overlay stems) → **projection
   booth** (`audio/booth.ts`) ┐ + SFX (+6 dB) → trim (**−4 dB headroom**, cancels the limiter makeup) → soft
-  limiter (DynamicsCompressor, −2.5 dB) → tanh soft clip (safety, −0.2 dBFS ceiling) → master. The headroom
+  limiter (DynamicsCompressor, −2.5 dB) → tanh soft clip (safety, −0.6 dBFS ceiling: un-oversampled, so it sits low
+  enough that act 3's stacked hits stay ≤ ~−0.2 dBTP) → master. The record (+ the stomps/claps stem) enters the
+  music bus through the hush's **Squeeze** (`booth.ts`, below; transparent unless a hush is scheduled). The headroom
   keeps the hot record (peaks +0.75 dBFS, −10.5 LUFS) under the limiter so overlays + SFX add on top without
   pumping. Overlay stem buses carry zero-latency EQ + soft clip (`OVERLAY_RULES.eq/clip`).
 - **The music is the reward** (`audio/stage.ts` StageAudio, levels in `audio/mix.ts` BOOTH / OVERLAY_RULES /
@@ -108,6 +110,30 @@ World y grows DOWN; the base ground top is y = 0.
   bell −7 LU under the music (+2 dB in its band), Great −11, miss −6, stumble ooh −9, FULL HOUSE cheer −8; limiter
   at FULL HOUSE: 1.9 % of 10 ms blocks > 0.5 dB GR, max 1.35 dB, beat-locked GR modulation 0.18 dB (no pumping);
   true peak ≤ −0.17 dBTP. Re-measure after any mix change: `node src/audio/lab/mixlab.mjs` (below).
+- **Level audio cues** (iteration 4, `audio/cues.ts`; the stacks in `audio/mix.ts` STAGE_SFX): Game calls
+  `stage.useLevel(levelDef, song)`, which DERIVES the cues from ordinary level items — setPiece `hush` (THE HUSH over
+  its `beats`), `drop` (the drop's mega cheer), `windowCrash`, `bigJimReveal` (the bluff roar), `marqueeSwap`;
+  `topple` items (the six BIG JIM letters: steel creak ON the downbeat, slam ON the next beat, the slams' clangs walk
+  down E D C# B A G = chord tones of their bars); `slam` items in 304–332 (Big Jim's fists, escalating); breakables
+  `pin` (giant = a STRIKE), `lens` (cracks escalate to 4), `skylight`, the bar-76 `window` (the glass wall); the
+  `finish` near the song's `final_hit` cue (the finale stack ON 340: iris slam, mega cheer half a beat later, film
+  run-out on 341, 9 s of curtain-call applause from 342 that outlives the music into the poster; Game then skips its
+  finish jingle) — plus an optional explicit `def.audio: AudioCue[]` (`hush(from, to)`, `at(beat, sound)`,
+  `onSmash`, `onMiss`). `at`/`hush` cues go on the audio clock ~2.5 beats ahead (tempo map), are re-armed after every
+  spawn/rewind (a ◆ 272 retry replays the hush and the drop) and called off on a death or a pause (`conductor.onStop`
+  'cut'). `onSmash` sounds fire on the strike's GRADE (press time, on the beat if early, like the bells) or the
+  smash, once per pass. **THE HUSH**: the record + stomps/claps crossfade (30 ms in, a 10 ms crossfade centred on the
+  release beat) into a fixed mono horn band (320 Hz–3.4 kHz, −12 dB); the cowbell/shouts overlays and every SFX stay
+  dry; a strike target inside the window is THE BREAK (`breakKrak` on the hit, `rackCollapse` on a miss). Act 2's
+  mechanics sound through `stage.mechTelegraph` (bottle whistle / firebomb whoosh / ball rumble, starting 1 beat
+  before the arrival) and `stage.mechFx` (bottle smash, firebomb burst, ball hit). Stage sounds go through their own
+  soft clip (`STAGE_BUS`, −10 dBFS pre-bus) so big hits stay loud without stacking peaks on the record. Measured
+  (`--prefix=act`, `tools/music/stage_report.py`, clean player at FULL HOUSE): hush depth −11.3 dB (lows −29, horn
+  band −8.5, highs −12.6), the KRAK +8.8 dB over the hushed record, the drop slams back +15.3 dB, release/in clicks
+  none (−103 dBFS HF); letters' slams −3..−8 dB vs the record, creaks −5..−11; the finale adds +1.8 LU on the hit
+  (−11.2 vs −13.0 momentary), our stack −3.7 dB under the baked hit, limiter max 2.7 dB there (2.0 music alone, 2.5
+  with the player's strike + bell), applause carrying the tail at −20..−28 LUFS after the record fades; every act
+  scene ≤ −0.2 dBTP except rare +0.1 spikes from the synth strike's random HF bursts.
 - **Rewinds / count-ins**: a checkpoint rewinds the music 1 bar (`Tun.flow.countInBeats`) with a 35 ms
   pre-rolled fade-in (full gain on the downbeat, no click); stick clicks (`Sfx.sticks`) tick the
   count-in on the recording's own grid (the edit has no pickup: the first count-in is sticks only).
@@ -158,6 +184,7 @@ src/
            mix.ts         mix levels: overlay-stem curves over the crowd, booth + grade-SFX levels, limiter
            booth.ts       projection-booth film-sound processor on the music bus + overlay bus EQ/clip
            stage.ts       StageAudio: crowd -> booth/overlays/cheers, grade/miss/stumble/death/checkpoint sounds
+           cues.ts        level audio cues (hush / at / onSmash / onMiss) derived from level items; STAGE_SFX stacks in mix.ts
            samples.ts     sampled one-shots (assets/audio/sfx, tools/music/sfx.py) with onset alignment
            lab/mixlab.*   offline render of the real audio graph (OfflineAudioContext in headless Chromium)
            placeholderSong.ts  164 BPM E shuffle synth track in the real form (pickup + 32 bars,
@@ -261,10 +288,15 @@ Presentation cues on beats: `{type:'fx', beat, fx:'flash'|'shake'|'zoom'|'bgPuls
   [--secs=20] [--every=2000] [--gray] [--title] [--end] [--dpr=2] [--query=miss=40]` → PNGs + live fps + renderer JS ms.
   `--gray` = the greyscale+blur readability test. Measured: 60 fps at 1080p DPR 1 and 2, renderer JS ~1-1.7 ms/frame.
 - **Mix lab** (ears for agents; needs the licensed recording): `node src/audio/lab/mixlab.mjs [--only=full,booth]
-  [--out=<dir>]` renders the REAL graph (AudioSystem + Conductor stems + StageAudio) offline for scripted scenarios
+  [--prefix=act3_,act2_] [--out=<dir>]` renders the REAL graph (AudioSystem + Conductor stems + StageAudio) offline for scripted scenarios
   (booth / mid / FULL HOUSE / components / a booth→FULL HOUSE journey with misses + a stumble / a tone click test),
   writes 4-ch float WAVs (master + pre-limiter) to `playtest/out-audio/mixlab/`, then `tools/music/mix_report.py`
   prints `report.json`: LUFS + true peak, limiter GR and its beat-locked modulation (pumping), booth spectrum/width,
-  overlays + bells vs the record in their bands, each SFX vs the music, HF clicks.
+  overlays + bells vs the record in their bands, each SFX vs the music, HF clicks. The `act3_*` / `act2_*` scenes play
+  the REAL game level's audio cues with a clean player (every breakable struck ON its beat) three ways (mix / `_music`
+  / `_cues`, + `_legacy` = iteration 3's sounds only) and `tools/music/stage_report.py` reports each cue sound vs the
+  music (broadband + in its own band), the hush (depth, KRAK, drop contrast, click test, release timing) and the
+  finale (added loudness, peaks, limiter at the hit, the ring-out tail). The human's listening list:
+  `docs/reviews/audio_checklist.md`.
 - Review screenshots with the Read tool on the PNGs. Headless software rendering at DPR 2 runs ~30 fps;
   that's SwiftShader fill-rate, not the game (JS render cost is ~0.05 ms/frame; 60 fps with GPU).

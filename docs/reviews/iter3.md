@@ -351,6 +351,8 @@ The hierarchy is sensible: a miss is louder than a Great and quieter than the ch
    - act 2's whistle and rumble telegraphs, which are still windup/clack placeholders.
 
 **A human must listen for (10 minutes, headphones, then a TV or Bluetooth speaker):**
+*(Superseded in iteration 4 by `docs/reviews/audio_checklist.md`: these ten plus act 2's mechanic sounds and act 3,
+each with a `?start=` URL and what "good" sounds like.)*
 
 1. The first 8 bars at crowd 3. Does the booth sound like an old projector (charming) or like a bug?
 2. Booth → open over verse 1. Is the opening-up noticeable as "I did that"?
