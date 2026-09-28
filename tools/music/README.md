@@ -34,6 +34,10 @@ and `ffmpeg` with libvorbis and libmp3lame. The system python already has these.
 render.py              CLI: score -> mix -> master -> encode -> beatmap -> analysis
 sfx.py                 one-shots for the game (same voices as the song, in its key) + assets/audio/sfx/manifest.json
 check_grid.py          verifies a render against its gameplay grid (stops, empty stem bars, stems sum, shout onsets)
+build_original.py      the ORIGINAL recording: per-beat tempo map, lanes, the level edit, reward overlays
+                       (runs in tools/music/.venv; see "The original recording" below)
+original/              beatgrid.py (hit-locked smooth grid), timegrid.py (beat<->time on a per-beat map),
+                       lanes.py (drums/bass/vocal/transcription lanes), overlay.py (overlay arrangement)
 producer/score.py      the DSL (Score, Section, Track, swing, humanize, automation, stops, markers)
 producer/patterns.py   idiomatic figures: boogie_guitar, pump_bass, walking_boogie, piano_boogie_lh,
                        piano_tremolo, piano_gliss, triplet_run, power
@@ -300,7 +304,7 @@ const song: SongDef = { ...bm.song, source: { kind: 'file', url: oggUrl } };
   },
   "audio": {
     "sampleRate": 48000, "lengthSamples": N, "durationSec": s,
-    "swing": 1.02, "swingRatio": 0.67,
+    "swing": 0.67, "swingRatio": 0.67, "swingAmount": 1.02,   // swing = off-beat 8th position (SongDef.swing)
     "files": {"ogg": {"path", "audioOffset", "decoderLagSamples", "bytes"}, "mp3": {...},
               "stems": {"drums": "assets/audio/stems/<name>/drums.ogg", ...},
               "masterStems": [...], "stemsAtMasterLevel": true, "stemsGainDb": -1.9},   // when configured
@@ -381,3 +385,32 @@ perceptual attack (50 % envelope): start the file `onsetSec` early to land it on
 50 ms). **`mixGainDb`** is a suggested playback gain against the −14 LUFS master. Loops are exactly periodic.
 
 `flags` lists anything outside targets.
+
+## The original recording (`build_original.py`)
+
+The game plays the 1972 recording, not a cover. `docs/music/original_edit.md` has the edit decision, the bar map,
+lane details and the engine notes.
+
+```bash
+tools/music/.venv/bin/demucs -n htdemucs_6s -o tools/music/build/original/demucs reference/jim_croce_original.mp3
+tools/music/.venv/bin/python tools/music/build_original.py [--stage grid|lanes|full|edit]    # all by default
+```
+
+| Stage | What it does |
+|---|---|
+| `grid` | demucs drum stem, **compensated for demucs' 1105-sample MP3 decode lag**. librosa tracking, then every beat is locked to the drummer's broadband attack. A robust 5-beat local fit gives the tempo map: 476 per-beat points, 161.5 → 166.6 BPM, 93 % of beats within 10 ms of the hits. Writes `reports/jim_original.grid.json` and a click-track mix `build/original/click_check.wav`. |
+| `lanes` | Drum hits classified by beat-parity calibration (kick/snare/tom, exact times). Also `fills`, bass notes (pYIN), `bassWalks` (transcription figures snapped to detected onsets), vocal phrases and held notes (no words), transcription `melody`/`hooks`, `bassOut` stop-time and per-bar `energy`. |
+| `full` | Renders the reward overlays (`shouts`, `stomps`, `cowbell`) with the sampled palette on the per-beat map. Calibrates their levels against the record, encodes, and writes `assets/audio/jim_original.beatmap.json`. |
+| `edit` | Cuts verse 2's block (song bar 33 b3 → 62 b3, inside the identical B7 turnaround) and ends on song bar 115 with our final hit. The overlays are cut the same way. Writes `assets/audio/jim_edit.beatmap.json`. |
+
+**Licensed audio** (the record, its OGG and the edit) goes to `assets/audio/licensed/`, which is gitignored. Never
+commit it. The beat maps and overlay stems are ours and are committed.
+
+**Beat-map differences from rendered songs:**
+
+- `song.tempo` has one point per beat.
+- `audio.files` = `{mix, shouts, stomps, cowbell}`, with `path` relative to the audio base URL, the shape
+  `songFromBeatmap` expects.
+- `audio.swing` is the measured off-beat ratio (0.659).
+- `bars[].bar` is the song bar number (in the edit, the original song bar).
+

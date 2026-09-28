@@ -7,3 +7,6 @@ reference/
 tools/music/.venv/
 tools/music/samples/
 tools/music/samples_cache/
+
+# licensed commercial recordings: never commit
+assets/audio/licensed/

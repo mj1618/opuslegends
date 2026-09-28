@@ -870,6 +870,25 @@ def theatre_ambience(n, sr, rng, fps=24.0):
     return out / np.max(np.abs(out))
 
 
+def squeal(vel, sr, rng, dur=0.55):
+    """knee-slide squeal on a polished floor: stick-slip friction tone (rising then falling, with jitter) +
+    a cloth swish"""
+    n = int((dur + 0.05) * sr)
+    t = _t(n, sr)
+    u = np.clip(t / dur, 0, 1)
+    f0 = 1150 * (1 + 0.35 * np.sin(math.pi * u ** 0.8)) * (1 + 0.02 * dsp.onepole_lp(rng.standard_normal(n), 30, sr) * 5)
+    ph = TWO_PI * np.cumsum(f0) / sr
+    tone = np.zeros(n)
+    for k, a in ((1, 1.0), (2, 0.45), (3, 0.25), (4, 0.12)):
+        tone += a * np.sin(k * ph)
+    tone *= 1 + 0.35 * np.sin(TWO_PI * 38 * t)            # stick-slip chatter
+    swish = dsp.tv_filter(rng.standard_normal(n), "bp", 2500 + 2000 * u, sr, 0.8) * 0.35
+    env = np.clip(t / 0.02, 0, 1) * (1 - u) ** 0.6 * (t < dur)
+    x = (0.6 * tone + swish) * env
+    x = eq(x, sr, [("hp", 500, 0.7), ("peak", 2400, 1.0, 3)])
+    return x / (np.max(np.abs(x)) + 1e-9) * vel
+
+
 class SfxKit(Instrument):
     mono = False
     variants = 2

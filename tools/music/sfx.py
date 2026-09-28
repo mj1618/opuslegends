@@ -164,7 +164,8 @@ def riff_pitches(song_path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--song", default=os.path.join(HERE, "songs", "jim.py"))
+    ap.add_argument("--song", default=os.path.join(HERE, "songs", "jim.py"),
+                    help="score whose riff lane sets the riffbell pitches (the shelved cover's call/response riff)")
     ap.add_argument("--out", default=os.path.join(ROOT, "assets", "audio", "sfx"))
     ap.add_argument("--q", type=int, default=3)
     ap.add_argument("--synth", action="store_true", help="all-synth voices (default: sampled where the song is)")
@@ -254,17 +255,19 @@ def main():
               "current chord); the song's piano", -22.0, midi=m, _finish={"fade_ms": 60.0})
 
     # ------------------------------------------------------------------ world
+    # jukebox BOOM: the concert bass drum (a sub layer made its attack read late); bar bell CLANG: brass bell E5
     y = render(kit, [ev(piece="bassdrum" if sd else "floortom", vel=1.0)], 2.0, 60)
-    W.add("slot_boom", y, "world", "stomp-break BOOM (concert bass drum); the song keeps a ghost of it on the slots",
+    W.add("jukebox_boom", y, "world", "jukebox BOOM: big bass drum (stomp-break slots, big landings)",
           -15.0, stereo=True, _finish={"fade_ms": 200.0})
-    y = render(kit, [ev(piece="anvil" if sd else "ridebell", vel=1.0)], 1.5, 61)
-    W.add("slot_clang", y, "world", "stomp-break CLANG (anvil); ghosted in the song", -16.0, stereo=True,
-          _finish={"fade_ms": 200.0})
+    W.add("barbell_clang", fx.bell_voice("buoy", 76.0, 1.0, SR, R(26)), "world", "bar bell CLANG (brass bell, "
+          "E5 nominal): stomp-break slots, last orders", -16.0, midi=76, _finish={"fade_ms": 300.0})
+    W.add("knee_slide", fx.squeal(1.0, SR, R(63)), "player", "knee-slide squeal on the polished floor (slide start)",
+          -20.0)
     if sd:
         y = render(kit, [ev(piece="gong", vel=1.0, tune=1.035)], 6.0, 62)
     else:
         y = fx.gong(1.0, SR, R(1), "big")
-    W.add("gong_big", y, "world", "the one big gong (the song hits it on the drop, bar 73)", -16.0, stereo=True,
+    W.add("gong_big", y, "world", "one big gong (optional: for the biggest moment only)", -16.0, stereo=True,
           _finish={"fade_ms": 400.0})
     W.add("bench_thunk", fx.wood(1.0, SR, R(5), "thunk"), "world", "bench see-saw thunk", -18.0)
     W.add("bench_creak", fx.creak(0.9, SR, R(27)), "world", "bench see-saw creak", -22.0)
@@ -321,7 +324,8 @@ def main():
            "palette": "sampled" if not args.synth else "synth",
            "notes": "Vorbis q3, peak -1 dBFS. mixGainDb = suggested gain vs the song master (-14 LUFS). onsetSec = "
                     "time from file start to the perceptual attack: to land ON a beat, start the file onsetSec early. "
-                    "Loops are exactly periodic. Theme: 70s grindhouse pool hustler.",
+                    "Loops are exactly periodic. Theme: 70s grindhouse pool hustler. Pitched sounds are at A440, "
+                    "matching the original recording (measured within +-8 cents).",
            "sounds": W.items}
     with open(os.path.join(args.out, "manifest.json"), "w") as f:
         json.dump(man, f, indent=1)

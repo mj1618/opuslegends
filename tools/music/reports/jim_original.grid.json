@@ -1,0 +1,48 @@
+{
+ "beats": 477,
+ "stem_lag_compensated_samples": 1105,
+ "clean_hits_used": 473,
+ "grid_vs_drum_hits_ms": {
+  "n": 477,
+  "mean_abs": 4.2,
+  "p90_abs": 8.54,
+  "max_abs": 27.25,
+  "within_10ms_pct": 93.3,
+  "beats_1_3_mean": -0.1,
+  "beats_2_4_mean": 0.11
+ },
+ "bpm_range": [
+  159.02,
+  169.28
+ ],
+ "bpm_first8bars": 161.51,
+ "bpm_last8bars": 166.61,
+ "beat_jitter_ms_sd": 2.2,
+ "vs_independent_onsets_ms": {
+  "n": 460,
+  "median": -6.05,
+  "mean_abs": 9.38,
+  "p90_abs": 19.64,
+  "max_abs": 48.11,
+  "within_10ms_pct": 62.2
+ },
+ "engine_check_ms": {
+  "n": 477,
+  "mean": 9.4,
+  "mean_abs": 13.96,
+  "p90_abs": 27.83
+ },
+ "click_vs_drum_hit_ms": {
+  "n": 477,
+  "mean_abs": 4.45,
+  "p90_abs": 9.73,
+  "max_abs": 27.19,
+  "within_10ms_pct": 90.6
+ },
+ "swing": {
+  "median": 0.6587,
+  "p25": 0.5956,
+  "p75": 0.7061,
+  "measured_beats": 475
+ }
+}
