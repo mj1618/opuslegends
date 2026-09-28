@@ -306,3 +306,41 @@ act-3 sky/ground/look/set-piece names). The art agent now owns `render/act3Draw.
   are WALKABLE (26 px ledge assist), so step each one up 24 px. Set-pieces only fire while running, so cue anything
   after the finish from state (the iris is a function of the beat). Presentation must read one consistent state
   (a letter's `landedBeats`, not a separately computed beat).
+
+## Iteration 4 — act 2 notes (level design: the vertical rework, edit bars 34-60)
+Plan: `docs/level/act2_plan.md` (rewritten). Code: `src/level/act2.ts`, `src/game/mech/hook.ts` + `mech/index.ts` (hook
+rides, bottle bat grace, scramble ≤ 150 px), `camera` items' `ground` (`cameraGroundAt`, `Camera.groundFrac`),
+`playtest/slack.mjs` (runs the act-2 mechanics; `--stumbles`, `--why`). Act 2 still ends on 240 on the lane deck (h 950).
+- **It climbs.** 0 → 1,620 px in bars 35–41 (review: 790 over 12,300 px of run): fire-escape flights (the 26 px step-up
+  assist walks you up 24 px risers, hands free), ledge hops UP on the boogie's climbing notes (on the "and"s), a storey
+  jump (held), two alleys jumped UP, the rope hoist. Then the roof (stop-time), the cradle to 1,864, the sill at 1,964,
+  and THE DROP: a ~1,000 px zip down into the Lanes on the chorus downbeat (the act is a mountain). Camera `ground`
+  0.52 on the climb / 0.5 on the cradle / 0.42 on the zip so the street drops away below.
+- **One new verb: the HOOK** (strike ON the beat to hook a rope / laundry line / cradle / cable and ride it; strikes
+  work mid-ride). Taught safe 3× (148 hoist, 178.66 the line on the held note, 188 the cradle one step per B), lethal 2×
+  in the chorus (204 the zip, 212 the pinsetter's sweep bar). Every act-1 reskin is gone: the knee-slide sign, the safe
+  lifts, the `0∪ 1∪ 2X` motto (now `0∪ 1X 2X`: hop to the sill, bat, Heave the goon across the well), the launch into
+  the chorus, the HEY-HEY goons, the lethal lift run, the four giant pins (now the walkdown walked DOWN: ∪ X ∪ X over
+  two pinsetter pits).
+- **Fair.** Every pit −90…−140 / +150…+235 ms; bottles −210 / +145 (was +70: a 70 ms bat grace after the clip),
+  firebombs −100 / +145 (flames 0.5 beat, 16×18 core), balls −90 / +140 (0.5 beat, r 16), hooks −130 / +185. Bars
+  40–41 thinned (1 stumble + the 2 peak gaps); the 207/208 pair is a pin then the gutter; chorus stumbles ≥ 2 beats
+  apart (two close together were a Burn catch loop for ±160). Hop-led climb (14 hops / 3 jumps / 8 strikes); act 2 is
+  50% strikes (was 55%).
+- **Measured** (bots from ◆132, `dist-act2`, run to the level's end; act-2 deaths only):
+  - Full-level autoplay from the cold open: PASS, 0 deaths, 300/300 actions on time.
+  - Skilled ±40: 0 (×2). Sloppy ±85 + 10% late: 0, 0, 1, 0, 0 (0.2 per run; iteration 3: 1.0). ±130: 0, 2, 2, 0, 1, 6
+    (1.8; the 6 are spread over 6 spots). ±160 + 20% late: 3, 7, finishes (iteration 3: DNF after 18). Uncalibrated
+    (every press 60–110 ms late): 0 (iteration 3: 6–11). Lazy: caught at bar 35 (skipped ledge hops scramble and feed
+    the Burn). Reckless: caught at bar 48.
+  - `npm run rubric -- --level=src/level/index.ts#gameLevel --bars=34-60 --reports=…`: **gate 11/11**; `--bars=1-60`:
+    **gate 11/11, C1 ρ 0.88** (was 0.30: verse 3 4.3 / 2.6, chorus 3 5.8 — the Lanes are the act's peak). Non-gate
+    fails: B5 (strike leads the stop-time and the chorus blocks, 56–60%), A7 (bar 42's first-bar intensity is its
+    novelty bonus; no threats), E3 (4 threats in view in the chorus), A10 (1 sloppy death = 100%).
+- **Miss vs the brief's targets.** Sloppy ±85 dies 0.2 per act, not 1–2, and ±130 1.8, not 2–4: under −85/+150 a
+  uniform ±85 bot only fails on its 10% extra-late tail (~1% per lethal), and ±130 only on early sides < −130. The
+  teeth sit on the early sides (−90…−95 on the peaks) and in the Burn; more would need windows the review forbids.
+- **Lessons.** A hook path must stay above the terrain it crosses (a path below a floor top pushes the rider back to
+  the floor's edge). Staircase flights + hops: a hop landing on a flight lands early (fine for rewards, never before a
+  lethal). The ledge scramble makes a missed reward hop cost time, not a life — and three in a row feed the Burn (the
+  lazy bot dies at bar 35). Strikes 0.34 beat apart execute 67 ms late (the active window), so keep them ≥ 0.66 apart.

@@ -214,13 +214,13 @@ T.stairs(bar(38, 1) + 0.35, bar(38, 2) + 0.55, 288); // 1130
 T.up(bar(38, 4), 60); // 1190
 // bar 39: up on the E (153), the second ALLEY jumped UP on the A (154, the boom)
 T.up(bar(39, 2), 60); // 1250
-T.gapUp(bar(39, 3), [0.3, 1.54], 110); // 1360
+T.gapUp(bar(39, 3), [0.3, 1.575], 110); // 1360
 T.stairs(bar(39, 4) + 0.6, bar(40, 1) - 0.05, 60); // 1420
 // bar 40: up on the E, a flight, the firebomb on the landing (158)
 T.up(bar(40, 1), 60); // 1480
 T.stairs(bar(40, 1) + 0.7, bar(40, 2) + 0.7, 60); // 1540
 // bar 41: THE PEAK — two gaps hopped UP on the fill (160, 162)
-T.gapUp(bar(41, 1), [0.09, 0.7], 40, TAP); // 1580
+T.gapUp(bar(41, 1), [0.09, 0.71], 40, TAP); // 1580
 T.gapUp(bar(41, 3), [0.09, 0.7], 40, TAP); // 1620 = the roof
 const H_ROOF = T.h;
 // bars 42-47 on the roof. bar 42: a held jump over a vent (flat). bar 45: the laundry line over a light well (safe:
@@ -235,20 +235,22 @@ T.set(bar(48, 4) + 0.2, CRADLE0 + 240); // 1860 (ladder 2) = the tower ledge
 // bar 49: up on the kick
 T.up(bar(49, 1), 60); // 1920
 // bar 51: HUP = a hop UP to the big window's sill across a gap (the kick)
-T.gapUp(bar(51, 1), [0.09, 0.68], 40, TAP); // 1960 = the sill
+T.gapUp(bar(51, 1), [0.09, 0.71], 40, TAP); // 1960 = the sill
 const H_SILL = T.h;
 // bar 52: THE DROP — the cable from the sill down to the Lanes' window (hookRide): the light well below is lethal
 T.pit(bar(52, 1) + 0.6, bar(52, 3) + 0.5, H_LANES);
 // bar 53: a gutter on the kick
-T.gapUp(bar(53, 1), [0.09, 0.8], 0, TAP);
+T.gapUp(bar(53, 1), [0.09, 0.82], 0, TAP);
 // bar 54: the pinsetter pit under the sweep bar (the hook ride carries the action)
 T.pit(bar(54, 1) + 0.55, bar(54, 3) + 0.7);
+// bar 55: a gutter on the kick (216)
+T.gapUp(bar(55, 1), [0.09, 0.8], 0, TAP);
 // bar 57: the peak gutter on the kick, then the ball-return launch (226) onto the pinsetter catwalk
 T.gapUp(bar(57, 1), [0.09, 0.8], 0, TAP);
 T.set(bar(57, 4) + 0.6, H_LANES + 120); // the catwalk (+120): the ball-return launch (226) lands on it at 227.85
 // bar 58: the WALKDOWN walked DOWN the catwalk: hop down a tier over a pinsetter pit on the B (228) and the G (230)
 T.gapUp(bar(58, 1), [0.09, 1.05], -60, TAP); // 1010
-T.gapUp(bar(58, 3), [0.09, 0.9], -60, TAP); // 950
+T.gapUp(bar(58, 3), [0.09, 0.93], -60, TAP); // 950
 const terrain = T.end(bar(61) + 40);
 const floorAt = (b: number) => T.hAt(b);
 
@@ -465,15 +467,17 @@ export const act2Items: LevelItem[] = [
   fx(bar(52, 3) + 0.6, 'shake', 0.5),
   { type: 'camera', beat: bar(52, 3), zoom: 0.82, beats: 2, ground: 0.66 },
   pin(bar(52, 4)),
-  // ---- bar 53 (E7): a gutter on the kick, the record's HEY HEY (209, 210) = two BALL-RETURN POPS batted back down the
-  // lane, a hop through tokens on 4 (no ball: five threat beats in a row otherwise)
+  // ---- bar 53 (E7): a gutter on the kick, the record's HEY HEY (209, 210) = a BALL-RETURN POP batted back down the
+  // lane, then a pin smashed; the first BALL rolls in on 4 (a pin, not a ball, on 207: no stumble hop right before the
+  // gutter hop — iteration 3's 207/208 death spot)
   batBottle(bar(53, 2)),
-  batBottle(bar(53, 3)),
+  pin(bar(53, 3)),
   fx(bar(53, 2), 'flash', 0.4),
   fx(bar(53, 3), 'flash', 0.4),
-  ...tokenHop(bar(53, 4)),
+  hint(bar(52, 4), 'Bowling balls roll down the lanes — HOP them on the beat!', 5),
+  ...ball(bar(53, 4)),
   // ---- bar 54 (A7): hook the PINSETTER's sweep bar on the kick (lethal: the pinsetter pit) and ride it over, smashing a
-  // rack of pins mid-ride on the snare; drop off on 3, a hop on the E (215)
+  // rack of pins mid-ride on the snare; drop off on 3, a pin on the E (215)
   mode(bar(54, 1), 'sweep'),
   ...hookRide(
     bar(54, 1),
@@ -488,21 +492,18 @@ export const act2Items: LevelItem[] = [
     floorAt,
   ),
   bottleHigh(bar(54, 2), 'pin', 160),
-  hint(bar(54, 3), 'Bowling balls roll down the lanes — HOP them on the beat!', 4),
   bottleHigh(and(bar(54, 2)), 'pin', 150),
   mode(bar(54, 3) + 0.75, 'lanes'),
   fx(bar(54, 2), 'bgPulse', 0.6),
-  ...tokenHop(bar(54, 4)),
-  // ---- bar 55 (E7, HEY 218): a ball on the kick, a hop, the goon bowler on the HEY, a pin on 4 (the stumbles 2 beats
-  // apart: two close together feed the Burn a catch)
-  ...ball(bar(55, 1)),
+  pin(bar(54, 4)),
+  // ---- bar 55 (E7, HEY 218): a gutter on the kick, a hop, the goon bowler on the HEY, a pin on 4
   ...tokenHop(bar(55, 2)),
   jabber(bar(55, 3)),
   fx(bar(55, 3), 'flash', 0.4),
   pin(bar(55, 4)),
 
-  // ---- bar 56 (A7, held note 222.09): a hop on 1, a pin on 2, the SLICK RUN: knee-slide down the oiled lane under the
-  // pinsetter's sweep bar on the held note, pop out on the "and"
+  // ---- bar 56 (A7, held note 222.09): a hop on 1 (re-entry: nothing hurts for 2 beats), a pin on 2, the SLICK RUN:
+  // knee-slide down the oiled lane under the pinsetter's sweep bar on the held note, pop out on the "and"
   { type: 'checkpoint', beat: bar(56) },
   follows(bar(56), 'shouts'),
   ...tokenHop(bar(56, 1)),
@@ -531,25 +532,25 @@ export const act2Items: LevelItem[] = [
   fx(bar(58, 2), 'shake', 0.45),
   fx(bar(58, 3), 'zoom', 0.4),
   fx(bar(58, 4), 'shake', 0.5),
-  // ---- bar 59: E lands (232), hook B — the breath after the peak: tokens, pins, one last ball
+  // ---- bar 59: E lands (232), hook B — the breath after the peak: a ball on the E, a hop, one last ball, a pin
   { type: 'camera', beat: bar(59, 1), zoom: 0.86, beats: 2 },
   mode(bar(59, 1), 'lanes'),
   fx(bar(59, 1), 'flash', 0.6),
-  ...tokenHop(bar(59, 1)),
+  ...ball(bar(59, 1)),
   ...tokenHop(bar(59, 2)),
   ...ball(bar(59, 3)),
   pin(bar(59, 4)),
   ...melodyTokens([[233, 52], [234.67, 57], [235, 57], [235.67, 58]]),
 
-  // ================================================================ TAG 3 (bar 60): the breath; the fill on &3, &4, 1 ◆ 236
+  // ================================================================ TAG 3 (bar 60): hop, hop, hop, hop, SMASH on the fill's &4 ◆ 236
   { type: 'checkpoint', beat: bar(60) },
   label(bar(60), 'TAG'),
   ...tokenHop(bar(60, 1)),
   { type: 'camera', beat: bar(60), zoom: 0.9, beats: 2 },
   ...tokenHop(bar(60, 2)),
   ...tokenHop(bar(60, 3)),
-  pin(and(bar(60, 3))),
-  crate(and(bar(60, 4)), 'pin'),
+  ...tokenHop(bar(60, 4)),
+  crate(and(bar(60, 4)), 'pin'), // the big pin mid-hop on the fill's &4
   fx(and(bar(60, 3)), 'bgPulse', 0.6),
   fx(and(bar(60, 4)), 'bgPulse', 0.8),
 

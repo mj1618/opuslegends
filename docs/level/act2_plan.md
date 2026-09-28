@@ -38,7 +38,7 @@ over bars 34–35), 19 at the pre-chorus (a clean Hup-Hup-HEY earns FULL HOUSE o
 
 | Piece | Item | Verb | Miss | Window (slack.mjs) |
 |---|---|---|---|---|
-| **Hook ride** (`game/mech/hook.ts`) | `{type:'hook', style:'rope'\|'line'\|'cradle', path}` | X ON its beat: the cue hooks, Slim rides the path (feet heights by x); strikes still work while riding, jumps don't | what's under the path: stairs / ladders (reward: nothing but the tokens) or a pit (death) | −100/+185 ms (grab: press in [−0.3, +0.5] beat) |
+| **Hook ride** (`game/mech/hook.ts`) | `{type:'hook', style:'rope'\|'line'\|'cradle', path}` | X ON its beat: the cue hooks, Slim rides the path (feet heights by x); strikes still work while riding, jumps don't | what's under the path: stairs / ladders (reward: nothing but the tokens) or a pit (death) | −130/+185 ms (grab: press in [−0.38, +0.5] beat) |
 | Fire-escape flight | `Terrain.stairs(a, b, rise)` (floors, ≤ 24 px risers) | none: the 26 px step-up assist walks you up, hands free | — | — |
 | Storey jump | `Terrain.storey(beat, rise)` (`ledge`, hold 1) | – up to 150 px onto the next landing | a tap bonks: the ledge scramble (now ≤ 150 px) pops you up, ~0.5 beat lost | — |
 | Camera framing | `camera` item `ground` (screen-y of the ground line, default 0.66) | — | — | 0.52 on the climb, 0.5 on the cradle, 0.42 on the zip (the drop shows) |
@@ -93,28 +93,31 @@ Thinned from iteration 3's 5 threats in bars 40–41 (the Burn loop) to 1 stumbl
 | Bar | Music | Actions |
 |---|---|---|
 | 52 | A7, the drop (.79) | **X 204 L H THE ZIP: hook the cable on the chorus downbeat and plunge ~1,000 px** through the smashed window (`zipDrop`, camera ground 0.42) · X 205 R, X 206 R neon letters smashed on the way down · lands 206.6 on the lane deck · X 207 R pin |
-| 53 | E7, **HEY 209 · HEY 210** | ∪ 208 L gutter (std fit) · X 209 **S** · X 210 **S** — ball-return POPS batted back down the lane on the HEYs · ∪ 211 R |
-| 54 | A7 (.80) | **X 212 L H hook the pinsetter's sweep bar over the pit** · X 213 R, X 213.66 R racks smashed mid-ride · ∪ 215 **S ball** (hint) |
-| 55 | E7, **HEY 218** | ∪ 216 R · ∪ 217 **S ball** · X 218 **S** the goon bowler on the HEY · X 219 R pin |
-| 56 | A7, held 222.09 | ∪ 220 R · X 221 R · **═ 222 S the slick run**: knee-slide down the oiled lane under the sweep bar on the held note · X 223.66 R |
+| 53 | E7, **HEY 209 · HEY 210** | ∪ 208 L gutter · X 209 **S** a ball-return POP batted back down the lane on the first HEY · X 210 R a pin on the second · ∪ 211 **S the first ball** (hint) |
+| 54 | A7 (.80) | **X 212 L H hook the pinsetter's sweep bar over the pit** · X 213 R, X 213.66 R racks smashed mid-ride · X 215 R pin |
+| 55 | E7, **HEY 218** | **∪ 216 L gutter** · ∪ 217 R · X 218 **S** the goon bowler on the HEY · X 219 R pin |
+| 56 | A7, held 222.09 | ∪ 220 R · X 221 R (the checkpoint's 2 safe beats) · **═ 222 S the slick run**: knee-slide down the oiled lane under the sweep bar on the held note · X 223.66 R |
 | 57 | A7 **.85 = the chorus peak** | **∪ 224 L the peak gutter** · X 225 **S** goon · X 226 R pin on the ball return as it fires: **the ball-return launch** onto the pinsetter catwalk · X 227 R pin mid-flight |
 | 58 | **hook-A walkdown B A G F#** | the walkdown walked DOWN the catwalk: **∪ 228 L hop down over a pinsetter pit (B)** · X 229 R giant rack STRIKE! (A) · **∪ 230 L hop down (G)** · X 231 R giant rack SPARE! (F#) |
-| 59 | E lands 232, hook B (.51) | ∪ 232 R · ∪ 233 R · ∪ 234 **S ball** · X 235 R pin — the breath |
+| 59 | E lands 232, hook B (.51) | ∪ 232 **S ball** · ∪ 233 R · ∪ 234 **S ball** · X 235 R pin — the breath |
 
 ### Tag 3 (bar 60, 236–240). ◆ 236
-∪ 236 R · ∪ 237 R · ∪ 238 R · X 238.66 R (fill &3) · X 239.66 R big pin (fill &4) → act 3 on 240 (flash + shake).
+∪ 236 R · ∪ 237 R · ∪ 238 R · ∪ 239 R · X 239.66 R the big pin mid-hop on the fill's &4 → act 3 on 240 (flash +
+shake).
 
 ## Lethal fits (press-offset windows, `node playtest/slack.mjs --level=src/level/act2.ts#act2Level --stumbles`)
 
 | Beat | What | Window | | Beat | What | Window |
 |---|---|---|---|---|---|---|
-| 140 | alley UP (held, +110) | −220/+235 | | 208 | gutter (std) | −115/+150 |
-| 154 | alley UP (held, +110) | −195/+230 | | 212 | hook: the sweep bar | −105/+185 |
-| 160, 162 | gaps UP (tap, +40) | −150/+155 | | 224 | peak gutter | −90/+155 |
-| 200 | gap UP to the sill (tap) | −145/+150 | | 228, 230 | walkdown pits (down 60) | −205/+155, −100/+155 |
-| 204 | hook: THE ZIP | −100/+185 | | | | |
+| 140 | alley UP (held, +110): the teacher | −140/+235 | | 208 | gutter | −95/+150 |
+| 154 | alley UP (held, +110) | −95/+230 | | 212 | hook: the sweep bar | −135/+185 |
+| 160, 162 | gaps UP on the fill (tap, +40) | −90/+155 | | 224 | peak gutter | −90/+155 |
+| 200 | gap UP to the sill (tap) | −95/+150 | | 228, 230 | walkdown pits (down 60) | −205/+155, −115/+155 |
+| 204 | hook: THE ZIP | −135/+185 | | 216 | gutter | −100/+155 |
 
-Moving threats: bottles −210…−275/+145, firebombs −100…−270/+145…+150, balls −90…−195/+140…+145.
+Moving threats and rides: bottles −210…−275/+145, firebombs −100…−270/+145…+150, balls −190…−195/+135…+140, safe
+hooks −130…−135/+180…+185. The teeth are on the early side (−90…−95 on the peaks), the late side is ≥ +150 on every
+pit (an uncalibrated / Bluetooth player presses late, not early).
 
 ## Iteration 3 → 4: what replaced the reskins
 
@@ -125,7 +128,7 @@ Moving threats: bottles −210…−275/+145, firebombs −100…−270/+145…+
 | safe cradle LIFTS (48) | the cradle HOIST, one step per B on the B pedal |
 | Hup-Hup-HEY `0∪ 1∪ 2X` into a goon (51) | `0∪ 1X 2X`: hop up to the sill, bat, Heave him through a window across the well |
 | launch into the chorus (52) | THE ZIP down 1,000 px on the chorus downbeat |
-| Bluffers on HEY HEY (53) | ball-return pops batted on the HEYs |
+| Bluffers on HEY HEY (53) | a ball-return pop batted on the first HEY, a pin on the second |
 | lethal pinsetter LIFTS (54) | the sweep-bar hook over the pinsetter pit (with strikes mid-ride) |
 | four giant pins XXXX (58) | the walkdown walked DOWN: ∪ X ∪ X over two pits |
 
