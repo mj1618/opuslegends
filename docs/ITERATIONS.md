@@ -389,3 +389,19 @@ Measured on the whole level (acts 1–3 as committed, builds `2bb311a`–`086185
 - Open (other owners): pit loops for the ±160 bot in act 3 (277 ×8 in one run, 311 / 317 ×4) and the act-2 cradle-miss
   path (a missed cradle → ladder scrambles at 189.8 / 192.3 → Burn catches at 191 for harsh bots). Act 3's ±130 rate
   (2.3 per act) is above act 2's (1.7). The pit on 116 is the ±160 bot's act-1 hotspot (2–4 deaths); fine for ±130.
+
+## Iteration 4 — outcome + fun review
+Shipped: act 3 (pool room call/response → Rack + break shot → sunset Sign Falls → Big Jim gauntlet → theatre iris
+finale + poster), act 2 rework (1,620 px vertical climb, hook rides, fairness), gameplay fixes (Burn respawn, crowd 8
+start + seam carry-over, latency tap test + bounded auto-drift, hop-led blocks), act-3 art + Big Jim rig, act-3 SFX,
+audio checklist. The level is COMPLETE (edit bars 1-86, 2:04).
+Review (docs/reviews/iter4.md): busy, varied 2-minute show; per-act gates 11/11; act 3 has the best set-pieces.
+Not AAA yet: the finale lands on a black screen (iris closed before 340) with HUD over THE END; hidden-lethal
+"safe" hops (275, 323, 308, 59) cause death loops; Burn can lock out struggling players; two 26 s single-room
+stretches; pool-room call/response hard to see; HUD clutter.
+
+## Iteration 5 — Polish: finale, fairness sweep, readability (in progress)
+(a) gameplay: hidden-lethal hops + slack --hidden, Burn assist, re-offer calibration, designed chorus-4 teeth,
+spread pit 116, level cues for mid-act visual beats + pool-room readability; (b) art: finale full-frame through
+340 + HUD hide + victory pose, sunset-before-drop, fallen letters as floor, HUD polish, mid-act visual beats,
+visible call/response.
