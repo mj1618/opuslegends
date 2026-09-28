@@ -55,7 +55,7 @@ The drummer plays a slightly laid-back backbeat. A grid locked hit-by-hit would 
 | Click track mixed over the song (`build/original/click_check.wav`, for listening) | same as grid vs. drum hits |
 | Independent full-mix onsets (librosa spectral flux, backtracked) | median −6 ms |
 | The engine's `analyzeBeatAlignment` heuristic on the full mix | mean +9 ms |
-| Measured swing (off-beat 8th position) | **0.659** (IQR 0.60–0.71); `audio.swing` |
+| Measured swing (off-beat 8th position) | **0.659** (IQR 0.60–0.71); `audio.swingRatio` |
 | Beat-to-beat jitter of the grid | 1.0 ms SD |
 | Tuning | A440 within ±8 cents, so pitched SFX stay at A440 |
 
@@ -178,8 +178,8 @@ Each beat map's `audio.files` lists the stems next to `mix`, so `songFromBeatmap
    - `audio.files.mix` is the record. The overlays `shouts`, `stomps` and `cowbell` become stems (no `base`, so
      `mix` stays the main source). Paths are relative to the audio base URL, e.g. `audio/` +
      `licensed/jim_edit.ogg`.
-   - `audio.swing` is the off-beat ratio (0.659). The producer pipeline now writes the ratio there too; it wrote the
-     swing *amount* before.
+   - `audio.swingRatio` is the off-beat ratio (0.659), in [0.5, 0.75]. The ambiguous bare `audio.swing` key is gone
+     (old producer maps put the swing *amount*, 1.02, there); the loader accepts it only if it is a valid ratio.
    - Prefer the OGG. The MP3 decodes 1105 samples late in decoders that ignore the LAME header.
 4. **Licensed files at runtime.** Serve `assets/audio/licensed/` from `public/` locally (copy or symlink it,
    gitignored). Never commit it and never ship it in public builds without the licence.

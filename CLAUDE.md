@@ -53,7 +53,8 @@ World y grows DOWN; the base ground top is y = 0.
 - **Timing judge** (`game/judge.ts`): each hop/strike PRESS is graded against the nearest intended
   action (Perfect ±45 / Great ±90 / Good ±135 ms, early +12). Grades drive score, feedback and the
   crowd (`game/crowd.ts`, streak meter → `shouts`/`bonus` stem gains) — never physics.
-- **Swing** lives in one place: `SongDef.swing` (0.67 shuffle; beatmap `audio.swing`). Everything on an
+- **Swing** lives in one place: `SongDef.swing` = the swing RATIO (position of the "and" in the beat, 0.5–0.75;
+  placeholder 0.67, the original 0.659; beatmap `audio.swingRatio`). Everything on an
   "and" (slam-platform lifts, jabber bows, 8th lum rows) reads it.
 
 **Levels are authored in musical time** (`level/types.ts`, helpers in `level/dsl.ts`):
@@ -102,7 +103,7 @@ playtest/probe.mjs        quick state probe: node playtest/probe.mjs "<query>" <
 ```
 
 Swapping in the real song: `songFromBeatmap(json, 'audio/…/')` turns the producer's beatmap.json
-(schema `opuslegends.beatmap/1`: song.tempo/audioOffset/key/harmony, audio.swing/files, sections, lanes)
+(schema `opuslegends.beatmap/1`: song.tempo/audioOffset/key/harmony, audio.swingRatio/files, sections, lanes)
 into a SongDef with stems; point `Game.song` at it; check `report.beatMapAlignment` (≈0 ms) and
 `report.shoutAlignment` (every chorus jabber strike sits on a `shouts` lane beat).
 Beat-reactive art: read `game.groove` in render code, or put a `BeatReactSpec` in level data.

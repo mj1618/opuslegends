@@ -148,8 +148,10 @@ def build(score: Score, files: dict | None = None, loudness: dict | None = None,
             "harmony": harmony,
         },
         "audio": {"sampleRate": sr, "lengthSamples": sc.n_samples, "durationSec": _r(sc.n_samples / sr, 3),
-                  # `swing` = off-beat 8th position (the engine's SongDef.swing); swingAmount = the DSL's amount
-                  "swing": round(0.5 + sc.swing / 6, 4), "swingRatio": round(0.5 + sc.swing / 6, 4),
+                  # swingRatio = where the off-beat 8th ("and") lands within the beat, 0.5 (straight) .. 0.75;
+                  # the engine's SongDef.swing. swingAmount = the DSL's amount (1.0 = triplet shuffle = ratio
+                  # 0.667), informational only. There is deliberately NO bare `swing` key (it was ambiguous).
+                  "swingRatio": round(0.5 + sc.swing / 6, 4),
                   "swingAmount": round(sc.swing, 4), "files": files or {}, "loudness": loudness or {}},
         "sections": sections,
         "bars": bars,

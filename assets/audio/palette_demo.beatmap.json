@@ -150,7 +150,7 @@
   "sampleRate": 48000,
   "lengthSamples": 1592722,
   "durationSec": 33.182,
-  "swing": 1.02,
+  "swingAmount": 1.02,
   "swingRatio": 0.67,
   "files": {
    "ogg": {

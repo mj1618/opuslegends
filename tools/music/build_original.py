@@ -252,7 +252,7 @@ def write_beatmap(path, G, lanes, sections, harm, files, swing, extra_audio=None
         "song": {"id": song_id, "title": title, "artist": "Jim Croce (1972 recording)",
                  "tempo": G.tempo_points()[:n_beats], "beatsPerBar": 4, "audioOffset": round(G.offset, 6),
                  "lengthBeats": n_beats, "key": KEY, "harmony": harm},
-        "audio": {"sampleRate": SR, "swing": round(float(swing), 4), "swingRatio": round(float(swing), 4),
+        "audio": {"sampleRate": SR, "swingRatio": round(float(swing), 4),   # off-beat 8th position (SongDef.swing)
                   "tempoMap": "one tempo point per beat (live band, no click); beat i starts at the sum of the "
                               "previous beats' 60/bpm, i.e. exactly the per-beat grid",
                   "files": files, **(extra_audio or {})},
@@ -701,7 +701,7 @@ def stage_edit():
              "lengthSamples": int(n), "durationSec": round(n / SR, 3),
              "overlayCalibration": full["audio"]["overlayCalibration"]}
     bm = write_beatmap(os.path.join(ROOT, "assets", "audio", "jim_edit.beatmap.json"), GE, lanes, secs, harm, files,
-                       full["audio"]["swing"], extra, song_id="jim_edit",
+                       full["audio"]["swingRatio"], extra, song_id="jim_edit",
                        title="You Don't Mess Around with Jim (level edit)", bars_label=lambda b: song_bar_of_edit(b),
                        n_beats=n_edit_beats)
     # a bar map for the doc

@@ -304,7 +304,8 @@ const song: SongDef = { ...bm.song, source: { kind: 'file', url: oggUrl } };
   },
   "audio": {
     "sampleRate": 48000, "lengthSamples": N, "durationSec": s,
-    "swing": 0.67, "swingRatio": 0.67, "swingAmount": 1.02,   // swing = off-beat 8th position (SongDef.swing)
+    "swingRatio": 0.67,              // off-beat 8th position in the beat, 0.5..0.75 (SongDef.swing)
+    "swingAmount": 1.02,             // the DSL's swing amount (1.0 = triplet), informational only
     "files": {"ogg": {"path", "audioOffset", "decoderLagSamples", "bytes"}, "mp3": {...},
               "stems": {"drums": "assets/audio/stems/<name>/drums.ogg", ...},
               "masterStems": [...], "stemsAtMasterLevel": true, "stemsGainDb": -1.9},   // when configured
@@ -411,6 +412,6 @@ commit it. The beat maps and overlay stems are ours and are committed.
 - `song.tempo` has one point per beat.
 - `audio.files` = `{mix, shouts, stomps, cowbell}`, with `path` relative to the audio base URL, the shape
   `songFromBeatmap` expects.
-- `audio.swing` is the measured off-beat ratio (0.659).
+- `audio.swingRatio` is the measured off-beat ratio (0.659).
 - `bars[].bar` is the song bar number (in the edit, the original song bar).
 

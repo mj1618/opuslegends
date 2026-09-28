@@ -71,9 +71,9 @@ export interface SongDef {
   key: MusicalKey;
   harmony?: ChordSpan[];
   /**
-   * Swing: where the off-beat 8th ("and") lands within the beat. 0.5 = straight, 0.67 = shuffle
-   * (triplet swing). Everything that sits on an "and" (wave-slam lifts, jabber flag billows, 8th
-   * lums rows) reads THIS value, so the feel is adjustable in one place (beatmap `audio.swing`).
+   * Swing RATIO: where the off-beat 8th ("and") lands within the beat, 0.5 (straight) .. 0.75;
+   * 0.667 = triplet shuffle, the original recording measures 0.659. Everything that sits on an "and"
+   * (slam lifts, jabber bows, 8th lum rows) reads THIS value (beatmap `audio.swingRatio`).
    */
   swing: number;
   /** event lanes / sections (shouts, stops...) — levels can validate their action beats against it */
@@ -160,11 +160,35 @@ export function songFromBeatmap(json: BeatmapJson, baseUrl: string): SongDef {
     lengthBeats: json.song.lengthBeats,
     key: json.song.key,
     harmony: json.song.harmony,
-    swing: typeof json.audio?.swing === 'number' && json.audio.swing > 0.5 ? json.audio.swing : 0.5,
+    swing: swingRatioOf(json),
     map: { sections, lanes: (json.lanes ?? {}) as Record<string, LaneEvent[]> },
     source: main,
     stems,
   };
+}
+
+/** Valid swing ratios: 0.5 = straight 8ths, 0.667 = triplet shuffle, 0.75 = dotted-8th + 16th. */
+export const SWING_MIN = 0.5;
+export const SWING_MAX = 0.75;
+
+/**
+ * The beatmap's swing as SongDef.swing = where the off-beat 8th ("and") lands within the beat.
+ * Schema: `audio.swingRatio` in [0.5, 0.75]. Legacy maps had a bare `audio.swing` that some
+ * producers filled with the DSL's swing AMOUNT (1.02 = triplet) instead of the ratio; it is only
+ * accepted when it is a valid ratio. `audio.swingAmount` (1.0 = triplet) is converted as a fallback.
+ */
+export function swingRatioOf(json: BeatmapJson): number {
+  const a = json.audio ?? {};
+  const ok = (v: unknown): v is number => typeof v === 'number' && v >= SWING_MIN && v <= SWING_MAX;
+  if (ok(a.swingRatio)) return a.swingRatio;
+  if (a.swingRatio !== undefined) console.warn(`beatmap ${json.song.id}: audio.swingRatio ${a.swingRatio} outside [${SWING_MIN}, ${SWING_MAX}] — ignored`);
+  if (ok(a.swing)) return a.swing;
+  if (typeof a.swingAmount === 'number') {
+    const r = 0.5 + a.swingAmount / 6;
+    if (ok(r)) return r;
+  }
+  if (a.swing !== undefined) console.warn(`beatmap ${json.song.id}: legacy audio.swing ${a.swing} is not a ratio in [${SWING_MIN}, ${SWING_MAX}] — ignored`);
+  return SWING_MIN;
 }
 
 /** The subset of beatmap.json the game reads. */
@@ -181,7 +205,15 @@ export interface BeatmapJson {
     key: MusicalKey;
     harmony?: ChordSpan[];
   };
-  audio?: { swing?: number; files?: Record<string, unknown> };
+  audio?: {
+    /** off-beat 8th position within the beat, 0.5..0.75 (-> SongDef.swing) */
+    swingRatio?: number;
+    /** the producer DSL's swing amount (1.0 = triplet shuffle); informational */
+    swingAmount?: number;
+    /** LEGACY, ambiguous (ratio in some maps, amount in others): read only if it is a valid ratio */
+    swing?: number;
+    files?: Record<string, unknown>;
+  };
   sections?: { name: string; label?: string; startBeat: number; endBeat: number }[];
   lanes?: Record<string, LaneEvent[]>;
 }

@@ -2461,7 +2461,6 @@
  },
  "audio": {
   "sampleRate": 44100,
-  "swing": 0.6587,
   "swingRatio": 0.6587,
   "tempoMap": "one tempo point per beat (live band, no click); beat i starts at the sum of the previous beats' 60/bpm, i.e. exactly the per-beat grid",
   "files": {
