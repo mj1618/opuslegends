@@ -1,0 +1,19 @@
+{
+  "name": "opuslegends",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A single-level browser rhythm-platformer (Rayman Legends music-level style).",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "playtest": "node playtest/playtest.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
+  }
+}
