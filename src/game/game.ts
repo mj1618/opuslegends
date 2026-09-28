@@ -900,8 +900,9 @@ export class Game {
       if (beatW < c.beat - C.dropLeadBeats - 1e-6 || beatW > c.beat + 0.5) continue;
       const prev = i > 0 ? caps[i - 1].cap : Tun.crowd.max;
       if (prev >= C.bigCatchAt) continue;
-      this.dropsDone.add(c.beat);
+      // keep asking until the downbeat (+0.5): the earning action may land inside the lead (act 3's break shot on 271.65)
       if (!this.dropEarned(c.beat, c.earn)) continue;
+      this.dropsDone.add(c.beat);
       this.dropCapBeat = c.beat;
       this.crowd.setCap(c.cap);
       this.crowd.set(Math.max(this.crowd.value, C.bigCatchAt + C.dropBonus));
@@ -915,7 +916,7 @@ export class Game {
     for (let pi = 0; pi < this.level.phrases.length; pi++) {
       const ph = this.level.phrases[pi];
       const end = ph.beats[ph.beats.length - 1];
-      if (end >= beat || end < beat - w) continue;
+      if (end > beat + 1e-6 || end < beat - w) continue;
       const acts = this.level.actions.filter((a) => a.phrase === pi && (a.type === 'jump' || a.type === 'strike'));
       if (acts.length && acts.every((a) => clean(this.judge.gradeAt(a.beat, a.type)))) return true;
     }

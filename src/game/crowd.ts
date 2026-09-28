@@ -2,7 +2,8 @@
  * The crowd (DESIGN §4 "choir"): the SKILL meter and the music reward (iteration 3: it measures how well
  * you play, not how much).
  *   Perfect +1 · Great +0.5 · Good 0 · Miss −2 · stumble −4 · death −6 (from the checkpoint's value) ·
- *   a complete on-grid Hup-Hup-HEY +3 · and it DECAYS (Tun.crowd.decayPerBeat) while you're not feeding it.
+ *   a complete on-grid Hup-Hup-HEY +3 · and it DECAYS (Tun.crowd.decayPerBeat, faster the fuller the house:
+ *   decaySlope above decayKnee) while you're not feeding it.
  *   Wakes at 8 (Tun.crowd.start; iteration 4), floor 3, cap 24; the level caps it per section (`crowd`
  *   items → RuntimeLevel.crowdCaps; 10 intro … 24 chorus) so FULL HOUSE (≥ bigCatchAt) only happens in a
  *   chorus played near-clean — or on the chorus downbeat after a clean Hup-Hup-HEY (the drop, game.ts).
@@ -101,7 +102,7 @@ export class Crowd {
     const C = Tun.crowd;
     let v = this.value;
     if (v > this.cap) v = Math.max(this.cap, v - C.capGlidePerBeat * beats);
-    if (v > C.min) v -= C.decayPerBeat * beats;
+    if (v > C.min) v -= (C.decayPerBeat + C.decaySlope * Math.max(0, v - C.decayKnee)) * beats;
     if (v !== this.value) this.set(v, true);
   }
 }

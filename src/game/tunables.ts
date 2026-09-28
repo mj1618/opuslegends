@@ -193,6 +193,14 @@ export const Tun = {
     /** the meter cools by this many members per beat while above `min` */
     decayPerBeat: 0.4,
     /**
+     * ...plus `decaySlope` per member above `decayKnee` (iteration 4): a leaky meter whose resting level follows your
+     * grade mix, so FULL HOUSE stays a SKILL state even with the drop and Good +0.25. Chorus equilibria (≈1 action/
+     * beat): ±40 (~0.95/beat of gains) ≈ 23+ (holds FULL HOUSE), sloppy ±85 (~0.7) ≈ 18, ±130 (~0.6) ≈ 16 — a
+     * dropped FULL HOUSE lasts them ~1-3 bars: the moment, not the state.
+     */
+    decaySlope: 0.05,
+    decayKnee: 12,
+    /**
      * A section cap BELOW the meter doesn't clamp it (the act-2 seam used to drop FULL HOUSE 24 → 16 in one step):
      * the excess glides down at this many members per beat on top of the decay (24 → 16 over ~6 beats), and
      * gains can't push it higher meanwhile.

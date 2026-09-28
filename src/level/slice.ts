@@ -322,7 +322,9 @@ export const sliceLevel: LevelDef = {
     // ---- bar 30: E lands; hook B + the fill (&3, &4)
     fx(bar(30, 1), 'flash', 0.6),
     { type: 'camera', beat: bar(30, 1), zoom: 0.84, beats: 2 },
-    ...tokenHop(bar(30, 1)),
+    // iteration 4: E lands on a pit (~-80/+150 ms) — the ±130 teeth the widened 94/98/106 gave back, away from the
+    // bars 24-28 burst (a ±85 press never misses it early; the late side keeps the +150 rule)
+    ...gapHop(bar(30, 1), [0.09, 0.85]),
     bottle(bar(30, 2)),
     ...gapHop(bar(30, 3), 'tight'),
     bottle(and(bar(30, 3)), 'glass'),
