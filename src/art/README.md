@@ -183,6 +183,55 @@ DPR 1 and 2 with everything on; renderer JS avg 0.9–1.7 ms, p95 ≤ 2.4 ms.
 - Tools (not committed, `playtest/out-art-tools/`): `beatshots.mjs` = beat-exact canvas captures of the real game +
   per-frame renderer ms (`--beats= --after=<s after 340> --expr= --init=`), `sheet.py` contact sheets.
 
+## Iteration 6 ("FEEL": review iter5 fixes 2, 3, 4-visual, 6, 7, 9 + the new game events)
+- **THE FINAL HIT CONNECTS** (`render/act3Draw.ts` FINALE + ENDING, `renderer.ts` lock): from 335.5 Big Jim LOOMS in —
+  big, roaring on every beat, both fists up — until his face sits ON the final-hit target by ~339.3 (the target's HEY
+  star is replaced by a gold ring on his jaw); the camera pushes in (+24 %) for the last Hup-Hup-HEY. On 340: white-out →
+  3 film frames in NEGATIVE → the contact frame HELD (hitstop, a jolt on its first frames) with KNOCKOUT!, gold rays, a
+  shock ring and his aviators shattering toward the lens (`finale.ts drawLensShatter`); at 0.3 s the live world resumes
+  with the camera + Slim LOCKED on the blow (render-only; Slim holds the follow-through, a slow push-in, decaying shake),
+  and only NOW does Big Jim react: head snaps back (0.3–0.46 s), squashes into a pancake with KO stars (0.42–0.68 s) and
+  is sucked away into a tiny film frame (0.62–1.0 s). The iris shuts at 1.05 s, THE END, victory at 3.55 s, poster 7.0 s.
+  No more shrink into a cut-out before the hit. Stamps sit out the finale (only the KNOCKOUT! word).
+- **SLIM BIG AND NEVER BLEACHED**: `FRAMING.zoomMul` 1.14 → 1.2 (lead 0.22 keeps the runway ~3.4 beats); the level's
+  zoom-outs are squeezed 40 % toward the verse framing on screen (`camera.ts squeezeZoom`; wide shots ≤ 0.7 — the
+  finale's pull-out — keep their width); the chorus pull-out is −4.5 % (was −13 %) and sold instead by a slow camera ROLL
+  on the 2-bar line (`Camera.musicAngle`) + a push-in punch on each chorus downbeat; launches −10 % (was −16 %). Frame
+  order: every LIGHT layer (chorus follow-spot/iris, the honky-tonk spotlights, door blast, projector flashes, crash
+  bloom, giant-smash flash: `Moments.drawLight`, `VisualBeats.drawFront`, `Director.drawLight`) is drawn BEFORE Slim, and
+  Slim has his own pass (`render/heroPass.ts`): drawn once offscreen, laid down over a soft ink shadow (down-right) and a
+  cream rim light (up-left, tinted by the scene's rim) — he pops on any background, spotlights light the room around him.
+- **LESS NOISE**: stamps only for the game's notable `stamp` events (first Perfect of a phrase, streak milestones
+  "x25 STREAK!", HEAVE!, WHEW!, FILM FOUND!; `feedback.ts`, giants keep their comic word); the Burn's fill lunge and its
+  flare scale with `chaser.threat` (at rest a fill is a small pulse); checkpoints are a small SPLICE standee (3 film
+  frames + a diagonal strip of splicing tape, the clapper slate beside it) instead of the full-height beam.
+- **THE GOONS PLAY THE SONG** (`render/band.ts`, `jammers.ts drawMusician`): a band stands on the floor line behind the
+  play band (parallax 0.92, feet behind the lip, its own soft stage cone): cowbell goon (clanks on every `cowbell`
+  overlay hit), stomper (knee rises over the gap, SLAMS on `stomps`), sax goon (leans back and blows through each `hooks`
+  phrase), upright-piano goon (pounds the `piano` accents). Each member plays the part that is busiest where the hero
+  passes him (piano ×3, cowbell ×1.5, stomps; a hook = sax) — the pianists turn up at 124–129. A cream pop behind the
+  instrument on each hit. The play-band Bluffers play along too (`JabberPose.part/partHit`, `band.ts partAt`, the audio's
+  `goonPartAt` rule): cowbell on the belt that clanks, boot STOMP rings, a HEY! on the gang shouts — the tell stays the
+  only red. Timing from `MusicFeed.lane(name)` / `laneSpan` (any beat-map lane, beat-exact).
+- **SPEED** (`render/speedLayer.ts`): a foreground whip at parallax 1.6 — per scene one family of dark silhouettes (bar
+  stools + chair backs, lamp-post bases + railings, fire-escape rails, velvet-rope stanchions, lane monitors, lamp shades,
+  girders, valance swags), 2 beats apart in layer space, only in a bottom band (below the floor line) or a top band
+  (well above the hero; none where threats come from above) — never over the lane; a 3-ghost smear at run speed. Faint
+  cream speed lines race through the top/bottom margins at full run speed (thicker in a chorus / the catch-up surge).
+- **THE FACADE CHANGES FACE EVERY 4 BARS** (`facade.ts FACADE_THEMES`, `setFacadeGrid` from `Stage`): each wing of the
+  Jimperial = one 4-bar section (its light well is the seam), cycling red-brick fire escapes → NEON hotel (HOTEL JIMPERIAL
+  chasing letters, every window neon, two blades) → soot-black IRON (fire escapes on every other bay, soot streaks) →
+  the LAUNDRY COURTYARD (stucco, lines strung across every storey flapping on the hats, flower boxes) → the BILLBOARD face
+  (terracotta, a giant painted JIM-COLA ad on scaffolding, a water tower on a setback).
+- **New events rendered**: WHEW (near-miss) = a render-only slow-mo flash (cold desaturated edges that spare the star, two
+  rings contracting onto Slim, a push-in) + the WHEW! stamp; FILM CANISTER = the gameplay placeholder skin
+  (`render/canisterDraw.ts`, glint on the count) + a pickup burst (gold flash, spinning rays, a ring, sprocket confetti)
+  + FILM FOUND! stamp; the poster's RANK gets a stamp per billing tier (`render/rankStamp.ts`: S = gold marquee badge with
+  chasing bulbs + sunburst, A = laurel wreath + stars, B = buzzing midnight neon, C = crooked pulp stamp with slime drips,
+  D = a VHS cassette with a handwritten label and tracking lines).
+- Measured (M5 Pro, GPU, 1920×1080 DPR 1, beat-exact capture tool): 60 fps everywhere (p50 16.7 ms, p95 ≤ 18.4 ms);
+  renderer JS avg 1.2–1.7 ms, p95 ≤ 2.8 ms (the hero pass + band + speed layer add ~0.3 ms).
+
 ## Integration recipe (per frame)
 ```ts
 import { BeatInfo } from './core/beat';                    // fill from the conductor (tempo-map aware), see below
@@ -273,7 +322,8 @@ lamp / giant 8-ball), breakables (bottle / glass / jug / crate / neon letter). T
 kind a generic silhouette in its class until bespoke art lands.
 
 ## Known weaknesses / next
-The title marquee still uses type for Big Jim (the rig could star there); the roof's sun can sit behind a far tower; the facade's light-well gaps are fixed
+The goon band stands on a damped floor line (a big step changes it over ~0.2 s); the speed layer has no props on the
+theatre / facade tops; the title marquee still uses type for Big Jim (the rig could star there); the roof's sun can sit behind a far tower; the facade's light-well gaps are fixed
 by layer x (not aligned to level beats); window-pane breakables stand on a glazier's A-frame; the Bluffer is a single rigid puppet (no rig); the scene
 split at the doorway is a hard clip (fine behind the door frame, visible if the camera lingers); flying debris is
 screen-space (does not parallax); scene splits between act-3 environments are hard clips (hidden by the KRAK flash / launch,
