@@ -14,7 +14,7 @@
  *                             Default: assets/audio/<level.songId>.beatmap.json if it exists, else the placeholder song
  *   --beatmap=<json>          extra accent lanes + section energy (default: the song's beatmap json, else
  *                             assets/audio/jim.beatmap.json if present)
- *   --reports=<dir>[,<dir>]   playtest output dirs (searched recursively for report.json) → A5, A9, A10
+ *   --reports=<dir>[,<dir>]   playtest output dirs (searched recursively for report.json) → A5, A9, A10, A11 (teeth)
  *   --block=<bars>            analysis block size in bars (default 8)
  *   --out=<dir>               output dir (default playtest/out/rubric; gitignored, wiped by the next playtest run)
  *   --quiet                   don't print the markdown
@@ -69,7 +69,7 @@ const load = async (spec, dflt) => {
   const mod = await server.ssrLoadModule('/' + file.replace(/^\.?\//, ''));
   return name ? mod[name] : mod.default;
 };
-let level, song, L, tempo, Tun, cameraZoomAt, VIEW_W;
+let level, song, L, tempo, Tun, cameraZoomAt, VIEW_W, FRAMING;
 try {
   level = await load(args.level, 'src/level/slice.ts#sliceLevel');
   const songMod = await server.ssrLoadModule('/src/audio/song.ts');
@@ -83,6 +83,12 @@ try {
   cameraZoomAt = build.cameraZoomAt;
   Tun = (await server.ssrLoadModule('/src/game/tunables.ts')).Tun;
   VIEW_W = (await server.ssrLoadModule('/src/engine/display.ts')).VIEW_W ?? 1920;
+  // the render-owned framing (camera.ts FRAMING: extra zoom + hero lead) is what the player actually sees
+  try {
+    FRAMING = (await server.ssrLoadModule('/src/render/camera.ts')).FRAMING;
+  } catch {
+    FRAMING = undefined;
+  }
   tempo = songMod.makeTempoMap(song);
   L = build.buildLevel(level, tempo, song);
 } finally {
@@ -246,7 +252,11 @@ const modeOfBar = (bar) => {
 const VERTICAL_MODES = new Set(['rooftops', 'bar-top', 'launch', 'climb', 'vertical', 'drop']);
 
 // ------------------------------------------------------------------ per-bar table
-const runwayBeatsAt = (beat) => ((1 - Tun.camera.leadFraction) * VIEW_W) / cameraZoomAt(L, beat, Tun.camera.zoom) / L.ppb;
+// E1 runway = screen width ahead of the hero at the level zoom x the render framing (FRAMING.zoomMul, leadFraction).
+// Ignores the director's chorus zoom-out (only widens) and hit punches (brief).
+const leadFrac = FRAMING?.leadFraction ?? Tun.camera.leadFraction;
+const zoomMul = FRAMING?.zoomMul ?? 1;
+const runwayBeatsAt = (beat) => ((1 - leadFrac) * VIEW_W) / (cameraZoomAt(L, beat, Tun.camera.zoom) * zoomMul) / L.ppb;
 const bars = [];
 for (let bar = firstBar; bar <= lastBar; bar++) {
   const acts = actions.filter((a) => a.bar === bar);
@@ -700,6 +710,16 @@ if (sloppy) {
 } else {
   add('A9', 'Sloppy human clears', 'mean ≤6 deaths/level', 'no --sloppy reports supplied', 'N/A', 'S');
   add('A10', 'No hotspots', '≤20% per action', 'no --sloppy reports supplied', 'N/A', 'S');
+}
+// A11 (informational, iteration-2 review): the upper bound. A level no bot can die in is "no challenge" for a
+// player with rhythm. Harsh = jitter ≥ 130 ms or ≥ 20% late presses; deaths are normalised per 32 bars.
+const per32 = (p) => (p.meanDeaths * 32) / nBars;
+const harsh = playtests.filter((p) => p.jitterMs >= 130 || p.lateProb >= 0.2);
+if (harsh.length || sloppy) {
+  const harshOk = harsh.length ? harsh.some((p) => per32(p) >= 1) : true;
+  const sloppyOk = sloppy ? per32(sloppy) >= 0.25 : true;
+  add('A11', 'Teeth (not in gate): the level can punish sloppy timing', 'a harsh bot (≥±130 ms or ≥20% late) dies ≥1 per 32 bars; the ±85 sloppy bot ≥0.25 per 32 bars (and ≤2)',
+    [...(sloppy ? [sloppy] : []), ...harsh].map((p) => `${p.group}: ${r2(per32(p))} deaths/32 bars (${p.runs} runs)`).join('; '), harshOk && sloppyOk ? 'PASS' : 'WARN', 'S');
 }
 add('B1', 'Novelty cadence', 'a twist ≤ every 8 bars; new mechanic/mode/set-piece ≤ every 16 bars',
   `longest stretch without a twist ${twistGap.maxGapBars} bars (last twist bar ${twistGap.lastNew}); without a new mechanic/mode ${bigGap.maxGapBars} bars (last bar ${bigGap.lastNew})`,
