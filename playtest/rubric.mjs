@@ -130,6 +130,8 @@ const addLane = (name, evs) => {
 // the level's own song wins per lane; the beatmap only fills lanes the song doesn't define (kick, crash, …)
 for (const [k, v] of Object.entries(song.map?.lanes ?? {})) addLane(k, v);
 if (beatmap) for (const [k, v] of Object.entries(beatmap.lanes ?? {})) if (!lanes[k]) addLane(k, v);
+// the original recording's beat map has no `fillAccents` lane: its drum fills carry their accents (`fills[].accents`)
+if (!lanes.fillAccents) addLane('fillAccents', (lanes.fills ?? []).flatMap((f) => f.accents ?? []));
 const stopRanges = (lanes.stops ?? []).map((s) => [s.beat, s.beat + (s.beats ?? (s.dur ? s.dur / spb : 1))]);
 const ACCENT_LANES = ['kick', 'floortom', 'snare', 'crash', 'shouts', 'slots', 'fillAccents', 'riff', 'gtrRiff', 'stabs'];
 const accentBeats = [];
@@ -618,6 +620,15 @@ const walk = (d) => {
   }
 };
 if (args.reports) for (const d of String(args.reports).split(',')) walk(resolve(root, d));
+// --bars: judge only this range's deaths / stumbles (a whole-level run's act-2 deaths must not count against act 1)
+if (barRange)
+  for (const r of reports) {
+    const inRange = (d) => d.beat >= rangeStart - 1e-6 && d.beat < rangeEnd + 1e-6;
+    r.deathLog = (r.deathLog ?? []).filter(inRange);
+    r.stumbleLog = (r.stumbleLog ?? []).filter(inRange);
+    r.deaths = r.deathLog.length;
+    r.stumbles = r.stumbleLog.length;
+  }
 const threatActs = all.filter((a) => a.threat);
 const blame = (deathBeat) => {
   // the last lethal action pressed at or before the death position (pits kill ~0.2-1.5 beats after the press)
@@ -627,7 +638,8 @@ const blame = (deathBeat) => {
 const blockOf = (beat) => blocks.find((k) => barOf(beat) >= k.firstBar && barOf(beat) < k.firstBar + k.nBars)?.bars ?? '?';
 const groups = {};
 for (const r of reports) {
-  const key = `jitter ±${r.jitterMs ?? 0} ms, late ${Math.round((r.lateProb ?? 0) * 100)}%`;
+  const dev = r.clock?.deviceMs ? `, device +${r.clock.deviceMs} ms${r.clock.calibration ? ' (calibrated)' : ''}` : '';
+  const key = `jitter ±${r.jitterMs ?? 0} ms, late ${Math.round((r.lateProb ?? 0) * 100)}%${dev}`;
   (groups[key] ??= []).push(r);
 }
 const playtests = Object.entries(groups).map(([key, rs]) => {
