@@ -415,9 +415,9 @@ class JimperialWall {
     g.restore();
   }
 
-  /** the billboard face's painted ad occupies storeys -2..-4 of the wing's first 2/3 */
+  /** the billboard face's painted ad occupies storeys -4..-6 (the roof-top climb's eye line) of the wing's first 2/3 */
   private inBillboard(x: number, y: number, ws: number): boolean {
-    return x > ws + 300 && x < ws + 2500 && y > -4 * WY - 40 && y < -WY + 10;
+    return x > ws + 300 && x < ws + 2500 && y > -6 * WY - 40 && y < -3 * WY + 10;
   }
 
   /** THE LAUNDRY COURTYARD: lines strung across the storey between windows, sheets + shirts flapping on the hats */
@@ -485,8 +485,8 @@ class JimperialWall {
   private billboard(g: Ctx, ws: number, v: { x0: number; x1: number; y0: number; y1: number }, C: WallCols, L: Lighting, b: BeatInfo): void {
     const x0 = ws + 300;
     const x1 = ws + 2500;
-    const y0 = -4 * WY - 40;
-    const y1 = -WY + 10;
+    const y0 = -6 * WY - 40;
+    const y1 = -3 * WY + 10;
     if (!(x1 < v.x0 || x0 > v.x1 || y1 < v.y0 || y0 > v.y1)) {
       // scaffold
       g.strokeStyle = C.iron;
@@ -539,7 +539,7 @@ class JimperialWall {
     }
     // the water tower on a setback, high up
     const tx = ws + 3300;
-    const ty = -7 * WY + WY - 26;
+    const ty = -8 * WY + WY - 26;
     if (tx + 200 > v.x0 && tx - 200 < v.x1 && ty > v.y0 - 50 && ty - 420 < v.y1) {
       g.fillStyle = C.iron;
       for (const lx of [-90, -30, 30, 90]) g.fillRect(tx + lx - 5, ty - 150, 10, 150);

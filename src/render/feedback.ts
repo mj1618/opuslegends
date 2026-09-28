@@ -412,7 +412,8 @@ export class Feedback {
     const Y = 158;
     if (n >= 3) {
       const heat = Math.min(1, n / 48);
-      const size = Math.round(46 + 34 * Math.min(1, Math.log2(n / 2) / 4.6) + 14 * this.bump);
+      // (iteration 6: half the old growth — the streak reads, it doesn't shout over the picture)
+      const size = Math.round(40 + 18 * Math.min(1, Math.log2(n / 2) / 4.6) + 8 * this.bump);
       const col = heatCol(n);
       ctx.save();
       ctx.translate(X, Y);

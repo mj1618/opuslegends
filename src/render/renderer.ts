@@ -63,7 +63,8 @@ import { drawCalibration } from './calibDraw';
 import { SlimDriver } from './slimDriver';
 import { HeroPass } from './heroPass';
 import { drawSpeedLayer } from './speedLayer';
-import { GoonBand, partAt } from './band';
+import { GoonBand } from './band';
+import { goonPartAt } from '../audio/goonParts';
 import type { SpriteSet } from './sprites';
 import { Stage } from './stage';
 import { VisualBeats } from './beats';
@@ -850,7 +851,9 @@ export class Renderer {
           this.goonParts.clear();
           this.goonPartsKey = L;
         }
-        pp = partAt(this.feed, e.beat);
+        // the same rule the audio flares on a smash (audio/goonParts.ts goonPartAt)
+        const part = goonPartAt(g.song, e.beat);
+        pp = { part, lane: part };
         this.goonParts.set(e.id, pp);
       }
       const pl = this.feed.lane(pp.lane);

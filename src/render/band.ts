@@ -20,6 +20,7 @@ import { type JammerColours, type MusicianKind, type MusicianTiming, drawMusicia
 import { type Lighting, lit } from '../art/world/lighting';
 import { VIEW_H, VIEW_W } from '../engine/display';
 import type { Game } from '../game/game';
+import { partAudible } from '../audio/goonParts';
 import type { Camera } from './camera';
 import type { MusicFeed } from './music';
 
@@ -96,7 +97,10 @@ export class GoonBand {
         vest: css(lit(Lt, hex(VEST[kind]), 0.9, 0.1)),
       };
       const t = feed.lane(LANE[kind]);
-      const m: MusicianTiming = { hit: Number.isFinite(t.since) ? Math.exp(-(t.since * b.spb) / 0.12) : 0, since: t.since, gap: t.gap, active: t.active };
+      // an overlay part the crowd hasn't earned yet is only mimed (audio/goonParts.ts partAudible: the cowbell is silent
+      // under crowd 12) — the goon swings, but the pop behind him waits for the sound
+      const heard = kind === 'sax' || kind === 'piano' || partAudible(kind === 'stomp' ? 'stomps' : 'cowbell', game.crowd.value);
+      const m: MusicianTiming = { hit: (Number.isFinite(t.since) ? Math.exp(-(t.since * b.spb) / 0.12) : 0) * (heard ? 1 : 0.3), since: t.since, gap: t.gap, active: t.active };
       this.drawn++;
       const dir = kind === 'piano' ? 1 : hash(k + 5) < 0.5 ? 1 : -1;
       const sc = z * (kind === 'piano' ? 1.1 : 1.15);
@@ -127,24 +131,3 @@ export class GoonBand {
   }
 }
 
-/**
- * the part a goon at `beat` plays along to (the Bluffers in the play band): a shout ON the beat = a HEY goon, else the
- * busiest of piano (x3) / cowbell (x1.5) / stomps / claps (x0.9) in the 2 bars around it — the same rule as the audio's
- * audio/goonParts.ts goonPartAt, so the part you see him play is the part that flares when you smash him.
- * Returns the part and the lane that times it.
- */
-export function partAt(feed: MusicFeed, beat: number): { part: string; lane: string } {
-  const sh = feed.laneSpan('shouts', beat - 0.25, beat + 0.25);
-  if (sh.n > 0) return { part: 'shouts', lane: 'shouts' };
-  const a = beat - 4;
-  const b = beat + 4;
-  const c: [string, number][] = [
-    ['piano', feed.laneSpan('piano', a, b).n * 3],
-    ['cowbell', feed.laneSpan('cowbell', a, b).n * 1.5],
-    ['stomps', feed.laneSpan('stomps', a, b).n],
-    ['claps', feed.laneSpan('claps', a, b).n * 0.9],
-  ];
-  c.sort((x, y) => y[1] - x[1]);
-  const part = c[0][1] > 0 ? c[0][0] : 'stomps';
-  return { part, lane: part };
-}
