@@ -283,6 +283,19 @@ export class Sfx {
   finish(rootMidi: number): void {
     [0, 4, 7, 12, 16, 19, 24].forEach((iv, i) => this.tone('square', mtof(rootMidi + iv), mtof(rootMidi + iv), 0.4, 0.06, this.t + i * 0.05));
   }
+  /**
+   * Count-in: a drummer's stick click (two wooden sticks: resonant bands at ~2.3 and ~4.6 kHz + a
+   * short woody body), scheduled on the recording's own beat grid. `accent` = the "one".
+   */
+  sticks(when?: number, accent = false): void {
+    if (!this.enabled) return;
+    const t = this.at(when);
+    const v = accent ? 1 : 0.7;
+    this.burst('bandpass', 2300, 2100, 0.035, 0.5 * v, 9, t);
+    this.burst('bandpass', 4600, 4300, 0.025, 0.3 * v, 7, t);
+    this.tone('sine', accent ? 1950 : 1700, accent ? 1850 : 1600, 0.03, 0.05 * v, t, 0.0008);
+  }
+
   tick(high = false): void {
     this.tone('sine', high ? 1760 : 1320, high ? 1760 : 1320, 0.05, 0.12);
   }

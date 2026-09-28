@@ -69,6 +69,9 @@ export class Conductor {
   clockSource: 'outputTimestamp' | 'currentTime' = 'currentTime';
   clockJitterMs = 0;
 
+  /** fade-in pre-roll when (re)starting mid-recording (s) — see play() */
+  static readonly FADE_IN = 0.035;
+
   constructor(ctx: AudioContext, out: AudioNode, song: SongDef, tempo: TempoMap) {
     this.ctx = ctx;
     this.out = out;
@@ -148,17 +151,21 @@ export class Conductor {
   /**
    * Start playback so that song time `from` is audible `lead` seconds from now.
    * Song times before the audio's beat 0 (negative buffer offset) are handled by delaying the
-   * source start, so count-ins work. Returns the song time at this instant (from - lead).
+   * source start, so count-ins work.
+   * Restarting mid-recording (checkpoint rewinds, un-pause) never cuts in on a waveform: the sources
+   * start `fadeIn` s EARLY and fade in over that pre-roll, so the gain is exactly 1 at `from`
+   * (the count-in bar's downbeat keeps its full attack) and there is no click.
    */
-  play(from: number, lead = 0.06): void {
+  play(from: number, lead = 0.06, fadeIn = Conductor.FADE_IN): void {
     this.stopSource(0.01);
     this.sampleClock(performance.now());
     const ctx = this.ctx;
     const nowAudible = this.audibleCtxTimeAt(performance.now());
-    // Schedule relative to currentTime (the scheduling timeline); the audible mapping above
-    // tells us when that is heard.
-    const when = ctx.currentTime + lead;
     const bufOffset = from + this.song.audioOffset;
+    const pre = bufOffset > 0 ? Math.min(fadeIn, bufOffset) : 0;
+    // Schedule relative to currentTime (the scheduling timeline); the audible mapping above
+    // tells us when that is heard. The pre-roll must be schedulable too.
+    const when = ctx.currentTime + Math.max(lead, pre + 0.02);
     const start = (buffer: AudioBuffer, dest: AudioNode, tap?: AudioNode) => {
       const src = ctx.createBufferSource();
       src.buffer = buffer;
@@ -167,7 +174,13 @@ export class Conductor {
       src.connect(g).connect(dest);
       if (tap) g.connect(tap);
       if (bufOffset >= 0) {
-        if (bufOffset < buffer.duration) src.start(when, bufOffset);
+        if (bufOffset < buffer.duration) {
+          if (pre > 0) {
+            g.gain.setValueAtTime(0, when - pre);
+            g.gain.linearRampToValueAtTime(1, when);
+          }
+          src.start(when - pre, bufOffset - pre);
+        }
       } else {
         src.start(when - bufOffset, 0);
       }

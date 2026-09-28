@@ -341,6 +341,10 @@ export class Game {
     this.releaseTime = this.tempo.beatToTime(beat);
     this.conductor.setCrowdLevel(this.crowd.count, true);
     this.conductor.play(from);
+    // count-in: stick clicks on the recording's own beat grid (tempo map; extrapolated before beat 0)
+    for (let i = 0; i < Tun.flow.countInBeats; i++) {
+      this.sfx.sticks(this.conductor.ctxTimeAtSongTime(this.tempo.beatToTime(beat - Tun.flow.countInBeats + i)), i === 0);
+    }
     this.simTime = from;
     this.lastWholeBeat = Math.floor(beat - Tun.flow.countInBeats) - 1;
     this.camera.zoom = cameraZoomAt(this.level, beat, Tun.camera.zoom);
