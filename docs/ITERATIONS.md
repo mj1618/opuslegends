@@ -29,3 +29,16 @@ synth palette + mix chain; full arrangement next.
   craft, no ethnic caricature) as a hard constraint and Fun Risk 6.
 - Impact: the art lab's crab/coast assets (src/art/entities, src/art/world) are superseded; gameplay/music unaffected
   apart from names (choir → audience, herring → tokens, Breaker → the Burn) and a humanoid hitbox (48×96 [tune]).
+
+### Design revision: CUE-FU → "SLIM CHANCE" + density rules (during iteration 1)
+- User feedback: (1) "ninja doesn't make sense, make it more like a muscly pool shark with tattoos"; (2) playing the
+  current build: "the game is really boring, it lacks challenge, and it lacks things going on".
+- Hero is now **Slim**, a hulking tattooed 70s pool shark (tangerine bowling shirt, flash-tattoo sleeves, mutton chops,
+  cue power-shots, knee-slides). All kung-fu flavour removed. Kept: the 1973 grindhouse film frame, theatre-audience
+  meter, iris-out finale, Big Jim, the song, §4 rules and the §7 grid.
+- The climb is now Big Jim's building, **the Jimperial**: 42nd St → Honky-Tonk → Blacklight Lanes → Pool Room → Velvet
+  Casino (the Rack, broken with a break shot on 72 b4) → Roof (the B-I-G J-I-M sign topples like dominoes) → Penthouse.
+- New §4 **Density & challenge** hard rules: ≥1 required action per 2 beats in verses and ≥1 per beat in choruses; zero
+  threat only in bars 1–4; mixed verbs; a moving threat per act; high routes; an always-busy screen; difficulty
+  targets (first clear 10–20 deaths). §7 now lists minimum required actions per section (~277 total), and a density
+  linter for `npm run playtest` is specified. Fun Risk 1 is now "still boring".
