@@ -373,7 +373,7 @@ autoplay,stats}.ts`, `level/slice.ts`, `render/calibDraw.ts` (the card; the art 
 - **Tools:** `--device`, `--calib`, `--autolat=0`; sloppy runs print deaths/stumbles per act; the rubric's `--bars`
   counts only that range's deaths (per-act A9/A10/A11).
 
-Measured on the whole level (acts 1–3 as committed at `0861854`, `--dist=dist-fix`; deaths per run, act 1 / 2 / 3):
+Measured on the whole level (acts 1–3 as committed, builds `2bb311a`–`0861854`; ±130 and ±160 after the last Burn fix; deaths per run, act 1 / 2 / 3):
 
 | Profile | Runs | Act 1 | Act 2 | Act 3 |
 |---|---|---|---|---|
