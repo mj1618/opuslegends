@@ -77,7 +77,35 @@ export type ActThreeLook = 'balls' | 'bell' | 'chips' | 'headGoon' | 'letterNeon
  *   zipDrop      (iteration 4) the chorus drop: Slim hooks the cable on the chorus downbeat and zips DOWN into the Lanes'
  *                big window (`h` = the drop in px); the camera rides with him
  */
-export type SetPieceName = 'climb' | 'bigJimGlint' | 'windowCrash' | 'lanes' | 'facadeReveal' | 'zipDrop' | ActOneSetPiece | ActThreeSetPiece;
+export type SetPieceName = 'climb' | 'bigJimGlint' | 'windowCrash' | 'lanes' | 'facadeReveal' | 'zipDrop' | ActOneSetPiece | ActThreeSetPiece | MidActBeat;
+/**
+ * MID-ACT VISUAL BEATS (iteration 5, review iter4 fix 4): presentation-only cues that break the two 26-second
+ * single-room stretches (the honky-tonk, bars 16-33, and the facade, bars 34-51) WITHOUT new mechanics. Each is a
+ * `setPiece` item (beat, beats; `h` / `ahead` where noted); Game emits it as a `setPiece` event and exposes
+ * `game.setPiece` while it lasts; the renderer can also read the windows from `level.setPieces` (a pure function of the
+ * beat: rewinds replay them). Nothing here touches collision or timing.
+ *   honky-tonk (act 1):
+ *   doorKick      64 (bar 17, 2 beats): Slim KICKS the honky-tonk's swinging doors open on the versePeak downbeat; the
+ *                 room's lamps flare, dust off the doors (the level adds a zoom punch + flash on it)
+ *   signDrop      78 (bar 20 b3, the fill's 3, 1.5 beats): a neon beer sign snaps its chain and CRASHES down behind Slim
+ *                 (background; the level has a shake on it)
+ *   spotlights    84 (bar 22, the walk-up, 36 beats → 120): HOUSE LIGHTS DOWN, three follow-spots swing onto the bar top
+ *                 and track Slim; on the chorus downbeat (88) the audience STANDS UP (silhouettes rise into the spots)
+ *   brawl         92 (bar 24, the chorus peak, 20 beats → 112): a BAR BRAWL breaks out behind the counter — goons trading
+ *                 punches, chairs + bottles flying on the record's HEYs (93, 94, 98, 102), a handheld "brawl-cam" feel;
+ *                 it freezes when the walkdown (112) starts
+ *   houseLights  120 (bar 31, the tag, 4 beats): the house lights come back up (the spots swing off), the brawl's aftermath
+ *   facade (act 2):
+ *   lightChase   136 (bar 35, 16 beats → 152): the Jimperial's windows light up ONE PER BEAT just ahead of Slim as he
+ *                 climbs (a window at each beat's x, snapping on ON that beat, `ahead` = how many beats ahead of the hero)
+ *   streetReveal 152 (bar 39, 4 beats): the camera TILTS to show the street far below (the level lowers the camera's
+ *                 ground line for the bar): traffic streaks, the honky-tonk's sign tiny down there, a siren flash
+ *   searchlights 164 (bar 42, the roof, 16 beats → 180): the sky shifts — the MOON comes out from behind the water
+ *                 tower, two searchlights from the street sweep the sky on the half-notes
+ *   tenants      172 (bar 44, the stop-time, 8 beats → 180): window TENANTS lean out and react to Slim's stop-time hits
+ *                 (a head pops out ON each hit, a "SHHH!" / a thrown slipper in the rests), until the glint takes over
+ */
+export type MidActBeat = 'doorKick' | 'signDrop' | 'spotlights' | 'brawl' | 'houseLights' | 'lightChase' | 'streetReveal' | 'searchlights' | 'tenants';
 /**
  * Act 3 set-pieces (docs/level/act3_plan.md; runtime state in game/mech/act3.ts = `game.mech.act3`):
  *   poolRoom      the breakdown valley: felt lamps, jukeboxes, goons at the tables
