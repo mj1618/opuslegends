@@ -27,6 +27,8 @@
  *                     requires completion; REPORTS deaths/stumbles (is it hard but fair?)
  *   --late=<p>        fraction of presses that are an extra 60-110 ms late
  *   --seed=<n>        jitter seed
+ *   --song=<id>       edit (default) | full | placeholder — passed as ?song= (falls back to the
+ *                     placeholder, with an on-screen note, if the licensed recording is missing)
  *   --dist=<dir>      build/serve folder (default dist) — use a private one when agents run in parallel
  *   --out=<dir>       output folder (default playtest/out) — lets several runs go in parallel
  */
@@ -80,6 +82,7 @@ async function main() {
   if (args.late) q.set('late', String(args.late));
   if (args.sloppy) q.set('sloppy', '1');
   if (args.seed) q.set('seed', String(args.seed));
+  if (args.song) q.set('song', String(args.song));
   const sloppy = !!(args.sloppy || args.late);
   const strictTiming = !args.miss && !args.jitter && !sloppy;
   const url = `${base}?${q}`;
@@ -110,7 +113,7 @@ async function main() {
   const shots = [];
   let i = 0;
   let state = await page.evaluate(() => window.__game.state());
-  const deadline = Date.now() + 120000;
+  const deadline = Date.now() + 300000; // the full level edit is ~2:10 of music, plus deaths/rewinds
   let nextShot = Date.now();
   while (Date.now() < deadline) {
     if (Date.now() >= nextShot) {
@@ -171,6 +174,7 @@ async function main() {
 
   log('------------------------------------------------------------');
   if (sloppy || args.jitter) log(`sloppy human  deaths by section: ${JSON.stringify(report.deathLog.map((d) => d.beat < 36 ? 'intro' : d.beat < 68 ? 'verse1a' : d.beat < 100 ? 'verse1b' : 'chorus1').reduce((m, k) => ((m[k] = (m[k] ?? 0) + 1), m), {}))}`);
+  log(`song          ${report.song} (bpm ${report.bpm}, swing ${report.swing})`);
   log(`completed ${report.completed}  deaths ${report.deaths}  stumbles ${report.stumbles}  lums ${report.lums}/${report.lumsTotal}  pendulums ${report.pendulums}/${report.pendulumsTotal}  heaves ${report.heaves}/${report.phrases}`);
   log(`grades        ${JSON.stringify(report.grades)}  crowd ${JSON.stringify(report.crowd)}`);
   if (args.miss) log(`misses        ${JSON.stringify(exp.detail)}  surge recovery (beats) ${JSON.stringify(report.surgeRecoveryBeats)}`);

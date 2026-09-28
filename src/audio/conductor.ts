@@ -16,6 +16,7 @@
  * - `play(from)` (re)starts the song at any song time (negative = count-in before the audio),
  *   which is how checkpoints rewind the music in sync.
  */
+import { OVERLAY_RULES, overlayGain } from './mix';
 import type { SongDef } from './song';
 import type { TempoMap } from './tempoMap';
 
@@ -235,6 +236,20 @@ export class Conductor {
     b.gain.cancelScheduledValues(t);
     b.gain.setValueAtTime(b.gain.value, t);
     b.gain.linearRampToValueAtTime(gain, t + Math.max(0.005, rampSec));
+  }
+
+  /**
+   * Reward overlays follow the crowd meter (audio/mix.ts OVERLAY_RULES): sets every overlay stem
+   * this song has. `instant` = a short 50 ms ramp (spawns / rewinds), else each rule's musical ramp.
+   */
+  setCrowdLevel(crowd: number, instant = false): void {
+    const spb = this.tempo.secondsPerBeatAt(this.beat);
+    for (const name of Object.keys(this.song.stems ?? {})) {
+      const g = overlayGain(name, crowd);
+      if (g === undefined) continue;
+      if (!instant && Math.abs(this.stemGain(name) - g) < 1e-3) continue;
+      this.setStemGain(name, g, instant ? 0.05 : OVERLAY_RULES[name].rampBeats * spb);
+    }
   }
 
   stemGain(name: string): number {

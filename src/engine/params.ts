@@ -15,6 +15,8 @@
  *   ?late=<p>     autoplay: fraction of presses that are an extra 60-110 ms late
  *   ?judge=1      show timing-grade popups (PERFECT / GREAT / GOOD) — off by default per DESIGN
  *   ?coldopen=0   skip the cold open (start straight at the count-in)
+ *   ?song=<id>    edit (default: the original recording's level edit) | full (the whole original) |
+ *                 placeholder (synth track). Falls back to placeholder if the licensed file is missing.
  */
 export interface Params {
   debug: boolean;
@@ -37,6 +39,8 @@ export interface Params {
   judge: boolean;
   /** play the cold open (default true) */
   coldOpen: boolean;
+  /** requested song: 'edit' | 'full' | 'placeholder' (raw; see audio/songs.ts parseSongChoice) */
+  song: string | null;
 }
 
 function readParams(): Params {
@@ -70,6 +74,7 @@ function readParams(): Params {
     late: num('late') ?? (flag('sloppy') ? 0.1 : 0),
     judge: flag('judge'),
     coldOpen: q.get('coldopen') !== '0',
+    song: q.get('song'),
   };
 }
 

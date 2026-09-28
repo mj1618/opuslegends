@@ -44,7 +44,7 @@ import { Particles, PShape } from '../render/particles';
 import { Renderer } from '../render/renderer';
 import { makeSprites } from '../render/sprites';
 import { AutoPlayer } from './autoplay';
-import { Crowd, shoutsGain } from './crowd';
+import { Crowd } from './crowd';
 import type { ActionMarker, Enemy, PendulumTarget, LooseLum } from './entities';
 import { Judge, type JudgeResult } from './judge';
 import { jumpProfile } from './jumpProfile';
@@ -148,10 +148,11 @@ export class Game {
   /** runs of the whole level: incremented on every start (for the test API) */
   runId = 0;
 
-  constructor(canvas: HTMLCanvasElement) {
+  /** `song`: resolved by audio/songs.ts selectSong() (?song=edit|full|placeholder) before the Game exists */
+  constructor(canvas: HTMLCanvasElement, song: SongDef = placeholderSong) {
     this.display = new Display(canvas);
     this.audio = new AudioSystem(params.mute);
-    this.song = placeholderSong;
+    this.song = song;
     this.tempo = makeTempoMap(this.song);
     this.conductor = new Conductor(this.audio.ctx, this.audio.music, this.song, this.tempo);
     this.sfx = new Sfx(this.audio.ctx, this.audio.sfx);
@@ -335,8 +336,7 @@ export class Game {
     this.pendingEdges = [];
     const from = this.tempo.beatToTime(beat - Tun.flow.countInBeats);
     this.releaseTime = this.tempo.beatToTime(beat);
-    this.conductor.setStemGain('shouts', shoutsGain(this.crowd.count), 0.05);
-    this.conductor.setStemGain('bonus', this.crowd.bigCatch ? 1 : 0, 0.05);
+    this.conductor.setCrowdLevel(this.crowd.count, true);
     this.conductor.play(from);
     this.simTime = from;
     this.lastWholeBeat = Math.floor(beat - Tun.flow.countInBeats) - 1;
@@ -940,10 +940,8 @@ export class Game {
   }
 
   private onCrowdChange(n: number): void {
-    this.conductor.setStemGain('shouts', shoutsGain(n), 0.3);
-    const spb = this.tempo.secondsPerBeatAt(this.worldBeat);
-    const wantBonus = n >= Tun.crowd.bigCatchAt ? 1 : 0;
-    if (Math.abs(this.conductor.stemGain('bonus') - wantBonus) > 0.01 || wantBonus) this.conductor.setStemGain('bonus', wantBonus, spb * 4);
+    // reward overlay stems (shouts / stomps+claps / cowbell / bonus) follow the crowd: audio/mix.ts
+    this.conductor.setCrowdLevel(n);
   }
 
   // ====================================================================== player event hooks
@@ -1140,12 +1138,16 @@ export class Game {
       phrases: L.phrases.length,
       grades: { ...this.judge.counts },
       crowd: { end: this.crowd.count, peak: this.crowd.peak },
-      shoutAlignment: {
-        note: 'chorus jabber strikes vs the song map shouts lane (the enemies are built on the shout grid)',
-        chorusStrikes: chorusStrikes.length,
-        onShout: chorusStrikes.filter((a) => shouts.has(a.beat)).length,
-        offShout: chorusStrikes.filter((a) => !shouts.has(a.beat)).map((a) => a.beat),
-      },
+      // only meaningful when the level was authored against this song's shout grid
+      shoutAlignment:
+        L.def.songId === this.song.id
+          ? {
+              note: 'chorus jabber strikes vs the song map shouts lane (the enemies are built on the shout grid)',
+              chorusStrikes: chorusStrikes.length,
+              onShout: chorusStrikes.filter((a) => shouts.has(a.beat)).length,
+              offShout: chorusStrikes.filter((a) => !shouts.has(a.beat)).map((a) => a.beat),
+            }
+          : { note: `skipped: level authored against '${L.def.songId}', playing '${this.song.id}'`, chorusStrikes: 0, onShout: 0, offShout: [] as number[] },
       intendedActions: timings.length,
       matchedActions: matched.length,
       missedActions: timings.filter((t) => !t.matched).map((t) => `${t.type}@${t.beat}`),

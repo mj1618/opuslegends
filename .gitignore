@@ -11,3 +11,4 @@ tools/music/samples_cache/
 # licensed commercial recordings: never commit
 assets/audio/licensed/
 dist-*
+playtest/out-*
