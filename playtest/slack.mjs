@@ -8,7 +8,10 @@
  * beat), and reports the contiguous window around 0 in which the hero survives: e.g. gap@92 -104/+118 ms.
  * Then it turns the windows into the expected deaths per act for the bot profiles (uniform jitter ±J plus a
  * fraction of extra-late presses, re-rolled every attempt, retries from the checkpoint), per checkpoint segment.
- * Physics only: stumbles, the Burn and strikes are not modelled (the real bots measure those).
+ * Physics + the act-2 mechanics (game/mech: thrown bottles, rolling balls, hook rides, ledge scramble, fall-out) run
+ * in the sim; the Burn is not modelled (the real bots measure it).
+ * --stumbles also sweeps every MOVING stumble threat (thrown bottles / firebombs / balls) and every hook ride the same
+ * way and reports its window (no stumble / hooked): the act-2 fairness rule is ≥ +130 ms late on those.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -37,15 +40,33 @@ try {
   const { Player } = await server.ssrLoadModule('/src/game/player.ts');
   const { Controls } = await server.ssrLoadModule('/src/engine/input.ts');
   const { Tun } = await server.ssrLoadModule('/src/game/tunables.ts');
+  const { FALL_OUT, Mechanics } = await server.ssrLoadModule('/src/game/mech/index.ts');
   const tempo = songMod.makeTempoMap(song);
   const L = buildLevel(level, tempo, song);
   const ppb = L.ppb;
   const dt = 1 / Tun.sim.hz;
   const noop = () => {};
+  // the act-2 mechanics run in the sim too (bottles, balls, hooks, scramble, fall-out); `mechLog` collects what happened
+  let mechLog = { died: false, stumbles: [], batted: new Set(), hooked: new Set() };
+  const mech = new Mechanics(L, {
+    stumble: (cause) => mechLog.stumbles.push(cause),
+    die: () => (mechLog.died = true),
+    batted: (b) => mechLog.batted.add(b.beat),
+    fx: noop,
+    telegraph: noop,
+    hooked: (h) => mechLog.hooked.add(h.beat),
+  });
 
+  // --why: print why each simulated run ended in a death (debugging a fit)
+  const why = (reason, x) => {
+    if (args.why) console.log(`  [why] ${reason} at ${x.toFixed(2)}`);
+    return x;
+  };
   /** simulate from `start` to `end` beats; `offsets` maps action index -> press offset (s). Returns death beat or null */
   function run(start, end, offsets, hits = null, trace = null, takeoffs = null) {
     for (const b of L.bouncePads) b.used = false;
+    mechLog = { died: false, stumbles: [], batted: new Set(), hooked: new Set() };
+    mech.reset(start);
     let tNow = 0;
     const p = new Player({ jump: () => takeoffs?.push(tNow), land: noop, strike: noop, slide: noop, footstep: noop });
     p.setWorld(L.world);
@@ -83,6 +104,8 @@ try {
       for (const f of L.slams) f.solid.active = slamState(f, beat, L.swing).solid;
       p.step(dt, c, L.world);
       c.clearEdges();
+      mech.step(dt, beat, p, true, true);
+      if (mechLog.died) return why('fall-out (mech)', p.x / ppb);
       if (hits && p.strikeActive) {
         const bx = p.strikeBox({ x: 0, y: 0, w: 0, h: 0 });
         const circ = (cx, cy, r) => {
@@ -118,10 +141,12 @@ try {
         const hb = p.hurtbox({ x: 0, y: 0, w: 0, h: 0 });
         if (L.signs.some((sg) => hb.x < sg.rect.x + sg.rect.w && hb.x + hb.w > sg.rect.x && hb.y < sg.rect.y + sg.rect.h && hb.y + hb.h > sg.rect.y)) trace.push(`${beat.toFixed(2)} !!! SIGN HIT`);
       }
-      if (trace && Math.floor(beat * 10) !== Math.floor((beat - dt / tempo.secondsPerBeatAt(beat)) * 10)) trace.push(`${beat.toFixed(2)} x ${(p.x / ppb).toFixed(2)} y ${Math.round(p.y)}${p.grounded ? ' G' : ''}${p.sliding ? ' S' : ''}`);
-      if (p.y > Tun.flow.killY) return p.x / ppb;
+      if (trace && Math.floor(beat * 10) !== Math.floor((beat - dt / tempo.secondsPerBeatAt(beat)) * 10)) trace.push(`${beat.toFixed(2)} x ${(p.x / ppb).toFixed(2)} y ${Math.round(p.y)}${p.grounded ? ' G' : ''}${p.sliding ? ' S' : ''}${mech.hook ? ' H' : ''}`);
+      if (p.y > Tun.flow.killY) return why('killY', p.x / ppb);
+      // the game's FALL-OUT rule (game/mech): falling FALL_OUT px below the last ledge is a death (high pits)
+      if (!p.grounded && p.y > p.groundY + FALL_OUT) return why('fall-out', p.x / ppb);
       // walled: stuck far behind the music line = dead in the real game (the Burn)
-      if (beat - p.x / ppb > 1.5) return p.x / ppb;
+      if (beat - p.x / ppb > 1.5) return why(`walled (y ${Math.round(p.y)})`, p.x / ppb);
     }
     return null;
   }
@@ -148,8 +173,11 @@ try {
     for (let k = 0; k < 20; k++) {
       while (Number.isNaN(L.floorYAt(start * ppb))) start -= 0.25;
       const prev = L.actions.find((b) => b.type === 'jump' && b.beat < start && b.beat + 2.2 > start);
-      if (!prev) break;
-      start = prev.beat - 0.5;
+      // …nor mid-way through a launch (start before the pad) or a hook ride (start before the grab)
+      const pad = L.bouncePads.find((b) => b.beat - 0.3 < start && b.landBeat + 0.1 > start);
+      const hk = mech.hooks.find((h) => h.beat - 0.3 < start && h.x1 / ppb + 0.1 > start);
+      if (!prev && !pad && !hk) break;
+      start = Math.min(prev ? prev.beat - 0.5 : Infinity, pad ? pad.beat - 0.5 : Infinity, hk ? hk.beat - 0.5 : Infinity);
     }
     const end = a.beat + 3;
     const base = run(start, end, new Map());
@@ -166,7 +194,9 @@ try {
   {
     const hits = new Map();
     const takeoffs = [];
-    const dead = run(level.startBeat, Math.min(to, level.endBeat), new Map(), hits, null, takeoffs);
+    const otr = args.why ? [] : null;
+    const dead = run(level.startBeat, Math.min(to, level.endBeat), new Map(), hits, otr, takeoffs);
+    if (otr && dead !== null) console.log(otr.slice(-40).join("; "));
     // every hop must leave the ground on its press (a later takeoff = the hero was still airborne: buffered)
     const lateJumps = [];
     for (const a of L.actions) {
@@ -179,12 +209,54 @@ try {
     const missing = [];
     for (const a of L.actions) {
       if (a.type !== 'strike' || a.beat < from || a.beat >= to) continue;
+      // moving / ride targets are checked through the mechanics (batted / hooked on the on-time run)
+      if (a.source === 'thrown') {
+        if (!mechLog.batted.has(a.beat)) missing.push(`thrown@${a.beat} (not batted)`);
+        continue;
+      }
+      if (a.source === 'hook') {
+        if (!mechLog.hooked.has(a.beat)) missing.push(`hook@${a.beat} (not hooked)`);
+        continue;
+      }
       const k = (a.source === 'breakable' ? 'b' : a.source === 'pendulum' ? 'p' : 'e') + a.beat;
       const h = hits.get(k);
       if (!h) missing.push(`${a.source}@${a.beat}`);
       else if (Math.abs(h.beat - a.beat) > 0.25) missing.push(`${a.source}@${a.beat} (only at ${h.beat.toFixed(2)})`);
     }
     console.log(`on-time run: ${dead === null ? 'survives' : 'DIES at ' + dead.toFixed(2)}; strike targets unreachable on the beat: ${missing.length ? missing.join(', ') : 'none'}`);
+  }
+  if (args.stumbles) {
+    // moving stumble threats + hook rides: sweep the one press, report the window with no stumble from it / hooked
+    const movers = L.actions.map((a, i) => ({ a, i })).filter(({ a }) => a.beat >= from && a.beat < to && (a.source === 'thrown' || a.source === 'ball' || a.source === 'hook'));
+    console.log('\nmoving threats / rides (press window, ms):');
+    for (const { a, i } of movers) {
+      let start = Math.max(level.startBeat, a.beat - 3);
+      for (let k = 0; k < 20; k++) {
+        while (Number.isNaN(L.floorYAt(start * ppb))) start -= 0.25;
+        const prev = L.actions.find((b) => b.type === 'jump' && b.beat < start && b.beat + 2.2 > start);
+        const pad = L.bouncePads.find((b) => b.beat - 0.3 < start && b.landBeat + 0.1 > start);
+        const hk = mech.hooks.find((h) => h.beat - 0.3 < start && h.x1 / ppb + 0.1 > start);
+        if (!prev && !pad && !hk) break;
+        start = Math.min(prev ? prev.beat - 0.5 : Infinity, pad ? pad.beat - 0.5 : Infinity, hk ? hk.beat - 0.5 : Infinity);
+      }
+      const end = a.beat + 2.5;
+      const tag = `@${a.beat}`;
+      const ok = (ms) => {
+        const dead = run(start, end, new Map([[i, ms / 1000]]));
+        if (a.source === 'hook') return mechLog.hooked.has(a.beat) && (dead === null || a.failKind !== 'death');
+        return dead === null && !mechLog.stumbles.some((c) => c.endsWith(tag));
+      };
+      let E = 0;
+      let Lt = 0;
+      const base = ok(0);
+      if (base) {
+        while (E > -300 && ok(E - 5)) E -= 5;
+        while (Lt < 300 && ok(Lt + 5)) Lt += 5;
+      }
+      const name = a.source === 'thrown' ? (L.def.items.find((it) => it.type === 'thrown' && it.beat === a.beat)?.style ?? 'thrown') : a.source;
+      const flag = base && (Lt < 130 || E > -85) ? '  <-- under −85/+130' : '';
+      console.log(`${String(a.beat).padEnd(8)} ${name.padEnd(8)} ${a.type.padEnd(6)} ${base ? `${E}/+${Lt}` : 'FAILS ON TIME'}${flag}`);
+    }
   }
   const cps = [level.startBeat, ...L.checkpoints.map((c) => c.beat)].sort((x, y) => x - y);
   const seg = (b) => cps.filter((c) => c <= b + 1e-6).pop();

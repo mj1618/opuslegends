@@ -4,7 +4,8 @@
  * A goon leans out of a window above and tosses a bottle on a visible arc that ARRIVES ON ITS BEAT:
  *   'bottle'    arrives at the BAT POINT (chest height, `BAT.ahead` px in front of the hero's beat position) on
  *               `beat`: strike ON the beat and Slim bats it back up through the window (token burst). Miss, and it
- *               clocks him ~95 ms later (stumble). Window ≈ −210/+70 ms (measured with the real strike box).
+ *               clocks him ~95 ms later (stumble) — unless the swing lands within `BAT.grace` of the clip (iteration 4).
+ *               Window ≈ −210/+140 ms (measured with the real strike box, playtest/slack.mjs --stumbles).
  *   'firebomb'  shatters on the floor ON `beat`, `FIRE.at` beats ahead of the hero (exactly where a spike sits),
  *               and burns for `FIRE.beats`: hop ON the beat over the flames (stumble if you run into them).
  * Telegraph (DESIGN: 1 beat audible + visual): the arc is visible from `from` (default 2 beats before), a target
@@ -33,14 +34,22 @@ export const BAT = {
   loft: 60,
   /** flight time (beats) when the level doesn't say */
   beats: 2,
+  /**
+   * iteration 4 (review iter3 fix 2: the late side was +70 ms, the stingiest window in the game): once the bottle clips
+   * him, a swing that goes active within this many seconds still bats it off his shoulder. Late window ≈ +140 ms.
+   */
+  grace: 0.07,
 } as const;
 
 export const FIRE = {
-  /** beats ahead of the hero's beat position where the firebomb lands (= spikeHop's spike) */
-  at: 0.45,
+  /**
+   * beats ahead of the hero's beat position where the firebomb lands. Iteration 4: 0.45 → 0.5 and the hurt box 34 → 16×18
+   * px (the flames are DRAWN big; this is their fair core): window −100/+145 ms (was ≈ ±100), the act-2 rule ≥ +130 late
+   */
+  at: 0.5,
   /** flame hurt box (px) — a spike is 28×28 */
-  w: 34,
-  h: 34,
+  w: 16,
+  h: 18,
   /** how long it burns after landing (beats) */
   beats: 1.6,
 } as const;
@@ -66,6 +75,8 @@ export interface ThrownBottle {
   tokens: number;
   // ---- runtime (reset by Mechanics.reset)
   state: BottleState;
+  /** seconds since it first clipped the hero (−1 = not yet): the bat grace */
+  graze: number;
   x: number;
   y: number;
   vx: number;

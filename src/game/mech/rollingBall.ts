@@ -8,12 +8,15 @@
  * Like the thrown bottles, its position is a pure function of the world beat (rewinds/hitstop safe).
  */
 export const BALL = {
-  /** beats after its hop beat when the ball is under the hero (= spikeHop's spike) */
-  at: 0.45,
-  /** radius (px) — drawn a bit bigger; the hurt circle is this */
-  r: 21,
+  /**
+   * beats after its hop beat when the ball is under the hero. Iteration 4 (review iter3 fix 2): 0.45 → 0.5, hurt radius
+   * 21 → 16, roll 230 → 200 px/beat: window −90/+140 ms (was −95/+115), the act-2 rule ≥ +130 late
+   */
+  at: 0.5,
+  /** radius (px) of the hurt circle — the ball is DRAWN bigger (~26) */
+  r: 16,
   /** default roll speed (px per beat, leftward) */
-  speed: 230,
+  speed: 200,
   /** default beats of roll before the hop beat */
   lead: 3,
 } as const;

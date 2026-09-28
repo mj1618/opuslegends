@@ -61,8 +61,12 @@ export type BreakableLook = 'bottle' | 'glass' | 'crate' | 'neon' | 'jug' | 'win
  *   bigJimGlint  Big Jim's aviators flash in a high window (`h` px above the hero's floor, `ahead` beats ahead)
  *   windowCrash  Slim's Heave smashes THROUGH a window into the building (the pre-chorus HEY)
  *   lanes        inside: the Blacklight Lanes (bowling alley)
+ *   facadeReveal (iteration 4) the act seam: out of the honky-tonk's door, the camera tilts UP the Jimperial to Big Jim's
+ *                penthouse glinting at the top (`h` px above the street = the top, `ahead` beats ahead), then back down
+ *   zipDrop      (iteration 4) the chorus drop: Slim hooks the cable on the chorus downbeat and zips DOWN into the Lanes'
+ *                big window (`h` = the drop in px); the camera rides with him
  */
-export type SetPieceName = 'climb' | 'bigJimGlint' | 'windowCrash' | 'lanes' | ActOneSetPiece;
+export type SetPieceName = 'climb' | 'bigJimGlint' | 'windowCrash' | 'lanes' | 'facadeReveal' | 'zipDrop' | ActOneSetPiece;
 /**
  * Act 1 set-pieces (iteration 3 wow moments; Game also emits every setPiece item as a `setPiece` event and
  * exposes `game.setPiece` while it lasts): 'bigLaunch' (bar 9: the launch onto the neon roofs, apex on the
@@ -71,6 +75,9 @@ export type SetPieceName = 'climb' | 'bigJimGlint' | 'windowCrash' | 'lanes' | A
 export type ActOneSetPiece = 'bigLaunch' | 'chorusShot' | 'walkdown';
 /** thrown-bottle styles: 'bottle' = strike it ON the beat (bat it back), 'firebomb' = hop its flames ON the beat */
 export type ThrowStyle = 'bottle' | 'firebomb';
+/** hook-ride skins (act 2, src/game/mech/hook.ts): 'rope' hoists you up, 'line' = a laundry line / cable, 'cradle' = a
+ *  window-washer's cradle you ride standing */
+export type HookStyle = 'rope' | 'line' | 'cradle';
 
 export type LevelItem =
   /** override the ground height over a beat range (later items win) */
@@ -167,6 +174,13 @@ export type LevelItem =
   | { type: 'ball'; beat: number; from?: number; speed?: number; action?: IntendedAction }
   /** a hop UP onto a higher ledge (the climb) — design tag carrying the hop action; geometry = `floor` items */
   | { type: 'ledge'; beat: number; action?: IntendedAction }
+  /**
+   * HOOK RIDE (act 2's new verb, src/game/mech/hook.ts): strike ON `beat` to hook the cue over a rope / line and ride
+   * it. `path` = the hero's FEET height (px above the street) by x in beats: [[beat, h], ...], the first point at the
+   * grab, the last where he lets go. The terrain under the path decides what a miss costs (stairs = nothing, a pit =
+   * death). Strikes still work while riding.
+   */
+  | { type: 'hook'; beat: number; style: HookStyle; path: [number, number][]; action?: IntendedAction }
   /** presentation-only set-piece cue (see SetPieceName) */
   | { type: 'setPiece'; beat: number; name: SetPieceName; beats?: number; h?: number; ahead?: number };
 

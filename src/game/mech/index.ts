@@ -1,12 +1,14 @@
 /**
- * Act-2 mechanics (iteration 3, docs/level/act2_plan.md): the runtime for level items the core builder doesn't
- * know — THROWN BOTTLES (thrownBottle.ts), ROLLING BALLS (rollingBall.ts) and presentation SET-PIECE cues — plus two
- * climb rules:
- *   - LEDGE SCRAMBLE: a hero stopped dead against a knee-high ledge (27–110 px, e.g. a missed hop UP on the climb)
- *     scrambles up it after a moment instead of standing there forever. Costs ~0.3 beat (the surge wins it back);
- *     no stumble. Keeps a missed reward hop a reward miss (failKind 'none'), for humans and the lazy bot alike.
+ * Act-2 mechanics (iterations 3-4, docs/level/act2_plan.md): the runtime for level items the core builder doesn't
+ * know — THROWN BOTTLES (thrownBottle.ts), ROLLING BALLS (rollingBall.ts), HOOK RIDES (hook.ts, iteration 4: strike ON
+ * the beat to hook a rope / line / cradle and ride it) and presentation SET-PIECE cues — plus two climb rules:
+ *   - LEDGE SCRAMBLE: a hero stopped dead against a ledge (27–150 px, e.g. a missed hop UP or a tapped storey jump on
+ *     the climb) scrambles up it after a moment instead of standing there forever. Costs ~0.3–0.5 beat (the surge
+ *     wins it back); no stumble. Keeps a missed reward hop a reward miss (failKind 'none'), for humans and the lazy
+ *     bot alike.
  *   - FALL-OUT: falling more than `FALL_OUT` px below the last ledge is a death right away (the pits on the facade
- *     and the lane gutters sit high above the street; without this the fall would take ~0.8 s off-screen).
+ *     and the lane gutters sit high above the street; without this the fall would take ~0.8 s off-screen). Not while
+ *     riding a hook (the chorus zip drops ~900 px).
  *
  * Game (game.ts) owns one `Mechanics`, built from the RuntimeLevel, and calls reset / step / beat. Everything here is
  * a pure function of the world beat plus the player, so rewinds and hitstop behave like the core entities.
@@ -17,16 +19,18 @@ import { overlaps, type Rect } from '../../engine/math';
 import type { RuntimeLevel } from '../../level/build';
 import type { SetPieceName } from '../../level/types';
 import type { Player } from '../player';
+import { Tun } from '../tunables';
+import { HOOK, type HookRide, hookY } from './hook';
 import { BALL, type RollingBall, ballX } from './rollingBall';
 import { BAT, FIRE, type ThrownBottle, bottleArc } from './thrownBottle';
 
-export { BALL, BAT, FIRE };
-export type { RollingBall, ThrownBottle };
+export { BALL, BAT, FIRE, HOOK, hookY };
+export type { HookRide, RollingBall, ThrownBottle };
 
 /** px below the last ledge at which a fall is a death (act 1's deepest intended drop is 150 px) */
 export const FALL_OUT = 420;
-/** ledge scramble: riser heights it helps with, stall speed, delay before the scramble (s) */
-export const SCRAMBLE = { min: 27, max: 110, stallVx: 60, delay: 0.1 } as const;
+/** ledge scramble: riser heights it helps with (iteration 4: up to a storey, 150), stall speed, delay before it (s) */
+export const SCRAMBLE = { min: 27, max: 150, stallVx: 60, delay: 0.1 } as const;
 
 export interface SetPieceCue {
   beat: number;
@@ -44,9 +48,11 @@ export interface MechHost {
   /** a thrown bottle batted back ON its beat: tokens, sound, juice */
   batted(b: ThrownBottle): void;
   /** presentation hooks (particles / SFX) */
-  fx(kind: 'shatter' | 'ignite' | 'ballHit' | 'scramble', x: number, y: number): void;
+  fx(kind: 'shatter' | 'ignite' | 'ballHit' | 'scramble' | 'hook', x: number, y: number): void;
   /** schedule a telegraph sound at an AudioContext time */
   telegraph(kind: 'whistle' | 'rumble', beat: number): void;
+  /** a hook ride starts (optional: presentation / stats) */
+  hooked?(h: HookRide): void;
 }
 
 const TOKENS_BAT = 4;
@@ -55,12 +61,16 @@ export class Mechanics {
   readonly bottles: ThrownBottle[] = [];
   readonly balls: RollingBall[] = [];
   readonly setPieces: SetPieceCue[] = [];
+  readonly hooks: HookRide[] = [];
+  /** the hook ride in progress (render: Slim hangs from `hook.pts` + HOOK.hang), or null */
+  hook: HookRide | null = null;
   private readonly L: RuntimeLevel;
   private host: MechHost;
   private hurt: Rect = { x: 0, y: 0, w: 0, h: 0 };
   private box: Rect = { x: 0, y: 0, w: 0, h: 0 };
   private pt = { x: 0, y: 0 };
   private stallT = 0;
+  private wasActive = false;
   /** scrambles this attempt (stats / debug) */
   scrambles = 0;
 
@@ -94,6 +104,7 @@ export class Mechanics {
           r: BAT.r,
           tokens: bottle ? TOKENS_BAT : 0,
           state: 'idle',
+          graze: -1,
           x: 0,
           y: 0,
           vx: 0,
@@ -120,6 +131,9 @@ export class Mechanics {
           rot: 0,
           t: 0,
         });
+      } else if (it.type === 'hook') {
+        const pts = it.path.map(([b, h]) => [b * ppb, -h] as [number, number]);
+        this.hooks.push({ id: id++, beat: it.beat, style: it.style, pts, x0: pts[0][0], x1: pts[pts.length - 1][0], state: 'idle', k: 0, t: 0 });
       } else if (it.type === 'setPiece') {
         const x = (it.beat + (it.ahead ?? 0)) * ppb;
         const floorY = floorAt(x);
@@ -129,6 +143,7 @@ export class Mechanics {
     this.bottles.sort((a, b) => a.beat - b.beat);
     this.balls.sort((a, b) => a.beat - b.beat);
     this.setPieces.sort((a, b) => a.beat - b.beat);
+    this.hooks.sort((a, b) => a.beat - b.beat);
   }
 
   /** tokens the level's bat-able bottles pay from `beat` on (for the run's token total) */
@@ -142,11 +157,19 @@ export class Mechanics {
       b.state = b.beat >= beat - 0.5 ? 'idle' : 'out';
       b.t = 0;
       b.rot = 0;
+      b.graze = -1;
     }
     for (const b of this.balls) {
       b.state = b.beat >= beat - 0.5 ? 'idle' : 'gone';
       b.t = 0;
     }
+    for (const h of this.hooks) {
+      h.state = h.beat >= beat - 0.5 ? 'idle' : 'done';
+      h.k = 0;
+      h.t = 0;
+    }
+    this.hook = null;
+    this.wasActive = false;
     this.stallT = 0;
   }
 
@@ -182,7 +205,7 @@ export class Mechanics {
           }
           continue;
         }
-        if (box && circleRect(b.x, b.y, b.r, box)) {
+        if (box && (circleRect(b.x, b.y, b.r, box) || b.graze >= 0)) {
           b.state = 'batted';
           b.t = 0;
           b.vx = 900 + Math.max(0, p.vx) * 0.3;
@@ -190,7 +213,11 @@ export class Mechanics {
           this.host.batted(b);
           continue;
         }
-        if (running && circleRect(b.x, b.y, b.r * 0.8, hurt)) {
+        // iteration 4: when it first CLIPS him, a swing inside BAT.grace still bats it off his shoulder (late ≥ +130 ms)
+        if (b.graze < 0 && running && circleRect(b.x, b.y, b.r * 0.8, hurt)) b.graze = 0;
+        if (b.graze >= 0) {
+          b.graze += dt;
+          if (b.graze < BAT.grace) continue;
           b.state = 'smashed';
           b.t = 0;
           this.host.fx('shatter', b.x, b.y);
@@ -256,12 +283,50 @@ export class Mechanics {
         if (b.t > 1.2) b.state = 'gone';
       }
     }
+    // ---------------------------------------------------------------- hook rides
+    const active = running && p.strikeActive;
+    if (active && !this.wasActive && !this.hook) {
+      // the press = the active edge minus the strike's startup
+      const pressBeat = wb - Tun.strike.startup / p.spb;
+      for (const h of this.hooks) {
+        if (h.state !== 'idle' || pressBeat < h.beat - HOOK.early || pressBeat > h.beat + HOOK.late) continue;
+        if (p.x > h.x1 - 8 || p.x < h.x0 - 1.2 * this.L.ppb) continue;
+        h.state = 'riding';
+        h.t = 0;
+        this.hook = h;
+        p.strikeHitSomething = true;
+        this.host.fx('hook', p.x + 40, hookY(h, p.x) - HOOK.hang);
+        this.host.hooked?.(h);
+        break;
+      }
+    }
+    this.wasActive = active;
+    const h = this.hook;
+    if (h) {
+      h.t += dt;
+      if (!running || p.x >= h.x1) {
+        // let go: drop onto whatever is under the end of the path (the fall-out rule measures from here)
+        h.state = 'done';
+        h.k = 1;
+        this.hook = null;
+        p.groundY = p.y;
+      } else {
+        h.k = Math.max(0, Math.min(1, (p.x - h.x0) / Math.max(1, h.x1 - h.x0)));
+        p.y = hookY(h, Math.max(p.x, h.x0));
+        p.vy = 0;
+        p.grounded = false;
+        p.jumping = false;
+        p.coyote = 0;
+        p.jumpBuffer = 0;
+        p.groundY = p.y;
+      }
+    }
     if (!running) {
       this.stallT = 0;
       return;
     }
     // ---------------------------------------------------------------- climb rules
-    if (!p.grounded && p.y > p.groundY + FALL_OUT) {
+    if (!this.hook && !p.grounded && p.y > p.groundY + FALL_OUT) {
       this.host.die('pit');
       return;
     }
