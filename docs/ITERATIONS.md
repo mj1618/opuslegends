@@ -560,3 +560,12 @@ placeholder `render/canisterDraw.ts` + the HUD/poster lines in `render/screens.t
   - Full-level autoplay: PASS, 0 deaths, including the `--hidden` gate. `--hidden` itself: PASS, 301 actions.
   - Rubric top-10 with the bot reports: **11/11** for each act and for the whole level.
   - ±85 act 3 dies less than the review's 0.3–0.5 target, even at −80. Real sloppy teeth need −70, which is a user call.
+
+## Iteration 6 — outcome
+Shipped: crowd starts 14 (full sound from beat 0; booth time ±130: ~65% → ≤10%), gauntlet stakes (lethals 326/330),
+WHEW near-miss, notable-only stamps, fail counter removed, Burn flares only in danger, 3 hidden film canisters +
+poster rank (S-D); tokens sing Croce's vocal melody (doubling/harmonising by measured pitch), goons' parts flare when
+struck, WHEW/canister/rank stings; final hit connects on Big Jim's face (KNOCKOUT!), Slim bigger + never bleached,
+gentler zoom-outs, background band of goons playing the record's lanes, 1.6x foreground speed layer, facade varies
+every 4 bars. Decision: keep early slack at −80 (no −70) — fairness over sloppy-player deaths; the sting for sloppy
+play is losing the music reward. Known gap: poster rank sting fires ~2.6 s after the hit, poster appears at 7.0 s.
