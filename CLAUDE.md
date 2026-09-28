@@ -39,6 +39,13 @@ World y grows DOWN; the base ground top is y = 0.
   (`getOutputTimestamp` → filtered ctx↔performance mapping), never from summed frame deltas.
   It supports a tempo map, beat/bar/cue callbacks, `play(fromSongTime)` (count-ins / checkpoint
   rewinds), tape-stop, and a user latency offset (`[` / `]`, stored in localStorage, `?latency=`).
+  **Latency calibration** (iteration 4, `game/calibrate.ts`, `Tun.calib` / `Tun.autoLatency`): the cold open's
+  "SYNC THE PROJECTOR" — 8 stick clicks at the song's tempo, tap STRIKE on each; offset = median error of the last 6
+  taps vs the click's audible time (the SFX bus is late by the limiter look-ahead only), stored like `[`/`]`. It runs
+  on the first STRIKE of a first-ever run (nothing stored; SPACE skips, a skip is stored too), on ↓ in the cold open,
+  on X in the pause screen, and with `?calib=1`. In the run, an **auto-drift** nudges the offset by 0.35 × the median
+  error of every 16 graded presses (≥ 18 ms bias, ≤ 8 ms per bar line, ±40 ms around the calibrated value).
+  `Game.setLatencyMs(ms, store)` sets both the offset and the drift's centre.
   `conductor.outputDelay` = our graph's delay (the booth's 6 ms film delay line + the master limiter's look-ahead,
   measured at load: `AudioSystem.outputDelay`), subtracted from song time.
 - **Tempo map everywhere**: the original recording is a live band with one tempo point per beat
@@ -65,12 +72,16 @@ World y grows DOWN; the base ground top is y = 0.
   fullHouse / stumble / death / burn (lunge, pull, caught) / setPiece / smash (giant index) / hint, emitted from
   the fixed-step sim. Pollable state: `game.crowd.{value,count,norm,bigCatch}`, `game.combo` / `comboPeak`
   (consecutive Great+), `game.chaser.{x,gap,lunge,danger,flare}`, `game.setPiece`. Presentation hooks here only.
-- **Crowd = skill meter** (`Tun.crowd`): Perfect +1 · Great +0.5 · Good 0 · Miss −2 · stumble −4 · death −6,
-  decays 0.4/beat, section caps (`crowd` items). FULL HOUSE (≥ 20) needs a near-clean chorus.
+- **Crowd = skill meter** (`Tun.crowd`): wakes at 8, Perfect +1 · Great +0.5 · Good +0.25 · Miss −2 · stumble −4 ·
+  death −6, decays 0.4/beat, section caps (`crowd` items). FULL HOUSE (≥ 20) needs a near-clean chorus. A cap BELOW
+  the meter (a new act's verse) never clamps: the excess glides down 1/beat (no FULL HOUSE → 16 cliff at a seam).
+  **The drop** (`Game.chorusDrop`): a clean (all Great+) Hup-Hup-HEY in the 8 beats before a chorus cap (≥ 20), or a
+  crowd item's `earn` beats graded Great+, fills the house 0.5 beat early so FULL HOUSE lands ON the chorus downbeat.
 - **The Burn** (`Tun.chaser`, `Game.updateChaser`): its front sits `gap` beats behind the music line (rest 1.75).
   Every stumble PULLS it 0.75 beat closer, every missed reward 0.2 (after it rises), clean play relaxes it
   (+0.04/beat, +0.06 per hit); it LUNGES 0.3 beat on every drum fill (`fills` lane). Two stumbles close together
-  (or a stumble into a fill) = caught. Checkpoints snapshot its gap (respawn ≥ 1.1).
+  (or a stumble into a fill) = caught. Checkpoints snapshot its gap; a respawn restarts it at rest (1.75, iteration 4:
+  was 1.1 → catch-twice loops) and the first stumble after a respawn doesn't pull it (it only flares).
 - **Failure hints**: only 3 first-appearance prompts in the level (`hint` items with an `icon`); anything else
   is taught by placement + `Game.FAIL_HINTS`, shown once after the player fails the same thing twice.
 - **Mix** (`audio/audioSystem.ts`, `audio/mix.ts`): music (record at unity + overlay stems) → **projection
@@ -219,14 +230,17 @@ Presentation cues on beats: `{type:'fx', beat, fx:'flash'|'shake'|'zoom'|'bgPuls
   placeholder and shows an on-screen note. The OGG is preferred (the MP3 decodes 25 ms late in decoders
   that ignore its LAME header).
 - Controls: hold →/D to run, Space/Z/W/Up hop (tap) / jump (hold), X/J strike (the cue swing; also
-  starts the cold open), Esc pause, `[`/`]` latency offset, `` ` `` / F1 debug overlay.
+  starts the cold open), ↓ in the cold open / X in the pause screen = the projector sync (latency tap test),
+  Esc pause, `[`/`]` latency offset, `` ` `` / F1 debug overlay.
   Gamepad: A hop, X/B/RT strike, stick/dpad.
 - URL params: `?debug=1` overlay (fps, song/beat, clock, hitboxes, beat grid, green dashed *music line*,
   intended-action markers) · `?start=<beat>` start mid-level (checkpoints: 32, 64, 80, 96, 112, 120; act 2: 132, 164, 196, 220, 236) · `?coldopen=0` ·
   `?autoplay=1` bot plays via the controller · `?jitter=<ms>` / `?late=<p>` / `?sloppy=1` sloppy bot ·
   `?judge=1` timing-grade popups · `?mute=1` · `?latency=<ms>` · `?song=edit|full|placeholder` · `?miss=37,28` bot deliberately skips those
   actions once (stumble/death/respawn test) · `?skip=none|stumble` bot ALWAYS skips rewards (lazy) / stumble
-  threats (reckless) · `?probe=1` live audio sync probe.
+  threats (reckless) · `?probe=1` live audio sync probe · `?device=<ms>` the bot HEARS the audio that late (an
+  unreported Bluetooth delay: the latency offset corrects it, like for a human) · `?calib=1` run the projector sync
+  (the bot taps it with its device delay + jitter) · `?autolat=0` no in-run latency drift.
 - `window.__game`: `state()`, `report()`, `start(beat?)`, `setLatency(ms)`, `debug(on)`, `level`, `game`.
 - `npm run playtest` — builds, serves, runs headless Chromium with autoplay, writes `playtest/out/`
   (`playtest.webm`, `shot-XX-beatYY.png` every 2 s, `report.json`). Exits non-zero unless: level completed,
@@ -238,7 +252,9 @@ Presentation cues on beats: `{type:'fx', beat, fx:'flash'|'shake'|'zoom'|'bgPuls
   Options: `--debug` (overlay in shots), `--start=<beat>`, `--miss=<beats>`, `--jitter=<ms>`, `--sloppy`
   (completion only; reports deaths per section), `--seed=<n>`, `--song=<id>`, `--out=<dir>` + `--dist=<dir>`
   (private folders for parallel agents; never let two agents share `dist/`), `--no-video`,
-  `--headed`, `--no-build`, `--skip=none|stumble` (lazy / reckless bots), `--max-deaths=<n>` (stop early).
+  `--headed`, `--no-build`, `--skip=none|stumble` (lazy / reckless bots), `--max-deaths=<n>` (stop early),
+  `--device=<ms>` / `--calib` / `--autolat=0` (latency: an uncalibrated-speaker bot, the tap test, no drift);
+  sloppy runs print deaths and stumbles per act.
   Report extras: `crowd.trace` (value per bar), `crowd.fullHouseBeats`, `combo`, `burn` (pulls, lunges, min
   margin, catches), `failHints`, `targetGrades` ([beat, grade] per target: split grades by act).
 - Art/perf probe on the real GPU at 1920x1080 (no build): `node src/art/lab/gameshot.mjs --out=<dir> [--start=<beat>]

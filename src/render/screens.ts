@@ -226,7 +226,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo): vo
     ctx.textAlign = 'left';
   }
   // cold open prompt: the house is dark, the projector waits
-  if (g.phase === 'coldOpen') {
+  if (g.phase === 'coldOpen' && !g.calib.active) {
     const k = 0.6 + 0.4 * gr.pulse(1, 0.4);
     const a = Math.min(1, g.coldOpenT * 2);
     ctx.textAlign = 'center';
@@ -238,6 +238,8 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo): vo
     ctx.globalAlpha = a * k;
     ctx.font = `44px ${MARQUEE}`;
     outlineText(ctx, 'PRESS  X  (CUE SWING)  TO ROLL THE FILM', VIEW_W / 2, VIEW_H * 0.35, CF.cream, 8);
+    ctx.font = `26px ${FONT}`;
+    outlineText(ctx, '↓  sync the projector first (audio lag test)', VIEW_W / 2, VIEW_H * 0.35 + 50, 'rgba(233,216,180,0.8)', 4);
     ctx.globalAlpha = 1;
   }
   // count-in: the film's countdown leader
@@ -469,7 +471,7 @@ export function drawEndScreen(ctx: CanvasRenderingContext2D, g: Game, b: BeatInf
       : []),
     ['audience on its feet', `${g.crowd.peak}`],
     ['on the beat', `${gr.perfect + gr.great + gr.good} / ${total}  (${gr.perfect} perfect)`],
-    ['heaves', `${g.stats.heaves} / ${r.phrases}`],
+    ['best combo · heaves', `${g.comboPeak} · ${g.stats.heaves} / ${r.phrases}`],
     ['falls · stumbles', `${g.stats.deaths} · ${g.stats.stumbles}`],
   ];
   lines.forEach(([kk, v], i) => {

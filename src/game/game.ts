@@ -45,6 +45,7 @@ import { Particles, PShape } from '../render/particles';
 import { Renderer } from '../render/renderer';
 import { makeSprites } from '../render/sprites';
 import { AutoPlayer } from './autoplay';
+import { Calibrator, median } from './calibrate';
 import { Crowd } from './crowd';
 import type { ActionMarker, BouncePad, Breakable, Enemy, PendulumTarget, LooseLum } from './entities';
 import { GameEvents } from './events';
@@ -96,6 +97,23 @@ export class Game {
   /** act-2 mechanics: thrown bottles, rolling balls, set-piece cues, ledge scramble, fall-out (src/game/mech) */
   readonly mech: Mechanics;
   readonly crowd = new Crowd();
+  /** the projector sync (latency tap test): cold open (first run / ?calib=1 / ↓) and the pause screen (X) */
+  readonly calib: Calibrator;
+  /** the latency offset the player calibrated / stored (ms): the in-run auto-drift stays within ±Tun.autoLatency.rangeMs of it */
+  latencyBaseMs = 0;
+  /** press errors (ms) since the last auto-drift step */
+  private autoErr: number[] = [];
+  /** stumbles after a respawn that don't pull the Burn yet (Tun.chaser.respawnGraceStumbles) */
+  private burnGrace = 0;
+  /** chorus drops (cap-rise beats) already paid this attempt */
+  private dropsDone = new Set<number>();
+  /** a paid drop opens its chorus cap early (until its downbeat) */
+  private dropCapBeat = -Infinity;
+  /** thrown bottles batted back / phrases heaved this run (and at the last checkpoint): the poster counts */
+  private batted = new Set<number>();
+  private snapBatted = new Set<number>();
+  private heaved = new Set<number>();
+  private snapHeaved = new Set<number>();
   /** gameplay → presentation hooks (grades, misses, combo, crowd, the Burn, set-pieces): game/events.ts */
   readonly events = new GameEvents();
   /** consecutive Great-or-better presses (a Good, a miss, a stumble or a death breaks it) */
@@ -205,7 +223,8 @@ export class Game {
 
     const stored = safeGetLocal(LATENCY_KEY);
     const lat = params.latencyMs ?? (stored !== null ? Number(stored) : 0);
-    this.conductor.latency = (Number.isFinite(lat) ? lat : 0) / 1000;
+    this.setLatencyMs(Number.isFinite(lat) ? lat : 0, false);
+    this.calib = new Calibrator(this.conductor, this.sfx);
 
     this.crowd.onChange = (n) => this.onCrowdChange(n);
     this.crowd.onValue = (v, dv) => {
@@ -304,6 +323,8 @@ export class Game {
     }
     this.stats.lumsTotal = this.level.lums.filter((l) => !l.skipped).length + this.level.breakables.filter((b) => b.beat >= start - 1e-6).reduce((n, b) => n + b.tokens, 0) + this.mech.tokensFrom(start);
     this.stats.pendulumsTotal = this.level.pendulums.filter((f) => f.beat >= start - 1e-6).length;
+    this.stats.breakablesTotal = this.level.breakables.filter((b) => b.beat >= start - 1e-6).length + this.mech.bottles.filter((b) => b.tokens > 0 && b.beat >= start - 1e-6).length;
+    this.stats.phrasesTotal = this.level.phrases.filter((ph) => ph.beats[0] >= start - 1e-6).length;
     this.level.checkpoints.forEach((cp, i) => {
       if (cp.beat <= start + 1e-6) {
         cp.reached = true;
@@ -312,11 +333,15 @@ export class Game {
     });
     if (params.autoplay) this.bot = new AutoPlayer(this.level.actions, this.tempo, params.miss, params.jitter, params.seed, params.late, params.skip);
     const cold = fromBeat === undefined && params.start === null && this.level.def.coldOpen && params.coldOpen;
-    this.crowd.awake = false;
-    this.crowd.count = 0;
-    this.crowd.value = 0;
-    this.crowd.peak = 0;
+    this.crowd.reset(crowdCapAt(this.level, start));
     this.wasFullHouse = false;
+    this.dropsDone.clear();
+    this.batted.clear();
+    this.snapBatted.clear();
+    this.heaved.clear();
+    this.snapHeaved.clear();
+    this.burnGrace = 0;
+    this.autoErr = [];
     if (cold) this.enterColdOpen(start);
     else {
       this.crowd.wake();
@@ -388,6 +413,8 @@ export class Game {
     this.mech.reset(beat);
     const gap = Math.min(Tun.chaser.restGap, Math.max(this.snap.burnGap, Tun.chaser.respawnMinGap));
     this.chaser = { active: false, x: -Infinity, riseBeat: 0, gap, rel: gap + 0.5, lunge: 0, danger: 0, flare: 0 };
+    for (const b of [...this.dropsDone]) if (b >= beat - 1e-6) this.dropsDone.delete(b);
+    this.dropCapBeat = -Infinity;
     this.lungeIdx = this.lungeBeats.findIndex((b) => b >= beat - 1e-6);
     if (this.lungeIdx < 0) this.lungeIdx = this.lungeBeats.length;
     this.setPieceIdx = this.level.setPieces.findIndex((sp) => sp.beat >= beat - 1e-6);
@@ -405,8 +432,13 @@ export class Game {
     this.lumStreak = { count: 0, lastBeat: -99 };
     this.recoverFrom = NaN;
     this.resetWorld(beat);
-    this.stats.lums = this.snap.lums.size + this.level.breakables.filter((b) => this.snapBroken.has(b.id)).reduce((n, b) => n + b.tokens, 0);
+    // the run's counts go back to the checkpoint's (a rewind replays what's ahead: nothing is counted twice)
+    this.batted = new Set(this.snapBatted);
+    this.heaved = new Set(this.snapHeaved);
+    this.stats.lums = this.snap.lums.size + this.level.breakables.filter((b) => this.snapBroken.has(b.id)).reduce((n, b) => n + b.tokens, 0) + this.mech.bottles.filter((b) => this.batted.has(b.id)).reduce((n, b) => n + b.tokens, 0);
     this.stats.pendulums = this.snap.pendulums.size;
+    this.stats.breakables = this.snapBroken.size + this.batted.size;
+    this.stats.heaves = this.heaved.size;
     this.judge.reset(beat);
     for (const i of [...this.heaveReady]) if (this.level.phrases[i].beats[0] >= beat - 1e-6) this.heaveReady.delete(i);
     const x = beat * this.level.ppb;
@@ -471,6 +503,8 @@ export class Game {
     // back to the checkpoint's crowd, minus a death's worth
     this.crowd.set(this.snap.crowd - Tun.crowd.deathLoss);
     this.spawnAt(beat);
+    // the Burn restarts at rest (respawnMinGap) and ignores the first stumble: it can't catch you twice in a row
+    this.burnGrace = Tun.chaser.respawnGraceStumbles;
     if (this.pendingHint) {
       this.showFailHint(this.pendingHint, beat - Tun.flow.countInBeats + 0.5);
       this.pendingHint = null;
@@ -505,6 +539,9 @@ export class Game {
       burnGap: this.chaser.active ? this.chaser.gap : Tun.chaser.restGap,
     };
     this.snapBroken = new Set(this.level.breakables.filter((b) => b.broken).map((b) => b.id));
+    this.snapBatted = new Set(this.batted);
+    this.snapHeaved = new Set(this.heaved);
+    this.burnGrace = 0;
     this.stage.onCheckpoint();
     this.particles.emit({ x: cp.x, y: cp.y - 200, count: 30, speed: [150, 500], life: [0.5, 1], size: [6, 12], color: '#F8F1DC', gravity: 500, drag: 1.5, shape: PShape.Square });
     this.log('checkpoint', { beat: cp.beat });
@@ -534,8 +571,10 @@ export class Game {
     this.frameStats.tick(now);
     this.input.pollGamepads();
     this.conductor.update(now);
-    const edges = this.input.drain();
+    let edges = this.input.drain();
+    if (this.calib.active) edges = this.calibInput(edges);
     this.handleMetaInput(edges);
+    if (this.calib.update()) this.finishCalibration();
 
     if (this.scene === 'play' && !this.paused) this.advanceSim(edges, frameDt);
 
@@ -585,12 +624,12 @@ export class Game {
       if (e.button === 'debug') this.debug.enabled = !this.debug.enabled;
       if (e.button === 'latUp' || e.button === 'latDown') {
         const ms = Math.round(this.conductor.latency * 1000) + (e.button === 'latUp' ? 5 : -5);
-        this.conductor.latency = ms / 1000;
-        safeSetLocal(LATENCY_KEY, String(ms));
+        this.setLatencyMs(ms, true);
         this.showToast(`Audio latency offset: ${ms} ms`);
       }
       if (e.button === 'pause' && this.scene === 'play' && this.phase !== 'coldOpen') this.setPaused(!this.paused);
       else if (this.paused && (e.button === 'start' || e.button === 'jump')) this.setPaused(false);
+      else if (this.paused && e.button === 'strike' && !this.calib.active) this.startCalibration('pause');
     }
     if (this.scene === 'title' && this.input.anyPressed && this.conductor.buffer) {
       void this.audio.unlock().then(() => {
@@ -601,6 +640,89 @@ export class Game {
     if (this.scene === 'end' && edges.some((e) => e.down && (e.button === 'start' || e.button === 'jump'))) {
       this.startRun();
     }
+  }
+
+  // ====================================================================== latency: the projector sync + auto-drift
+
+  /** set the latency offset (ms); `store` = it is the player's choice (localStorage) and the auto-drift's new centre */
+  setLatencyMs(ms: number, store: boolean): void {
+    this.conductor.latency = ms / 1000;
+    this.latencyBaseMs = ms;
+    this.autoErr = [];
+    if (store) safeSetLocal(LATENCY_KEY, String(Math.round(ms)));
+  }
+
+  /** the cold open offers the sync on the first run (nothing stored, no ?latency) or when asked (?calib=1) */
+  private wantsCalibration(): boolean {
+    if (params.calib) return true;
+    return !params.autoplay && params.latencyMs === null && safeGetLocal(LATENCY_KEY) === null;
+  }
+
+  private startCalibration(origin: 'coldOpen' | 'pause'): void {
+    const spb = this.tempo.secondsPerBeatAt(Math.max(0, this.conductor.playing ? this.conductor.beat : this.spawnBeat));
+    if (!this.calib.start(origin, spb, Math.round(this.conductor.latency * 1000))) {
+      if (origin === 'coldOpen') this.beginFromColdOpen();
+      return;
+    }
+    this.log('calibStart', { origin });
+    if (this.bot) {
+      // the bot hears the clicks `device` ms late and taps with its usual jitter
+      let seed = params.seed * 7919 + 17;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+      for (const c of this.calib.clicks) this.calib.tapAudible(c + (params.device + rnd() * params.jitter) / 1000);
+    }
+  }
+
+  /** while the sync runs, STRIKE taps it, JUMP / Esc skip it; the other buttons pass through */
+  private calibInput(edges: InputEdge[]): InputEdge[] {
+    const out: InputEdge[] = [];
+    for (const e of edges) {
+      if (e.button === 'strike') {
+        if (e.down) this.calib.tap(e.time);
+      } else if (e.button === 'jump' || e.button === 'pause' || e.button === 'start') {
+        if (e.down) this.skipCalibration();
+      } else out.push(e);
+    }
+    return out;
+  }
+
+  private skipCalibration(): void {
+    if (!this.calib.active) return;
+    const origin = this.calib.origin;
+    this.calib.cancel();
+    // a skip is a choice too: the first-run sync isn't forced again
+    this.setLatencyMs(this.calib.before, true);
+    this.showToast('Projector sync skipped (re-run it: ↓ before the film · X in the pause menu)', 3);
+    this.log('calibSkip', {});
+    if (origin === 'coldOpen' && this.phase === 'coldOpen') this.beginFromColdOpen();
+  }
+
+  private finishCalibration(): void {
+    const r = this.calib.result;
+    if (r !== null) {
+      this.setLatencyMs(r, true);
+      this.showToast(`Projector synced — audio offset ${r >= 0 ? '+' : ''}${r} ms`, 3);
+    } else this.showToast('Not enough taps — offset unchanged (↓ before the film · X in the pause menu)', 3.5);
+    this.log('calib', { result: r, errs: this.calib.errs.map((e) => Math.round(e)) });
+    if (this.calib.origin === 'coldOpen' && this.phase === 'coldOpen') this.beginFromColdOpen();
+  }
+
+  /**
+   * AUTO-DRIFT: the median press error of the last `window` graded presses nudges the offset toward the player
+   * (a small step, only for a clear bias), bounded to ±rangeMs around the calibrated value. Applied on bar lines.
+   */
+  private autoLatencyStep(): void {
+    const A = Tun.autoLatency;
+    if (!A.enabled || !params.autoLatency || this.autoErr.length < A.window) return;
+    const med = median(this.autoErr);
+    this.autoErr = [];
+    if (Math.abs(med) < A.deadMs) return;
+    const cur = this.conductor.latency * 1000;
+    const step = clamp(med * A.gain, -A.maxStepMs, A.maxStepMs);
+    const next = clamp(cur + step, this.latencyBaseMs - A.rangeMs, this.latencyBaseMs + A.rangeMs);
+    if (Math.abs(next - cur) < 0.5) return;
+    this.conductor.latency = next / 1000;
+    this.log('autoLatency', { medianMs: Math.round(med), ms: Math.round(next * 10) / 10 });
   }
 
   private advanceSim(edges: InputEdge[], frameDt: number): void {
@@ -650,13 +772,20 @@ export class Game {
       const { e, t: et } = this.pendingEdges.shift()!;
       this.controls.apply(e.button, e.down, Number.isFinite(et) ? et : t);
     }
-    if (this.bot && (this.phase === 'coldOpen' || this.phase === 'countIn' || this.phase === 'run')) this.bot.update(t, dt, this.controls, this.heroView());
+    if (this.bot && (this.phase === 'coldOpen' || this.phase === 'countIn' || this.phase === 'run')) {
+      this.bot.lag = params.device / 1000 - this.conductor.latency;
+      this.bot.update(t, dt, this.controls, this.heroView());
+    }
 
     if (this.phase === 'coldOpen') {
       const strike = this.controls.strikePressed;
+      const down = this.controls.downPressed;
       this.player.step(dt, this.controls, this.level.world);
       this.controls.clearEdges();
-      if (strike) this.beginFromColdOpen();
+      if (this.calib.active) return;
+      // first run (no stored offset), ?calib=1 or ↓: the projector sync first, then the film rolls by itself
+      if ((strike && this.wantsCalibration()) || (down && !params.autoplay)) this.startCalibration('coldOpen');
+      else if (strike) this.beginFromColdOpen();
       return;
     }
 
@@ -738,15 +867,57 @@ export class Game {
   /** per-step musical bookkeeping while running: crowd decay, set-piece cues, report traces */
   private beatTick(beatW: number, dBeat: number): void {
     this.crowd.decay(dBeat);
+    this.chorusDrop(beatW);
     if (this.crowd.bigCatch) this.fullHouseBeats += dBeat;
     const bar = Math.floor(beatW / 4);
-    if (Math.floor((beatW - dBeat) / 4) !== bar) this.crowdTrace.push({ beat: bar * 4, value: round3(this.crowd.value) });
+    if (Math.floor((beatW - dBeat) / 4) !== bar) {
+      this.crowdTrace.push({ beat: bar * 4, value: round3(this.crowd.value) });
+      this.autoLatencyStep();
+    }
     const sps = this.level.setPieces;
     while (this.setPieceIdx < sps.length && sps[this.setPieceIdx].beat <= beatW) {
       const sp = sps[this.setPieceIdx++];
       this.startSetPiece(sp.name, sp.beat, sp.beats);
     }
     if (this.setPiece && beatW > this.setPiece.beat + this.setPiece.beats) this.setPiece = null;
+  }
+
+  /**
+   * THE DROP (iteration 4, review iter3 fix 5): a chorus cap (≥ bigCatchAt, rising from below it) is EARNED by a clean
+   * (all Great+) Hup-Hup-HEY ending in the `dropWindowBeats` before it, or by its `earn` beats graded Great+. Earned →
+   * `dropLeadBeats` before the downbeat the cap opens and the house fills to FULL HOUSE: StageAudio quantises crowd
+   * moves to the next beat, so the overlays and the FULL HOUSE cheer hit ON the chorus downbeat.
+   */
+  private chorusDrop(beatW: number): void {
+    const C = Tun.crowd;
+    const caps = this.level.crowdCaps;
+    for (let i = 0; i < caps.length; i++) {
+      const c = caps[i];
+      if (c.cap < C.bigCatchAt || this.dropsDone.has(c.beat)) continue;
+      if (beatW < c.beat - C.dropLeadBeats - 1e-6 || beatW > c.beat + 0.5) continue;
+      const prev = i > 0 ? caps[i - 1].cap : Tun.crowd.max;
+      if (prev >= C.bigCatchAt) continue;
+      this.dropsDone.add(c.beat);
+      if (!this.dropEarned(c.beat, c.earn)) continue;
+      this.dropCapBeat = c.beat;
+      this.crowd.setCap(c.cap);
+      this.crowd.set(Math.max(this.crowd.value, C.bigCatchAt + C.dropBonus));
+      this.log('drop', { beat: c.beat });
+    }
+  }
+
+  private dropEarned(beat: number, earn?: number[]): boolean {
+    const w = Tun.crowd.dropWindowBeats;
+    const clean = (g: string | null) => g === 'perfect' || g === 'great';
+    for (let pi = 0; pi < this.level.phrases.length; pi++) {
+      const ph = this.level.phrases[pi];
+      const end = ph.beats[ph.beats.length - 1];
+      if (end >= beat || end < beat - w) continue;
+      const acts = this.level.actions.filter((a) => a.phrase === pi && (a.type === 'jump' || a.type === 'strike'));
+      if (acts.length && acts.every((a) => clean(this.judge.gradeAt(a.beat, a.type)))) return true;
+    }
+    if (earn?.length) return earn.every((b) => this.level.actions.some((a) => Math.abs(a.beat - b) < 1e-6 && clean(this.judge.gradeAt(b, a.type))));
+    return false;
   }
 
   private startSetPiece(name: string, beat: number, beats: number): void {
@@ -840,7 +1011,8 @@ export class Game {
       batted: (b) => {
         // a thrown bottle batted back ON its beat: tokens + the bottle chime, a bigger hit than a static bottle
         this.stats.lums += b.tokens;
-        this.stats.breakables++;
+        this.batted.add(b.id);
+        this.stats.breakables = this.level.breakables.filter((x) => x.broken).length + this.batted.size;
         this.player.strikeHitSomething = true;
         const tones = chordAt(this.song, b.beat);
         this.sfx.chime(this.song.key.root + 36 + tones[b.id % tones.length], true);
@@ -1035,6 +1207,7 @@ export class Game {
     }
     this.starveBurn(Tun.chaser.relaxPerHit);
     this.watchLatency(r.errMs);
+    this.autoErr.push(r.errMs);
     const a = r.target.action;
     if (r.grade === 'perfect') {
       if (a.type === 'strike') {
@@ -1054,6 +1227,9 @@ export class Game {
       const ph = this.level.phrases[a.phrase];
       if (Math.abs(a.beat - ph.beats[2]) < 1e-6 && this.judge.phraseComplete(a.phrase)) {
         this.heaveReady.add(a.phrase);
+        // the poster's HEAVES = completed Hup-Hup-HEYs, whatever the HEY hits (a goon, a giant, Big Jim)
+        this.heaved.add(a.phrase);
+        this.stats.heaves = this.heaved.size;
         this.crowd.add(Tun.crowd.perPhrase);
         this.sfx.roar();
         heave = true;
@@ -1085,7 +1261,7 @@ export class Game {
     const mean = e.reduce((a, b) => a + b, 0) / e.length;
     if (Math.abs(mean) < 45) return;
     this.latencyTipShown = true;
-    this.showToast(mean > 0 ? 'Hitting LATE every time? Tune the audio latency with  [  ]' : 'Hitting EARLY every time? Tune the audio latency with  [  ]', 4);
+    this.showToast(`Hitting ${mean > 0 ? 'LATE' : 'EARLY'} every time? Esc → X re-syncs the projector (or nudge with  [  ])`, 4);
     this.log('latencyTip', { meanMs: Math.round(mean) });
   }
 
@@ -1130,7 +1306,7 @@ export class Game {
   private levelProps(beatW: number, hurt: Rect): void {
     const p = this.player;
     const L = this.level;
-    this.crowd.setCap(crowdCapAt(L, beatW));
+    this.crowd.setCap(crowdCapAt(L, beatW < this.dropCapBeat ? this.dropCapBeat : beatW));
     for (const b of L.bouncePads) {
       if (b.used || Math.abs(p.x - b.x) > b.w / 2) continue;
       if (p.y < b.y - BOUNCE.trigger || p.y > b.y + 4) continue;
@@ -1179,7 +1355,7 @@ export class Game {
     b.broken = true;
     b.brokenT = 0;
     this.stats.lums += b.tokens;
-    this.stats.breakables++;
+    this.stats.breakables = this.level.breakables.filter((x) => x.broken).length + this.batted.size;
     this.player.strikeHitSomething = true;
     this.events.emit('smash', { beat: b.beat, x: b.x, y: b.y, big: b.big, giant: b.giant, index: b.giantIndex });
     if (b.giant) {
@@ -1222,7 +1398,12 @@ export class Game {
     }
     this.crowd.stumble();
     this.breakCombo('stumble');
-    if (this.chaser.active || this.worldBeat >= this.level.chaserBeat) this.feedBurn(Tun.chaser.stumblePull);
+    if (this.chaser.active || this.worldBeat >= this.level.chaserBeat) {
+      if (this.burnGrace > 0) {
+        this.burnGrace--;
+        this.chaser.flare = 1; // it flares (you see it) but doesn't pull
+      } else this.feedBurn(Tun.chaser.stumblePull);
+    }
     this.events.emit('stumble', { cause, beat: round3(p.x / this.level.ppb) });
     this.noteFailure(cause.split('@')[0], false);
     this.sfx.stumble();
@@ -1245,7 +1426,6 @@ export class Game {
       e.vx = 700;
       e.vy = -2300;
       e.vrot = 18;
-      this.stats.heaves++;
     } else {
       // knocked off the screen into the theatre's front row
       e.vx = 350 + p.vx * 0.2;
@@ -1495,9 +1675,9 @@ export class Game {
       pendulums: this.stats.pendulums,
       pendulumsTotal: this.stats.pendulumsTotal,
       breakables: this.stats.breakables,
-      breakablesTotal: L.breakables.length,
+      breakablesTotal: this.stats.breakablesTotal,
       heaves: this.stats.heaves,
-      phrases: L.phrases.length,
+      phrases: this.stats.phrasesTotal,
       grades: { ...this.judge.counts },
       crowd: { end: this.crowd.count, endValue: round3(this.crowd.value), peak: this.crowd.peak, fullHouseBeats: round3(this.fullHouseBeats), trace: this.crowdTrace },
       combo: { peak: this.comboPeak, end: this.combo },
@@ -1530,6 +1710,9 @@ export class Game {
         jitterMs: round3(this.conductor.clockJitterMs),
         maxSimDriftMs: round3(this.stats.maxDriftMs),
         latencyOffsetMs: Math.round(this.conductor.latency * 1000),
+        latencyBaseMs: this.latencyBaseMs,
+        calibration: this.calib.errs.length ? { resultMs: this.calib.result, tapErrsMs: this.calib.errs.map((e) => Math.round(e)) } : null,
+        deviceMs: params.device,
         baseLatencyMs: round3((this.audio.ctx.baseLatency || 0) * 1000),
         outputLatencyMs: round3((this.audio.ctx.outputLatency || 0) * 1000),
         sampleRate: this.audio.ctx.sampleRate,

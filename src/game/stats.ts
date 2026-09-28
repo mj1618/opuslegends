@@ -74,8 +74,12 @@ export class RunStats {
   /** sim-vs-audio drift samples (ms) */
   maxDriftMs = 0;
   hitstops = 0;
-  /** breakables smashed */
+  /** breakables smashed + thrown bottles batted back (restored to the checkpoint's count on a rewind) */
   breakables = 0;
+  /** breakables + bat-able thrown bottles in play from the run's start beat */
+  breakablesTotal = 0;
+  /** Hup-Hup-HEY phrases in play from the run's start beat */
+  phrasesTotal = 0;
 
   reset(): void {
     this.deaths = 0;

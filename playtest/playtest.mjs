@@ -28,6 +28,10 @@
  *   --late=<p>        fraction of presses that are an extra 60-110 ms late
  *   --skip=<kinds>    the bot ALWAYS skips actions of these fail kinds: none (lazy) / stumble (reckless)
  *   --max-deaths=<n>  stop the run after n deaths (for bots that are expected never to finish)
+ *   --device=<ms>     the bot HEARS the audio this late (an unreported Bluetooth/TV delay): the latency offset
+ *                     (calibration, auto-drift) corrects it like it would for a human. Implies sloppy reporting
+ *   --calib           run the cold open's projector sync (latency tap test); the bot taps it (device + jitter)
+ *   --autolat=0       disable the in-run latency auto-drift
  *   --seed=<n>        jitter seed
  *   --song=<id>       edit (default) | full | placeholder — passed as ?song= (falls back to the
  *                     placeholder, with an on-screen note, if the licensed recording is missing)
@@ -86,7 +90,10 @@ async function main() {
   if (args.seed) q.set('seed', String(args.seed));
   if (args.song) q.set('song', String(args.song));
   if (args.skip) q.set('skip', String(args.skip));
-  const sloppy = !!(args.sloppy || args.late || args.skip);
+  if (args.device) q.set('device', String(args.device));
+  if (args.calib) q.set('calib', '1');
+  if (args.autolat !== undefined) q.set('autolat', String(args.autolat));
+  const sloppy = !!(args.sloppy || args.late || args.skip || args.device);
   const maxDeaths = args['max-deaths'] !== undefined ? Number(args['max-deaths']) : Infinity;
   const strictTiming = !args.miss && !args.jitter && !sloppy;
   const url = `${base}?${q}`;
@@ -181,7 +188,11 @@ async function main() {
   writeFileSync(join(outDir, 'report.json'), JSON.stringify(full, null, 2));
 
   log('------------------------------------------------------------');
-  if (sloppy || args.jitter) log(`sloppy human  deaths by section: ${JSON.stringify(report.deathLog.map((d) => d.beat < 36 ? 'intro' : d.beat < 68 ? 'verse1a' : d.beat < 100 ? 'verse1b' : 'chorus1').reduce((m, k) => ((m[k] = (m[k] ?? 0) + 1), m), {}))}`);
+  if (sloppy || args.jitter) {
+    const act = (b) => (b < 132 ? 'act1' : b < 240 ? 'act2' : 'act3');
+    const count = (list) => list.reduce((m, d) => ((m[act(d.beat)] = (m[act(d.beat)] ?? 0) + 1), m), {});
+    log(`sloppy human  deaths by act: ${JSON.stringify(count(report.deathLog))}  stumbles by act: ${JSON.stringify(count(report.stumbleLog))}  latency ${report.clock.latencyOffsetMs} ms (base ${report.clock.latencyBaseMs})`);
+  }
   log(`song          ${report.song} (bpm ${report.bpm}, swing ${report.swing})`);
   log(`completed ${report.completed}  deaths ${report.deaths}  stumbles ${report.stumbles}  lums ${report.lums}/${report.lumsTotal}  pendulums ${report.pendulums}/${report.pendulumsTotal}  heaves ${report.heaves}/${report.phrases}`);
   log(`grades        ${JSON.stringify(report.grades)}  crowd ${JSON.stringify(report.crowd)}`);

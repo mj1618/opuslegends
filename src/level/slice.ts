@@ -62,6 +62,11 @@ const ROOF_B = 150;
 const BAR_TOP = 120;
 /** the lethal turnaround lifts: narrower press tops (playtest/slack.mjs measures each hop's window) */
 const TIGHT_LIFT = [-0.19, 0.28] as const;
+/**
+ * Iteration 4 (review iter3 fix 3): the chorus pits that punished EARLY presses in bursts (94 at -60 ms, 98 / 106 at
+ * -65 ms killed a ±130 player 6× in bars 24-28) end sooner: ~-85/+150 ms. The peak-bar pit 92 and 108 keep -75.
+ */
+const CHORUS_FIT = [0.09, 0.81] as const;
 
 export const sliceLevel: LevelDef = {
   id: 'act1-bars-1-33',
@@ -93,8 +98,9 @@ export const sliceLevel: LevelDef = {
     ...tokenHop(bar(3, 3)),
     bottle(bar(3, 4)),
     // ---- bar 4: the intro fill + our HEY on beat 4 (beat 15) = the first payoff
+    // hop · hop · hop · HEY: the intro leads with the HOP (iteration 4, B5: strikes led every block)
     ...tokenHop(bar(4, 1)),
-    bottle(bar(4, 2), 'glass'),
+    ...tokenHop(bar(4, 2)),
     ...tokenHop(bar(4, 3)),
     pendulum(bar(4, 4), true),
     fx(bar(4, 4), 'flash', 0.5),
@@ -111,7 +117,7 @@ export const sliceLevel: LevelDef = {
     ...spikeHop(bar(5, 3)),
     // ---- bar 6: the held note 20.66 -> 22.74: a held jump across it, over a (safe) pool
     ...poolJump(and(bar(6, 1))),
-    bottle(bar(6, 4)),
+    ...tokenHop(bar(6, 4)), // off the pool's far lip into the next pool (iteration 4: hop-led intro)
     // ---- bar 7: phrase 2 (energy .88)
     ...poolHop(bar(7, 1)),
     bottle(bar(7, 2), 'glass'),
@@ -200,7 +206,7 @@ export const sliceLevel: LevelDef = {
     label(bar(17), 'THE HONKY-TONK — stop-time'),
     fx(bar(17), 'flash', 0.3),
     // ---- bar 17: the versePeak (the held high D) — a groove bar
-    bottle(bar(17, 2), 'jug'),
+    ...tokenHop(bar(17, 2)), // iteration 4: the honky-tonk block leads with the hop (lifts, fill runs, HUP HUP)
     ...tokenJump(bar(17, 3)),
     // ---- bar 18: the held note 69.67 -> 70.67 = the first KNEE-SLIDE
     hint(bar(18, 1), '↓  HOLD to knee-slide under the sign', 'down', 5),
@@ -227,7 +233,7 @@ export const sliceLevel: LevelDef = {
     follows(bar(21), 'bassWalks'),
     label(bar(21), 'PRE-CHORUS — the walk-up'),
     fx(bar(21), 'bgPulse', 0.8),
-    bottle(bar(21, 2)),
+    ...tokenHop(bar(21, 2)),
     ...tokenHop(bar(21, 3)),
     bottle(and(bar(21, 3)), 'glass'),
     bottle(and(bar(21, 4))),
@@ -268,7 +274,7 @@ export const sliceLevel: LevelDef = {
     // which lunges on the fill).
     ...gapHop(bar(24, 1), 'tight'),
     jabber(bar(24, 2)),
-    ...gapHop(bar(24, 3), 'peak'),
+    ...gapHop(bar(24, 3), CHORUS_FIT),
     bottle(bar(24, 4)),
     bottle(and(bar(24, 4)), 'glass'),
     fx(bar(24, 2), 'flash', 0.4),
@@ -279,7 +285,7 @@ export const sliceLevel: LevelDef = {
     { type: 'checkpoint', beat: bar(25) },
     follows(bar(25), 'shouts'),
     pendulum(bar(25, 2)), // the chorus's own target: swinging lamps (review iter2 fix 6)
-    ...gapHop(bar(25, 3), 'tight'),
+    ...gapHop(bar(25, 3), CHORUS_FIT),
     bottle(and(bar(25, 3))),
     bottle(and(bar(25, 4)), 'glass'),
     // ---- bar 26: E7, HEY on 3, then the held note 102.97: a held jump off the end of the counter
@@ -291,7 +297,7 @@ export const sliceLevel: LevelDef = {
     mode(bar(27, 1), 'bar-floor'),
     // ---- bar 27: A7 climb on the floor: a pit on the D, the D# and the E are bottles
     pendulum(bar(27, 2)), // swinging lamp
-    ...gapHop(bar(27, 3), 'tight'),
+    ...gapHop(bar(27, 3), CHORUS_FIT),
     bottle(and(bar(27, 3)), 'glass'),
     bottle(and(bar(27, 4))),
     // ---- bar 28: A7, the held note 109: hop a pit on 1 straight into a knee-slide
@@ -329,7 +335,7 @@ export const sliceLevel: LevelDef = {
     label(bar(31), 'TAG'),
     fx(bar(31), 'bgPulse', 0.5),
     { type: 'camera', beat: bar(31), zoom: 0.9, beats: 2 },
-    bottle(bar(31, 2), 'glass'),
+    ...tokenHop(bar(31, 2)), // the tag breathes on hops (iteration 4: the chorus block ≤ 60 % strikes)
     ...tokenHop(bar(31, 3)),
     bottle(and(bar(31, 3))),
     ...melodyTokens([[120, 59], [121.67, 55], [123, 55], [123.67, 52]]),

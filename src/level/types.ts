@@ -137,8 +137,13 @@ export type LevelItem =
    * tall to jump over — knee-slide (hold ↓) under it. Stumble if touched.
    */
   | { type: 'lowSign'; from: number; to: number; action?: IntendedAction }
-  /** crowd (streak meter) cap from `beat` on — keeps FULL HOUSE for the chorus */
-  | { type: 'crowd'; beat: number; cap: number }
+  /**
+   * crowd (streak meter) cap from `beat` on — keeps FULL HOUSE for the chorus.
+   * THE DROP (game.ts chorusDrop): a cap rising to FULL HOUSE (≥ Tun.crowd.bigCatchAt) is EARNED by a clean Hup-Hup-HEY
+   * ending in the 8 beats before it, or by every action on the `earn` beats graded Great+ (e.g. act 3's break shot):
+   * earned → FULL HOUSE lands ON `beat`
+   */
+  | { type: 'crowd'; beat: number; cap: number; earn?: number[] }
   /** design tag: traversal mode from `beat` (street, rooftops, launch, lifts, bar-top, …) — rubric B6 */
   | { type: 'mode'; beat: number; mode: string }
   /** design tag: the lane the level follows from `beat` (kick, vocal, fills, shouts, …) — rubric B7 */

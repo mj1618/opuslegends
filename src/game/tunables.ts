@@ -174,12 +174,14 @@ export const Tun = {
    * decays, and misses hurt. FULL HOUSE (bigCatchAt) needs a near-clean chorus (≥ ~80% Perfect/Great).
    */
   crowd: {
-    start: 3,
+    /** 8 (iteration 4, review iter3 fix 3; was 3): the intro plays thin but full-range, not through the booth horn */
+    start: 8,
     min: 3,
     max: 24,
     perPerfect: 1,
     perGreat: 0.5,
-    perGood: 0,
+    /** a Good still nudges the house (iteration 4: a Good/Great player climbs slowly instead of sitting at the floor) */
+    perGood: 0.25,
     /** a completed on-grid Hup-Hup-HEY */
     perPhrase: 3,
     /** members lost per missed target (judge expiry) */
@@ -190,6 +192,20 @@ export const Tun = {
     deathLoss: 6,
     /** the meter cools by this many members per beat while above `min` */
     decayPerBeat: 0.4,
+    /**
+     * A section cap BELOW the meter doesn't clamp it (the act-2 seam used to drop FULL HOUSE 24 → 16 in one step):
+     * the excess glides down at this many members per beat on top of the decay (24 → 16 over ~6 beats), and
+     * gains can't push it higher meanwhile.
+     */
+    capGlidePerBeat: 1,
+    /**
+     * THE DROP: a clean (all Great+) Hup-Hup-HEY in the 8 beats before a chorus (a cap rising to ≥ bigCatchAt; or a
+     * crowd item's `earn` beats graded Great+) lifts the meter to bigCatchAt + dropBonus `dropLeadBeats` before the
+     * chorus downbeat, so StageAudio's next-beat quantisation lands FULL HOUSE (and its cheer) ON the downbeat.
+     */
+    dropWindowBeats: 8,
+    dropLeadBeats: 0.5,
+    dropBonus: 1,
     /** shouts stem: -6 dB at 0 members -> 0 dB at `fullAt` */
     fullAt: 12,
     /** BIG CATCH / FULL HOUSE mode (bonus stem) at >= this */
@@ -210,8 +226,13 @@ export const Tun = {
     missPull: 0.2,
     relaxPerBeat: 0.04,
     relaxPerHit: 0.06,
-    /** after a death the Burn restarts at max(checkpoint gap, this) */
-    respawnMinGap: 1.1,
+    /**
+     * after a death the Burn restarts at max(checkpoint gap, this). 1.75 = rest (iteration 4, was 1.1: you respawned
+     * CLOSER to it than it rests, so one stumble after a Burn death was a second death — the bars 40-41 loop)
+     */
+    respawnMinGap: 1.75,
+    /** after a respawn the first stumble doesn't pull the Burn (it flares, nothing more): no catch-twice loops */
+    respawnGraceStumbles: 1,
     /** drum-fill lunge: extra reach (beats) and envelope (rise, fall) in beats */
     lungeBeats: 0.3,
     lungeRise: 0.25,
@@ -220,6 +241,30 @@ export const Tun = {
     closeRate: 0.8,
     /** rise animation (beats) */
     riseBeats: 4,
+  },
+
+  /**
+   * LATENCY (iteration 4, review iter3 fix 3). `calib`: the cold open's projector sync — `clicks` stick clicks at the
+   * song's tempo, the player taps STRIKE on each; the offset = the median error of the last `use` taps (≥ `minTaps`
+   * of them within half a beat), clamped to [minMs, maxMs]. `auto`: while running, the median press error of the
+   * last `window` graded presses nudges the offset by `gain` × median (≤ `maxStepMs` per step, only when
+   * |median| ≥ `deadMs`), never more than `rangeMs` from the calibrated value.
+   */
+  calib: {
+    clicks: 8,
+    use: 6,
+    minTaps: 4,
+    leadSec: 0.9,
+    minMs: -120,
+    maxMs: 300,
+  },
+  autoLatency: {
+    enabled: true,
+    window: 16,
+    deadMs: 18,
+    gain: 0.35,
+    maxStepMs: 8,
+    rangeMs: 40,
   },
 
   /** failure hints: after the player fails the same thing `after` times, show a short tip once */

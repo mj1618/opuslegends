@@ -9,6 +9,8 @@
  *     jitter 85 + late 0.1: a "sloppy human" to check the level is hard but fair (report deaths)
  *   - ?miss=<beats>: skips the action at those beats once (stumble / death tests)
  *   - ?skip=none|stumble: ALWAYS skips actions of those fail kinds (lazy / reckless player)
+ *   - ?device=<ms>: the bot HEARS the music late (unreported output delay); the Game keeps `lag` = device delay
+ *     minus the latency offset, so calibration / auto-drift correct it exactly as they would for a human
  *   - after a stumble the hero is BEHIND the grid (surging to catch up); the bot then presses when
  *     the hero physically reaches the action's position, like a human reacting to the world
  */
@@ -44,6 +46,9 @@ export class AutoPlayer {
   private lateProb: number;
   private coldOpenT = 0;
   private coldOpenDone = false;
+
+  /** extra press delay (s) = the bot's device delay minus the game's latency offset (set by the Game every step) */
+  lag = 0;
 
   /** fail kinds always skipped (lazy / reckless bots) */
   private skipKinds: Set<string>;
@@ -102,7 +107,7 @@ export class AutoPlayer {
     const behind = hero && Number.isFinite(hero.musicX) && hero.phase === 'run' ? hero.musicX - hero.x > hero.ppb * 0.06 : false;
     while (this.idx < this.actions.length) {
       const a = this.actions[this.idx];
-      const t = this.tempo.beatToTime(a.beat) + this.offsets[this.idx];
+      const t = this.tempo.beatToTime(a.beat) + this.offsets[this.idx] + this.lag;
       if (t > stepEnd - dt / 2) break;
       // behind the grid: wait until the hero reaches the spot (plus the same jitter, in space)
       if (behind && hero && hero.x < a.x + this.offsets[this.idx] * (hero.ppb / this.tempo.secondsPerBeatAt(a.beat)) - 2) break;

@@ -36,7 +36,7 @@ export function installTestApi(game: Game): void {
       game.startRun(beat);
     },
     setLatency: (ms: number) => {
-      game.conductor.latency = ms / 1000;
+      game.setLatencyMs(ms, false);
     },
     debug: (on: boolean) => {
       game.debug.enabled = on;

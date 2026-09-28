@@ -235,4 +235,6 @@ export interface LowSign {
 export interface CrowdCap {
   beat: number;
   cap: number;
+  /** actions (beats) whose Great+ grades earn the chorus drop (FULL HOUSE on `beat`) */
+  earn?: number[];
 }

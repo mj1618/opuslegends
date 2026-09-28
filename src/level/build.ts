@@ -386,7 +386,7 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
         break;
       }
       case 'crowd':
-        crowdCaps.push({ beat: it.beat, cap: it.cap });
+        crowdCaps.push({ beat: it.beat, cap: it.cap, earn: it.earn });
         break;
       case 'phrase':
         phrases.push({ beats: it.beats });

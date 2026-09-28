@@ -56,6 +56,7 @@ import { applyBeatReact } from './groove';
 import { drawMech } from './mechDraw';
 import { MusicFeed } from './music';
 import { FONT, MARQUEE, drawCenterText, drawEndScreen, drawHud, drawRewind, drawTitleScreen, outlineText } from './screens';
+import { drawCalibration } from './calibDraw';
 import { SlimDriver } from './slimDriver';
 import type { SpriteSet } from './sprites';
 import { Stage } from './stage';
@@ -286,7 +287,8 @@ export class Renderer {
       if (this.endAt < 0) this.endAt = this.clock;
       drawEndScreen(ctx, g, b, slimState, this.clock, this.clock - this.endAt);
     } else this.endAt = -1;
-    if (g.paused) drawCenterText(ctx, 'INTERMISSION', 'press Enter / Space to resume');
+    if (g.paused && !g.calib.active) drawCenterText(ctx, 'INTERMISSION', 'Enter / Space: resume  ·  X: re-sync the projector (audio lag)');
+    drawCalibration(ctx, g);
 
     if (g.flash > 0.001) {
       ctx.globalAlpha = Math.min(1, g.flash);

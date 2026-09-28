@@ -17,6 +17,9 @@
  *   ?late=<p>     autoplay: fraction of presses that are an extra 60-110 ms late
  *   ?judge=1      show timing-grade popups (PERFECT / GREAT / GOOD) — off by default per DESIGN
  *   ?coldopen=0   skip the cold open (start straight at the count-in)
+ *   ?device=<ms>  autoplay: the bot hears the audio this late (unreported device latency; calibration fixes it)
+ *   ?calib=1      run the cold open's projector sync (latency tap test) — the bot taps it too
+ *   ?autolat=0    disable the in-run latency auto-drift
  *   ?song=<id>    edit (default: the original recording's level edit) | full (the whole original) |
  *                 placeholder (synth track). Falls back to placeholder if the licensed file is missing.
  */
@@ -45,6 +48,15 @@ export interface Params {
   coldOpen: boolean;
   /** requested song: 'edit' | 'full' | 'placeholder' (raw; see audio/songs.ts parseSongChoice) */
   song: string | null;
+  /**
+   * autoplay: the bot's unreported audio/device delay (ms) — it HEARS the music this late and presses accordingly,
+   * so the latency offset (calibration / auto-drift) corrects it, like a human on a Bluetooth speaker
+   */
+  device: number;
+  /** cold open: run the projector sync (the latency tap test) even if an offset is stored / for the bot */
+  calib: boolean;
+  /** auto-calibration drift of the latency offset during the run (default on; ?autolat=0 disables) */
+  autoLatency: boolean;
 }
 
 function readParams(): Params {
@@ -80,6 +92,9 @@ function readParams(): Params {
     judge: flag('judge'),
     coldOpen: q.get('coldopen') !== '0',
     song: q.get('song'),
+    device: num('device') ?? 0,
+    calib: flag('calib'),
+    autoLatency: q.get('autolat') !== '0',
   };
 }
 
