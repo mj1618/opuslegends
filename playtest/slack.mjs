@@ -15,6 +15,10 @@
  * --hidden (iteration 5) sweeps EVERY action for death (hidden lethal presses: a reward / stumble hop whose late landing
  * falls into the next pit) and exits 1 if a non-lethal action kills inside ±150 ms (--hiddenMs=) or when skipped, or
  * a lethal one is under −70/+150 (--lethalEarly=; act 1's tight/peak pits are −70, acts 2-3 author to −85). `npm run playtest` runs it as a gate on the full level (~1-2 min; --no-hidden skips).
+ * --canisters (iteration 6) checks every hidden FILM CANISTER: the on-time (song-line) run must NOT pick it up, the HELD
+ * jump from its `from` beat must pick it up AND survive (window reported in ms), and lists what the flight skips;
+ * exits 1 if one fails. --scout lists every tap hop that survives being HELD (apex, landing, what it skips): the
+ * candidate high routes.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -52,6 +56,9 @@ try {
   const noop = () => {};
   // the act-2 mechanics run in the sim too (bottles, balls, hooks, scramble, fall-out); `mechLog` collects what happened
   let mechLog = { died: false, stumbles: [], batted: new Set(), hooked: new Set() };
+  /** film canisters touched in the last run (ids) + the hero's highest point (for --scout) */
+  let canHit = new Set();
+  let peak = { y: Infinity, x: 0 };
   const mech = new Mechanics(L, {
     stumble: (cause) => mechLog.stumbles.push(cause),
     die: () => (mechLog.died = true),
@@ -70,6 +77,8 @@ try {
   function run(start, end, offsets, hits = null, trace = null, takeoffs = null) {
     for (const b of L.bouncePads) b.used = false;
     mechLog = { died: false, stumbles: [], batted: new Set(), hooked: new Set() };
+    canHit = new Set();
+    peak = { y: Infinity, x: 0 };
     mech.reset(start);
     let tNow = 0;
     const p = new Player({ jump: () => takeoffs?.push(tNow), land: noop, strike: noop, slide: noop, footstep: noop });
@@ -110,6 +119,15 @@ try {
       c.clearEdges();
       mech.step(dt, beat, p, true, true);
       if (mechLog.died) return why('fall-out (mech)', p.x / ppb);
+      if (L.canisters?.length) {
+        const hb = p.hurtbox({ x: 0, y: 0, w: 0, h: 0 });
+        for (const cn of L.canisters) {
+          const dx = Math.max(hb.x - cn.x, 0, cn.x - (hb.x + hb.w));
+          const dy = Math.max(hb.y - cn.y, 0, cn.y - (hb.y + hb.h));
+          if (dx * dx + dy * dy <= cn.r * cn.r) canHit.add(cn.id);
+        }
+      }
+      if (p.y < peak.y) peak = { y: p.y, x: p.x };
       if (hits && p.strikeActive) {
         const bx = p.strikeBox({ x: 0, y: 0, w: 0, h: 0 });
         const circ = (cx, cy, r) => {
@@ -247,6 +265,51 @@ try {
   if (args.hidden) {
     hidden();
     process.exitCode = hiddenFail ? 1 : 0;
+  }
+  if (args.canisters || args.scout) {
+    const inFlight = (b0, b1) => L.actions.filter((a) => a.beat > b0 + 1e-6 && a.beat < b1 - 1e-6).map((a) => `${a.type[0]}${a.beat}${a.failKind === 'death' ? '!' : ''}`);
+    let bad = 0;
+    if (args.canisters) {
+      console.log(`film canisters (${L.canisters.length}): on-time route must MISS it, the held jump must GET it and survive`);
+      for (const cn of L.canisters) {
+        const start = startFor(cn.from);
+        const end = cn.beat + 4;
+        holds = new Map();
+        const dead0 = run(start, end, new Map());
+        const onLine = canHit.has(cn.id);
+        holds = new Map([[cn.from, 1]]);
+        const ai = L.actions.findIndex((a) => Math.abs(a.beat - cn.from) < 1e-6 && a.type === 'jump');
+        const ok = (ms) => run(start, end, new Map([[ai, ms / 1000]])) === null && canHit.has(cn.id);
+        const got = ok(0);
+        let E = 0;
+        let Lt = 0;
+        if (got) {
+          while (E > -300 && ok(E - 5)) E -= 5;
+          while (Lt < 300 && ok(Lt + 5)) Lt += 5;
+        }
+        const deadHeld = run(start, end, new Map());
+        holds = new Map();
+        const fail = ai < 0 || onLine || !got || dead0 !== null;
+        if (fail) bad++;
+        const hy = Math.round(-cn.y + L.floorYAt(cn.from * ppb));
+        console.log(`  #${cn.index + 1} hold jump@${cn.from} -> canister @${cn.beat.toFixed(2)} (${hy} px over the takeoff): ${ai < 0 ? 'NO JUMP ACTION on from' : onLine ? 'ON THE SONG LINE (the on-time run takes it)' : !got ? `NOT REACHED${deadHeld !== null ? ` (held run dies @${deadHeld.toFixed(2)})` : ''}` : `OK window ${E}/+${Lt} ms`}; flight skips: ${inFlight(cn.from, cn.from + 2).join(' ') || '-'}`);
+      }
+      if (bad) process.exitCode = 1;
+    }
+    if (args.scout) {
+      console.log('\nscout: tap hops that survive being HELD (apex px over takeoff, landing beat, actions inside the flight):');
+      for (const a of L.actions) {
+        if (a.type !== 'jump' || (a.hold ?? 1) >= 0.5 || a.beat < from || a.beat >= to) continue;
+        const start = startFor(a.beat);
+        holds = new Map([[a.beat, 1]]);
+        const dead = run(start, a.beat + 4, new Map());
+        holds = new Map();
+        if (dead !== null) continue;
+        const y0 = L.floorYAt(a.beat * ppb);
+        console.log(`  ${String(a.beat).padEnd(8)} ${a.failKind.padEnd(8)} apex ${Math.round(y0 - peak.y)} px @${(peak.x / ppb).toFixed(2)}  skips: ${inFlight(a.beat, a.beat + 2).join(' ') || '-'}`);
+      }
+    }
+    return;
   }
   const rows = [];
   for (const { a, i } of args.hidden ? [] : lethal) {

@@ -67,6 +67,9 @@ const TIGHT_LIFT = [-0.19, 0.28] as const;
  * -65 ms killed a ±130 player 6× in bars 24-28) end sooner: ~-85/+150 ms. The peak-bar pit 92 and 108 keep -75.
  */
 const CHORUS_FIT = [0.09, 0.81] as const;
+/** iteration 6 (review iter5 fix 5): the chorus-1 peak pit on 92 relaxed from 'tight' (−70, the ±130 repeat killer) to −80:
+ * act 1's chorus is the promise, chorus 4 the exam */
+const PEAK_92 = [0.09, 0.84] as const;
 
 export const sliceLevel: LevelDef = {
   id: 'act1-bars-1-33',
@@ -79,7 +82,7 @@ export const sliceLevel: LevelDef = {
   items: [
     { type: 'sky', beat: -100, preset: 'golden' },
     { type: 'camera', beat: -100, zoom: 0.95, beats: 0.01 },
-    { type: 'crowd', beat: -100, cap: 10 },
+    { type: 'crowd', beat: -100, cap: 16 }, // iteration 6: the meter starts at 14 (full record), the intro can reach 16
     mode(bar(1), 'street'),
     follows(bar(1), 'kick'),
 
@@ -136,7 +139,7 @@ export const sliceLevel: LevelDef = {
     // ================================================================ BLOCK 2 — the neon rooftops
     { type: 'checkpoint', beat: bar(9) },
     { type: 'sky', beat: bar(9), preset: 'neon' },
-    { type: 'crowd', beat: bar(9), cap: 14 },
+    { type: 'crowd', beat: bar(9), cap: 16 },
     label(bar(9), 'ROOFTOPS'),
     fx(bar(9), 'bgPulse', 0.8),
     // ---- bar 9: THE BIG LAUNCH (wow 1): pad on the kick (3), a 3-beat flight over the held note (34.67) up to the
@@ -164,6 +167,9 @@ export const sliceLevel: LevelDef = {
     bottle(and(bar(11, 1)), 'glass'),
     ...spikeHop(bar(11, 3)),
     ...tokenHop(bar(11, 4)), // a chimney hop: the rooftops lean on HOPS (review iter2 fix 6, B5)
+    // FILM CANISTER #1 (iteration 6, the replay hook): HOLD the chimney hop — the canister hangs in the chimney's smoke,
+    // ~250 px over roof B (tokens up the held arc are the clue); the flight lands on the goon's beat (45: swing mid-air)
+    { type: 'canister', from: bar(11, 4) },
     // ---- bar 12: E7 + fill: the first goon, then DROP to the street on the fill
     jabber(bar(12, 2)),
     ...tokenHop(bar(12, 3)), // off the roof edge
@@ -202,7 +208,7 @@ export const sliceLevel: LevelDef = {
     { type: 'checkpoint', beat: bar(17) },
     { type: 'sky', beat: bar(17), preset: 'honkytonk' },
     { type: 'ground', beat: bar(17) - 1, style: 'timber' },
-    { type: 'crowd', beat: bar(17), cap: 15 },
+    { type: 'crowd', beat: bar(17), cap: 17 },
     mode(bar(17), 'bar-floor'),
     follows(bar(17), 'fills'),
     label(bar(17), 'THE HONKY-TONK — stop-time'),
@@ -240,7 +246,7 @@ export const sliceLevel: LevelDef = {
 
     // ---- bar 21: PRE-CHORUS: the fill (&3, 4, &4) — rewards only after the checkpoint
     { type: 'checkpoint', beat: bar(21) },
-    { type: 'crowd', beat: bar(21), cap: 16 },
+    { type: 'crowd', beat: bar(21), cap: 18 },
     follows(bar(21), 'bassWalks'),
     label(bar(21), 'PRE-CHORUS — the walk-up'),
     fx(bar(21), 'bgPulse', 0.8),
@@ -283,7 +289,7 @@ export const sliceLevel: LevelDef = {
     // a goon on the first HEY (2), a pit on the second HEY + kick (3), then the snare and the fill's &4
     // smashed: ∪ X ∪ X X. A missed goon knocks you off the grid right before the second pit (and feeds the Burn,
     // which lunges on the fill).
-    ...gapHop(bar(24, 1), 'tight'),
+    ...gapHop(bar(24, 1), PEAK_92),
     jabber(bar(24, 2)),
     ...gapHop(bar(24, 3), CHORUS_FIT),
     bottle(bar(24, 4)),

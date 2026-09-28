@@ -33,6 +33,7 @@
  *   --calib           run the cold open's projector sync (latency tap test); the bot taps it (device + jitter)
  *   --autolat=0       disable the in-run latency auto-drift
  *   --resync          the bot ACCEPTS a re-offered projector sync (auto-drift pinned at its clamp): pause, tap, resume
+ *   --hunt            the bot takes the hidden film canisters' high routes (holds the jumps that reach them)
  *   --no-hidden       skip the hidden-lethal gate (`slack.mjs --hidden` on the full level, ~10 s, run before the browser
  *                     when the whole level is played: a reward/stumble press that kills inside ±150 ms fails the run)
  *   --seed=<n>        jitter seed
@@ -97,6 +98,7 @@ async function main() {
   if (args.calib) q.set('calib', '1');
   if (args.autolat !== undefined) q.set('autolat', String(args.autolat));
   if (args.resync) q.set('resync', '1');
+  if (args.hunt) q.set('hunt', '1');
   const sloppy = !!(args.sloppy || args.late || args.skip || args.device);
   // HIDDEN-LETHAL GATE (iteration 5): every action not marked lethal must be survivable ±150 ms and when skipped
   let hiddenFail = null;
@@ -185,7 +187,9 @@ async function main() {
   if (!sloppy && report.stumbles !== expectedStumbles) failures.push(`${report.stumbles} stumble(s) (expected ${expectedStumbles}): ${JSON.stringify(report.stumbleLog)}`);
   const missBeats = new Set(String(args.miss ?? '').split(',').filter(Boolean).map(Number));
   const unexpectedMissed = report.missedActions.filter((m) => !missBeats.has(Number(m.split('@')[1])));
-  if (strictTiming && unexpectedMissed.length) failures.push(`missed actions: ${unexpectedMissed.join(', ')}`);
+  // --hunt: the canister routes' held flights skip the actions inside them (reported, not a failure)
+  if (strictTiming && unexpectedMissed.length && !args.hunt) failures.push(`missed actions: ${unexpectedMissed.join(', ')}`);
+  if (args.hunt && report.canisters !== report.canistersTotal) failures.push(`film canisters ${report.canisters}/${report.canistersTotal} on the --hunt route`);
   if (report.shoutAlignment && report.shoutAlignment.offShout.length) failures.push(`chorus strikes off the shout grid: ${report.shoutAlignment.offShout.join(', ')}`);
   if (pageErrors.length) failures.push(`page errors: ${pageErrors.join(' | ')}`);
   if (consoleErrors.length) failures.push(`console errors: ${consoleErrors.join(' | ')}`);

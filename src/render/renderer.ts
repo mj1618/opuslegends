@@ -65,6 +65,7 @@ import { HeroPass } from './heroPass';
 import { drawSpeedLayer } from './speedLayer';
 import { GoonBand } from './band';
 import { goonPartAt } from '../audio/goonParts';
+import { drawCanister } from './canisterDraw';
 import type { SpriteSet } from './sprites';
 import { Stage } from './stage';
 import { VisualBeats } from './beats';
@@ -821,6 +822,8 @@ export class Renderer {
       const blink = h.t > 0 && h.expires - g.simTime < 0.6 ? (Math.floor(h.t * 12) % 2 ? 0.35 : 1) : 1;
       drawToken(ctx, h.x, h.y, Math.sin(h.t * 6) * 0.4, 1, 0.5, blink);
     }
+    // hidden film canisters (iteration 6, gameplay placeholder: render/canisterDraw.ts)
+    for (const c of L.canisters ?? []) if (c.x > x0 - 100 && c.x < x1 + 100) drawCanister(ctx, c, wb, this.clock);
 
     // act-2 mechanics (thrown bottles, firebombs, rolling balls, Big Jim's glint): placeholder draws, render/mechDraw.ts
     drawMech(ctx, g.mech, wb, x0, x1, this.clock, this.stage.light(this.env(g.player.x)), b, { x: g.player.x, y: g.player.y });

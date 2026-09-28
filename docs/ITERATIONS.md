@@ -497,3 +497,66 @@ on poster, 3 hidden film canisters); (b) audio: token pickups play the vocal mel
 (c) art: final hit lands on Big Jim's face on 340, Slim bigger + never bleached, cut noise (per-action stamps → only
 notable ones, Burn flares when safe, checkpoint beams), goons play the song's parts, fast foreground speed layer,
 facade varies every 4 bars.
+
+## Iteration 6 — gameplay notes
+Driven by `docs/reviews/iter5.md` fixes 1, 4 (gameplay half), 5 and 10. Code: `game/{game,crowd,events,entities,stats,
+tunables,rank}.ts`, `level/{build,types,slice,act2,act3}.ts`, `engine/params.ts` (`?hunt`), `playtest/{slack,playtest}.mjs`,
+placeholder `render/canisterDraw.ts` + the HUD/poster lines in `render/screens.ts`.
+- **The record plays full from beat 0.** The crowd wakes at 14 (the booth's open point, was 8) and RESTS there
+  (`Tun.crowd.restAt`): above it it decays 0.3/beat + 0.04 per member over 14 (was 0.4 + 0.05 over 12), below it it
+  recovers 0.12/beat. Thin sound is now what a miss / stumble / death costs for a few bars. Section caps ≥ 16 (the intro
+  was 10). The report has `crowd.boothBeats / runBeats` and `fullHouseBySection`.
+
+  | Profile (3 seeds) | booth time before → after | FULL HOUSE beats before → after | … of them in chorus 1 |
+  |---|---|---|---|
+  | autoplay | 25 % → **0 %** | 158 → 161 | 29 → 31 |
+  | ±40 | 25 % → **0 %** | 155–158 → 163 | 26–29 → **32 of 32** |
+  | sloppy ±85 + 10 % late | 37–62 % → **0–8 %** | 33–67 → **100–154** | 1–5 → 5–31 |
+  | ±130 | 62–69 % → **0–10 %** | 6–8 → **32–94** | 0–2 → 0–17 |
+  | ±160 + 20 % late | 83–97 % → 44–70 % | 3–12 → 7–29 | 0–3 → 0–8 |
+- **Difficulty.** Chorus 4's light-wells 276 / 280 / 284 go to −80 (were −85 / −90 / −95). The physics quantises these
+  windows in 10 ms steps, and one step tighter is −70, under the −75 allowed. Act 1's 92 goes to −80 (was −70).
+  **The gauntlet has stakes:** 326 (collar → lens rim, after the lens HEY) and 330 (over the snapped chain, after a strike,
+  the fill lunge right behind) are real lethals at −90 / −95. 316 and 324 were lethal only on paper: the preceding hop's
+  jump buffer hid their early side (−255 / −190). They are reward ledges now, which keeps the outro calmer than the
+  breakdown (rubric C1 act 3 ρ = 1.0). The Burn still retires on 332, so only bars 84–86 are can't-die.
+- **WHEW** (`whew` event + a 'whew' stamp, `Tun.whew`): a jump landing with its toes within 40 ms of a lethal lip (pit,
+  lift or post edge), a coyote takeoff with < 40 ms left over a pit, or a spike passed within 12 px. Launches and hook
+  rides never count; at most one per 0.75 beat. Per run: autoplay 0, ±40 2–7, ±85 9–14, ±130 13–17.
+- **Noise.**
+  - The HUD's falls/stumbles line is gone.
+  - `stamp` fires only for: the first Perfect of each 4-bar phrase, combo 10/25/50/100/+50, Heaves, giants, WHEW and
+    canisters.
+  - The Burn has a `threat` (0 at rest → 1 one stumble in). Its fill lunge scales with it, 'lunge' events need
+    threat > 0, and a pull flares it only at threat ≥ 0.5. Autoplay now sees 0 lunges (was 21).
+- **Replay hooks.** Three FILM CANISTERS sit at the apex of a HELD jump where the song asks for a tap: 43 (the chimney,
+  window −165/+235), 170 (the roof's searchlight, −210/+230) and 315 (Big Jim's shoulder, −110/+210; the flight skips the
+  316 HUP and lands before the 318 notch). The clue is 2 tokens up the held arc plus a wink on the 2 beats before takeoff.
+  `slack.mjs --canisters` checks each one: off the song line, reachable, survivable. `--scout` lists every holdable hop.
+  `playtest --hunt` → 3/3, 0 deaths. **Rank** (`game/rank.ts`): crowd 27 + timing 27 + tokens 18 + deaths 18 +
+  canisters 10, with S ≥ 92, A ≥ 85, B ≥ 68, C ≥ 45, D below. Measured:
+
+  | Profile | Rank |
+  |---|---|
+  | autoplay | A 89.9 |
+  | `--hunt` | **S** 99.9 |
+  | ±40 | A 88–89 |
+  | ±85 | B 72–84 |
+  | ±130 | C–B 47–73 |
+  | ±160 | D 33–40 |
+- **Deaths per run by act** (real bots, 3 seeds each, build with all of the above; before → after):
+
+  | Profile | Act 1 | Act 2 | Act 3 | Where |
+  |---|---|---|---|---|
+  | ±40 | 0 → 0 | 0 → 0 | 0 → 0 | |
+  | ±85 + 10 % late | 0.3 → 0.3 | 0 → 0 | 0 → 0 | the 128 lift, seed 1 |
+  | ±130 | 2.0 → **0.7** | 1.0 → 0.7 | 1.0 → 1.0 | 281, 311 |
+  | ±160 + 20 % late | 3.0 → 3.0 | 3.7 → 3.7 | 5.0 → **6.0** | 327 and 331 now kill |
+
+  `slack.mjs` expected values (before → after):
+  - sloppy: 0.37/0.08/0.10 → 0.31/0.08/0.16, with ◆320 0 → 0.02.
+  - ±130: 2.11/1.36/2.63 → 2.03/1.36/3.33, with ◆272 1.50 → 1.86 and ◆320 0 → 0.34.
+- **Gates.**
+  - Full-level autoplay: PASS, 0 deaths, including the `--hidden` gate. `--hidden` itself: PASS, 301 actions.
+  - Rubric top-10 with the bot reports: **11/11** for each act and for the whole level.
+  - ±85 act 3 dies less than the review's 0.3–0.5 target, even at −80. Real sloppy teeth need −70, which is a user call.

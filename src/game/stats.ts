@@ -80,6 +80,11 @@ export class RunStats {
   breakablesTotal = 0;
   /** Hup-Hup-HEY phrases in play from the run's start beat */
   phrasesTotal = 0;
+  /** hidden film canisters picked up (restored to the checkpoint's on a rewind) / in play (iteration 6) */
+  canisters = 0;
+  canistersTotal = 0;
+  /** near-misses survived this run (iteration 6, the WHEW) */
+  whews = 0;
 
   reset(): void {
     this.deaths = 0;
@@ -97,6 +102,8 @@ export class RunStats {
     this.maxDriftMs = 0;
     this.hitstops = 0;
     this.breakables = 0;
+    this.canisters = 0;
+    this.whews = 0;
   }
 
   /**

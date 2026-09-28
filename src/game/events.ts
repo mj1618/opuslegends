@@ -23,6 +23,16 @@
  *   setPiece  a scripted wow moment starts (level `setPiece` items + gameplay ones: 'launch', 'smash')
  *   smash     a breakable burst (`giant` = the walkdown kegs; `index` = its position in a giant run)
  *   hint      a failure hint was raised (the player failed the same thing twice)
+ *   whew      (iteration 6) a NEAR-MISS: the hero survived a lethal by a hair — 'lip' = landed within the last
+ *             Tun.whew.ms of a pit's early side (toes on the far lip / a lift's edge), 'coyote' = took off in the last
+ *             Tun.whew.ms of the coyote time over a lethal pit (the late side), 'graze' = passed a spike within
+ *             Tun.whew.grazePx without touching it. `ms` = the margin left. At most one per Tun.whew.gapBeats.
+ *             Presentation: a gasp + a cream puff at (x, y); free tension without deaths
+ *   stamp     (iteration 6) the NOTABLE moments worth a stamp (the per-press grade stamps were noise): 'firstPerfect'
+ *             (the first Perfect of each 4-bar phrase), 'streak' (combo 10 / 25 / 50 / 100 / every 50), 'heave' (a
+ *             completed Hup-Hup-HEY), 'giant' (a giant smash: kegs, pins, busts, lenses, the final hit), 'whew'
+ *             (a near-miss), 'canister' (a film canister found). `text` = a suggested caption
+ *   canister  (iteration 6) a hidden FILM CANISTER picked up (`found` of `total` this run; one per act, on a high route)
  */
 import type { Grade } from './judge';
 
@@ -34,11 +44,19 @@ export interface GameEventMap {
   fullHouse: { on: boolean; beat: number };
   stumble: { cause: string; beat: number };
   death: { cause: string; beat: number };
-  burn: { kind: 'lunge' | 'pull' | 'caught'; beat: number; gap: number; danger: number };
+  /** `threat` 0..1 (iteration 6): how far the Burn is pulled in from its rest (0 = at rest: a lunge there is harmless
+   *  and should NOT flare; 1 = a stumble's worth or more). Game only emits 'lunge' with threat > 0 */
+  burn: { kind: 'lunge' | 'pull' | 'caught'; beat: number; gap: number; danger: number; threat: number };
   setPiece: { name: string; beat: number; beats: number };
   smash: { beat: number; x: number; y: number; big: boolean; giant: boolean; index: number };
   hint: { key: string; text: string; icon: string };
+  whew: { kind: WhewKind; beat: number; x: number; y: number; ms: number };
+  stamp: { kind: StampKind; beat: number; x: number; y: number; text: string; combo: number };
+  canister: { index: number; found: number; total: number; beat: number; x: number; y: number };
 }
+
+export type WhewKind = 'lip' | 'coyote' | 'graze';
+export type StampKind = 'firstPerfect' | 'streak' | 'heave' | 'giant' | 'whew' | 'canister';
 
 export type GameEventType = keyof GameEventMap;
 type Listener<K extends GameEventType> = (e: GameEventMap[K]) => void;

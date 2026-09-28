@@ -284,7 +284,15 @@ export type LevelItem =
    * `scale` 1 = ~1150 px from seat to pompadour (each field carries over from the previous key when omitted). Everything he does to the play band is ordinary level items (fists = slam lifts,
    * sleeve = low sign, medallions = pendulums, lapels = ledges, lenses = giant breakables).
    */
-  | { type: 'bigJim'; beat: number; pose: BigJimPose; beats?: number; x?: number; ahead?: number; h?: number; scale?: number };
+  | { type: 'bigJim'; beat: number; pose: BigJimPose; beats?: number; x?: number; ahead?: number; h?: number; scale?: number }
+  /**
+   * A hidden FILM CANISTER (iteration 6, the replay hook; runtime `FilmCanister`, game counts it, the poster shows n/3): it
+   * hangs at the APEX of a HELD jump pressed ON `from` (+ `dx` beats / `dh` px nudges), where the song line only asks for a
+   * tap hop — hold the jump (and skip what the flight skips) to grab it. `clue`: tokens up the held arc's rise (default
+   * on) so the route is discoverable; the canister itself glints on the beats before `from` (render). Validate with
+   * `node playtest/slack.mjs --level=src/level/index.ts#gameLevel --canisters` (reachable, survivable, off the song line).
+   */
+  | { type: 'canister'; from: number; dx?: number; dh?: number; clue?: boolean };
 
 export interface LevelDef {
   id: string;

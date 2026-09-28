@@ -3,6 +3,7 @@
  * cold-open prompt, the count-in leader, the HUD (tokens, targets, the audience meter, metronome), hints,
  * subtitles, and the end-of-reel one-sheet poster. Screen space (1920x1080 logical).
  */
+import { drawRankStamp } from './rankStamp';
 import type { BeatInfo } from '../art/core/beat';
 import { hit } from '../art/core/beat';
 import { drawGlow, star4 } from '../art/core/draw';
@@ -163,7 +164,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo, A =
   ctx.globalAlpha = A;
   const pop = 1 + 0.12 * gr.pulse(1, 0.2);
   // soft dark backing so the counters stay legible over neon signs
-  hudPlate(ctx, 28, 26, g.crowd.awake && g.crowd.bigCatch ? 620 : 420, g.stats.deaths > 0 || g.stats.stumbles > 0 ? 250 : 220, 1);
+  hudPlate(ctx, 28, 26, g.crowd.awake && g.crowd.bigCatch ? 620 : 420, 220, 1);
   hudPlate(ctx, VIEW_W - 330, 26, 302, 180, -1);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
@@ -218,10 +219,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo, A =
       outlineText(ctx, 'FULL HOUSE!', 414, cy, REWARD.gold, 7);
     }
   }
-  if (g.stats.deaths > 0 || g.stats.stumbles > 0) {
-    ctx.font = `24px ${FONT}`;
-    outlineText(ctx, `falls ${g.stats.deaths} · stumbles ${g.stats.stumbles}`, 50, 250, CF.filmHi, 4);
-  }
+  // (iteration 6, review iter5 cut list: no in-run falls/stumbles counter — the poster has it)
   // metronome: 4 bulbs, the downbeat gold
   if (g.scene === 'play' && g.phase !== 'coldOpen') {
     const bib = Math.floor(gr.beatInBar);
@@ -485,10 +483,9 @@ export function drawEndScreen(ctx: CanvasRenderingContext2D, g: Game, b: BeatInf
   const total = gr.perfect + gr.great + gr.good + gr.miss;
   const lines: [string, string][] = [
     ['brass tokens', `${g.stats.lums} / ${g.stats.lumsTotal}`],
-    ...(g.stats.pendulumsTotal > 0 ? ([['targets smashed', `${g.stats.pendulums} / ${g.stats.pendulumsTotal}`]] as [string, string][]) : []),
-    ...(typeof (r as { breakablesTotal?: number }).breakablesTotal === 'number' && (r as { breakablesTotal: number }).breakablesTotal > 0
-      ? ([['bottles & crates', `${(r as { breakables?: number }).breakables ?? 0} / ${(r as { breakablesTotal: number }).breakablesTotal}`]] as [string, string][])
-      : []),
+    // (iteration 6: targets + bottles share a line; the hidden FILM CANISTERS get theirs — the replay hook)
+    ['targets · bottles', `${g.stats.pendulums}/${g.stats.pendulumsTotal} · ${r.breakables}/${r.breakablesTotal}`],
+    ...(r.canistersTotal > 0 ? ([['film canisters found', `${r.canisters} / ${r.canistersTotal}`]] as [string, string][]) : []),
     ['audience on its feet', `${g.crowd.peak}`],
     ['on the beat', `${gr.perfect + gr.great + gr.good} / ${total}  (${gr.perfect} perfect)`],
     ['best combo · heaves', `${g.comboPeak} · ${g.stats.heaves} / ${r.phrases}`],
@@ -510,27 +507,15 @@ export function drawEndScreen(ctx: CanvasRenderingContext2D, g: Game, b: BeatInf
   ctx.fillStyle = '#5A4A3A';
   ctx.font = `italic 22px ${FONT}`;
   ctx.fillText('also starring BIG JIM (briefly)', tx, py + ph - 150);
-  // rating stamp (gold = reward)
-  const pct = total > 0 ? (gr.perfect + gr.great * 0.7 + gr.good * 0.4) / total : 0;
-  const cup = pct > 0.85 && g.stats.lums >= g.stats.lumsTotal * 0.9 ? 'BOX-OFFICE SMASH' : pct > 0.65 ? 'CULT CLASSIC' : pct > 0.4 ? 'B-MOVIE' : 'STRAIGHT TO VIDEO';
+  // rating stamp (gold = reward): the RANK (iteration 6, game/rank.ts — crowd time, timing, tokens, deaths, canisters)
+  const rank = r.rank;
+  const cup = rank.tier;
   const sk = easeOut(clamp01((appear - 0.5) / 0.25));
   if (sk > 0) {
+    // (iteration 6, art: each billing tier has its own stamp — render/rankStamp.ts)
     ctx.save();
-    ctx.translate(px + pw - 250, py + ph - 88);
-    ctx.rotate(-0.18);
-    ctx.scale(1.6 - 0.6 * sk, 1.6 - 0.6 * sk);
-    ctx.globalAlpha = k * sk;
-    ctx.strokeStyle = REWARD.dark;
-    ctx.lineWidth = 7;
-    roundRect(ctx, -210, -52, 420, 104, 10);
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(224,182,74,0.22)';
-    ctx.fill();
-    ctx.fillStyle = REWARD.dark;
-    ctx.font = `50px ${MARQUEE}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(cup, 0, 4);
+    ctx.globalAlpha = k;
+    drawRankStamp(ctx, px + pw - 250, py + ph - 88, rank.letter, cup, sk, t);
     ctx.restore();
     if (sk < 1) star4(ctx, px + pw - 250, py + ph - 88, 80 * (1 - sk), sk * 3, REWARD.shine);
   }

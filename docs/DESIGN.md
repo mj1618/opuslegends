@@ -402,6 +402,12 @@ painted action streak: on-grid = clean tangerine brushwork, Perfects = gold star
 tape repairs. Tagline from your stats ("34 PERFECT SHOTS! 2 FALLS! ONE CUE!"), billing "starring SLIM · with BIG JIM ·
 and 112 TOKENS", a rating stamp with your cup, a "HELD OVER!" snipe for FULL HOUSE, and print wear (folds, pin holes)
 seeded by the run. Headline: **DON'T MESS WITH SLIM**. Every run prints a different poster. **Export PNG** to share.
+**Replay hooks (iteration 6):** the rating stamp is a RANK — a letter badge + a billing tier (S BOX-OFFICE SMASH ·
+A CRITICS' PICK · B CULT CLASSIC · C B-MOVIE · D STRAIGHT TO VIDEO) from how the run sounded (time out of the booth,
+FULL HOUSE time), how it was played, the tokens and the falls — and the **3 hidden FILM CANISTERS** (one per act, each at
+the apex of a HELD jump where the song only asks for a hop: the chimney smoke on the rooftops, the searchlight over the
+roof's water tower, Big Jim's shoulder). They wink on the count before their takeoff and 2 tokens climb the held arc as
+the clue; a flawless run without them tops out at A — S needs the secrets.
 
 ### 6.4 Wild card: Chalk Marks *(A-X4 Scansion: notation marks on the world)*
 Upcoming rhythm is marked **on the world** in cue chalk, the way a hustler marks his shot: on floors, bar tops, lanes,

@@ -18,12 +18,15 @@
  *   bars 77-83  THE REVEAL (the bluff display on the held B, 0 threats) and THE GAUNTLET: climb Big Jim himself, no
  *               chalk marks — his fists slam (lethal lifts), up the velvet sleeve (knee-slide), lapels (ledges, gaps
  *               UP), medallions (pendulums), and the HEY answers crack his lenses (317 left, 325 right). ◆ 304, ◆ 320
+ *               Iteration 6: real stakes to ~332 — the hop onto the lens rim (326) and over the snapped chain (330) are
+ *               lethal (−90 after a strike); film canister #3 sits on his shoulder (hold the 315 HUP)
  *   bars 84-86  THE FINALE, can't die (the Burn retires on 332): the pull-out into the theatre, sprockets rising on the
  *               pickup, iris blades closing one per beat, HUP · HUP · the FINAL HIT on 340 as the iris SLAMS shut on
  *               Big Jim's face. THE END (341), Slim stops at the throne for the victory pose, the poster.
  *
  * GRID: bar n starts on beat 4(n-1); "&" = the swung and (+0.66). Heights = px above the street, relative to `h0`
  * (act 2's Lanes deck, 950 px). FAIRNESS (docs/reviews/iter3.md, non-negotiable): every lethal window ≥ −85 / +150 ms
+ * (iteration 6: chorus 4's light-wells 276 / 280 / 284 are the exam at −80, review iter5 fix 5)
  * (measured with `node playtest/slack.mjs --level=src/level/act3.ts#act3Level --from=240`), ≤ 1 stumble per bar,
  * checkpoints ≤ 5 bars apart, a breather after every peak.
  */
@@ -170,17 +173,17 @@ const FIT = {
   rackGap: [0.1, 0.7] as const,
   /** 276 / 282: light-wells between the letters (tap hop, flat). Iteration 5: 276 is no longer led by a reward hop on
    * 275 (a +95 ms late 275 hop landed in the well — a hidden lethal, the 277 loop): X X X ∪, its early side is real */
-  well: [0.13, 0.84] as const,
+  /** iteration 6 (review iter5 fix 5, chorus 4 = the exam): 276 / 280 / 284 tightened to −80 (was −85 / −90 / −95; the
+   * physics quantises these windows in 10 ms steps: one step tighter is −70, under the −75 the review allowed) */
+  well: [0.13, 0.871] as const,
   wellStd: [0.09, 0.8] as const,
   /** 284 (iteration 5): the light-well past the G, after the G's neon (282.66): no buffer */
-  wellG: [0.13, 0.81] as const,
+  wellG: [0.13, 0.858] as const,
   /** 294: held jump UP +150 from the M's hump to the terrace */
   terrace: [0.2, 1.5] as const,
-  /** 316 / 324: tap hop UP +50 across the gap between Big Jim's lapels */
-  lapel: [0.1, 0.68] as const,
-  /** 324 after the knuckle-ring hop (323): the near lip at +0.36 so a LATE ring hop still lands on the lapel (iteration 5:
-   * at +0.1 a +85 ms late 323 hop — marked a stumble — fell into the gap) */
-  lapelHup: [0.36, 0.68] as const,
+  /** (316 / 324 were `lapel` / `lapelHup` gaps: each followed a hop within half a beat, so the jump buffer hid their early
+   * side (−255 / −190 ms): lethal on paper, never in play. Iteration 6 made them reward ledges and spent that intensity on
+   * real stakes at 326 / 330 — the outro must stay calmer than the breakdown, rubric C1) */
   /**
    * iteration 5, THE GAUNTLET'S TEETH (review iter4 fix 7): hops UP across his body that follow a STRIKE or a landing
    * (no jump buffer to hide an early press): 312 cuff -> sleeve, 318 lapel -> tie pin, 326 collar -> lens rim.
@@ -190,7 +193,9 @@ const FIT = {
   /** 318: the same across a FLAT notch (the landing comes sooner than going up, so the pit runs further) */
   notch: [0.1, 0.84] as const,
   /** 280: up onto the fallen I after the strikes (was `lapel`, measured −80 once 275 stopped being a hop) */
-  ontoI: [0.1, 0.66] as const,
+  ontoI: [0.1, 0.695] as const,
+  /** 330 (iteration 6): flat, over the gap the snapped gold chain tore, after the medallion strike on 329 */
+  chain: [0.09, 0.8] as const,
 };
 
 /** Act 3's items, starting on a floor `h0` px above the street (act 2's last height). */
@@ -230,11 +235,15 @@ export function act3Items(h0 = 950): LevelItem[] {
   T.lifts(bar(78, 2), 2, true); // (308 X) · 309 · 310: LETHAL — his FISTS slam over the burned-out floor -> the cuff (311)
   T.gapUp(bar(79, 1), FIT.climb, 50); // 312: LETHAL — off his cuff, across the gap onto the velvet sleeve
   T.up(bar(79, 4), 50); // 315: HUP — up the sleeve to his shoulder
-  T.gapUp(bar(80, 1), FIT.lapel, 50); // 316: HUP — LETHAL: across to the lapel
+  T.up(bar(80, 1), 50); // 316: HUP — up onto the lapel (iteration 6: a reward ledge; was a lethal the 315 hop's buffer hid)
   T.gapUp(bar(80, 3), FIT.notch, 0); // 318: LETHAL — after the HEY (the lens), across the lapel's notch to his tie pin
   T.set(bar(81, 1) + 0.3, T.h - 24).set(bar(81, 1) + 1.6, T.h); // 320: his breast pocket (safe pool)
-  T.gapUp(bar(82, 1), FIT.lapelHup, 50); // 324: HUP — LETHAL: lapel -> collar
-  T.up(bar(82, 3), 50); // 326: up onto his lens rim
+  T.up(bar(82, 1), 50); // 324: HUP — lapel -> collar (iteration 6: a reward ledge, see FIT)
+  // iteration 6 (review iter5 fix 5, THE GAUNTLET'S STAKES: death possible up to ~332): 326 is a LETHAL hop UP across the
+  // gap between his collar and the lens rim, right after the HEY on the lens (a strike: no jump buffer, a real early side)
+  T.gapUp(bar(82, 3), FIT.climb, 50); // 326: LETHAL — collar -> lens rim
+  // …and his gold chain snaps on 328: the hop on 330 crosses the gap it tore in his vest (after the medallion on 329)
+  T.gapUp(bar(83, 3), FIT.chain, 0); // 330: LETHAL — over the snapped chain (the Burn lunges on the fill right after)
   // ---- the finale (84-86): the film strip, sprockets rising on the pickup (B C D D#), iris blades
   T.up(bar(84, 1), 40).up(bar(84, 3), 40).up(bar(84, 4), 40);
   T.up(bar(85, 1), 30).up(bar(85, 3), 30).up(bar(85, 4), 30);
@@ -244,7 +253,7 @@ export function act3Items(h0 = 950): LevelItem[] {
     ...terrain,
 
     // ================================================================ BLOCK 1 — THE POOL ROOM (61-64). Follows: the stomp
-    { type: 'crowd', beat: bar(61), cap: 14 },
+    { type: 'crowd', beat: bar(61), cap: 16 }, // iteration 6: ≥ the meter's rest (14)
     sky(bar(61), 'poolroom'),
     { type: 'ground', beat: bar(61) + 0.1, style: 'felt' },
     setPiece(bar(61), 'poolRoom', 16),
@@ -444,8 +453,12 @@ export function act3Items(h0 = 950): LevelItem[] {
     // ---- bar 79 (held 313.62, the fill): up onto the sleeve (312), KNEE-SLIDE up the velvet sleeve under the Bluffers'
     // cue line on the held note, then HUP up to his shoulder (315) — the Burn lunges on 314.72: his BACKHAND
     smash(bar(79, 2), 'bell'),
+    // FILM CANISTER #3 (iteration 6): HOLD the HUP up the sleeve (315) and you vault his lapel onto his SHOULDER — the
+    // canister is on his epaulette. The risk: the flight skips the HUP on 316 (no Heave on the lens) and lands you right
+    // before the lethal notch (318)
+    { type: 'canister', from: bar(79, 4) },
     ...slideUnder(313.62, 1.2),
-    // ---- bar 80 (HEY 317): HUP across to the lapel (316, lethal), HEY = the LEFT LENS CRACKS (a Hup-Hup-HEY), a hop, a
+    // ---- bar 80 (HEY 317): HUP up onto the lapel (316), HEY = the LEFT LENS CRACKS (a Hup-Hup-HEY), a hop, a
     // medallion
     { type: 'phrase', beats: [bar(79, 4), bar(80, 1), bar(80, 2)] },
     giant(bar(80, 2), 'lens'),
@@ -460,7 +473,7 @@ export function act3Items(h0 = 950): LevelItem[] {
     pendulumHigh(bar(81, 2), true),
     smash(bar(81, 3), 'bell'),
     ...spikeHop(bar(81, 4)),
-    // ---- bar 82 (HEY 325): HUP lapel -> collar (324, lethal), HEY = the RIGHT LENS CRACKS, up onto the lens rim, a hit
+    // ---- bar 82 (HEY 325): HUP lapel -> collar (324), HEY = the RIGHT LENS CRACKS, the LETHAL hop onto the lens rim (326), a hit
     { type: 'phrase', beats: [bar(81, 4), bar(82, 1), bar(82, 2)] },
     giant(bar(82, 2), 'lens'),
     fx(bar(82, 2), 'flash', 0.8),
@@ -470,7 +483,7 @@ export function act3Items(h0 = 950): LevelItem[] {
     // medallions (330.70, 331.68)
     crate(bar(83, 1), 'chain'),
     smash(bar(83, 2), 'bell'), // a medallion flying off the snapped chain (X X ∪ X X)
-    ...tokenHop(bar(83, 3)),
+    // (330: the hop over the snapped chain's gap is lethal now — terrain above)
     smash(330.7, 'letterNeon'),
     smash(331.68, 'letterNeon'),
     fx(330.7, 'bgPulse', 0.7),

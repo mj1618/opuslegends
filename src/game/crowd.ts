@@ -1,11 +1,12 @@
 /**
  * The crowd (DESIGN §4 "choir"): the SKILL meter and the music reward (iteration 3: it measures how well
  * you play, not how much).
- *   Perfect +1 · Great +0.5 · Good 0 · Miss −2 · stumble −4 · death −6 (from the checkpoint's value) ·
- *   a complete on-grid Hup-Hup-HEY +3 · and it DECAYS (Tun.crowd.decayPerBeat, faster the fuller the house:
- *   decaySlope above decayKnee) while you're not feeding it.
- *   Wakes at 8 (Tun.crowd.start; iteration 4), floor 3, cap 24; the level caps it per section (`crowd`
- *   items → RuntimeLevel.crowdCaps; 10 intro … 24 chorus) so FULL HOUSE (≥ bigCatchAt) only happens in a
+ *   Perfect +1 · Great +0.5 · Good +0.25 · Miss −2 · stumble −4 · death −6 (from the checkpoint's value) ·
+ *   a complete on-grid Hup-Hup-HEY +3 · and it RESTS at Tun.crowd.restAt (14, the booth's open point; iteration 6):
+ *   above it it DECAYS back down (decayPerBeat, faster the fuller the house: decaySlope above decayKnee), below it it
+ *   RECOVERS (recoverPerBeat) — the full record is the default, thin sound the cost of misses.
+ *   Wakes at 14 (Tun.crowd.start; iteration 6, was 8), floor 3, cap 24; the level caps it per section (`crowd`
+ *   items → RuntimeLevel.crowdCaps; 16 intro … 24 chorus) so FULL HOUSE (≥ bigCatchAt) only happens in a
  *   chorus played near-clean — or on the chorus downbeat after a clean Hup-Hup-HEY (the drop, game.ts).
  *   A cap BELOW the meter (a new act's verse after a FULL HOUSE chorus) never clamps it: the excess glides
  *   down (Tun.crowd.capGlidePerBeat) and gains can't raise it meanwhile.
@@ -102,7 +103,10 @@ export class Crowd {
     const C = Tun.crowd;
     let v = this.value;
     if (v > this.cap) v = Math.max(this.cap, v - C.capGlidePerBeat * beats);
-    if (v > C.min) v -= (C.decayPerBeat + C.decaySlope * Math.max(0, v - C.decayKnee)) * beats;
+    // iteration 6: the meter RESTS at restAt (the booth's open point): it cools down to it from above and drifts back up
+    // to it from below — thin sound is what a miss / stumble / death costs, for a few bars, not the default
+    if (v > C.restAt) v = Math.max(C.restAt, v - (C.decayPerBeat + C.decaySlope * Math.max(0, v - C.decayKnee)) * beats);
+    else if (v < C.restAt && v < this.cap) v = Math.min(C.restAt, this.cap, v + C.recoverPerBeat * beats);
     if (v !== this.value) this.set(v, true);
   }
 }

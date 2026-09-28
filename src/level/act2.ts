@@ -353,6 +353,9 @@ export const act2Items: LevelItem[] = [
   // ---- bar 43: a swinging neon letter, a hop, tokens on the kick-and
   pendulum(bar(43, 2)),
   ...tokenHop(bar(43, 3)),
+  // FILM CANISTER #2 (iteration 6): the roof's quiet stretch hides one — HOLD the hop on 170 and it's caught in the
+  // searchlight over the water tower (tokens up the held arc are the clue)
+  { type: 'canister', from: bar(43, 3) },
   lumRowSwung(and(bar(43, 3)), bar(43, 4) + 0.5, 60),
   // ---- bar 44: STOP-TIME (the bass drops out): X · rest · X — big smashes; your hit is the sound
   label(bar(44), 'STOP-TIME'),

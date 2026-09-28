@@ -174,8 +174,16 @@ export const Tun = {
    * decays, and misses hurt. FULL HOUSE (bigCatchAt) needs a near-clean chorus (≥ ~80% Perfect/Great).
    */
   crowd: {
-    /** 8 (iteration 4, review iter3 fix 3; was 3): the intro plays thin but full-range, not through the booth horn */
-    start: 8,
+    /**
+     * 14 (iteration 6, review iter5 fix 1; was 8): the record plays FULL from beat 0 — the booth (crowd < boothBelow) is the
+     * COST of misses, not the default. The meter rests here (`restAt`): above it the house cools back down to it, below it
+     * the house comes back on its own (`recoverPerBeat`) on top of your hits
+     */
+    start: 14,
+    /** where the meter rests: decays DOWN to it from above, recovers UP to it from below (iteration 6) */
+    restAt: 14,
+    /** below `restAt` the house drifts back up this many members per beat (a ±130 player doing OK is never stuck thin) */
+    recoverPerBeat: 0.12,
     min: 3,
     max: 24,
     perPerfect: 1,
@@ -190,16 +198,19 @@ export const Tun = {
     stumbleLoss: 4,
     /** members lost on a death (from the checkpoint's value) */
     deathLoss: 6,
-    /** the meter cools by this many members per beat while above `min` */
-    decayPerBeat: 0.4,
+    /** the meter cools by this many members per beat while above `restAt` (iteration 6: was `min`) */
+    /** iteration 6: 0.3 (was 0.4) with the slope 0.04 — a ±85 player holds FULL HOUSE through most of a chorus */
+    decayPerBeat: 0.3,
     /**
      * ...plus `decaySlope` per member above `decayKnee` (iteration 4): a leaky meter whose resting level follows your
      * grade mix, so FULL HOUSE stays a SKILL state even with the drop and Good +0.25. Chorus equilibria (≈1 action/
      * beat): ±40 (~0.95/beat of gains) ≈ 23+ (holds FULL HOUSE), sloppy ±85 (~0.7) ≈ 18, ±130 (~0.6) ≈ 16 — a
      * dropped FULL HOUSE lasts them ~1-3 bars: the moment, not the state.
      */
-    decaySlope: 0.05,
-    decayKnee: 12,
+    decaySlope: 0.04,
+    /** iteration 6: 14 (was 12) = the rest level — chorus equilibria (decay 0.3 + 0.04/member over 14): ±40 caps at 24,
+     * ±85 ≈ 21 (FULL HOUSE, lost for a bar or two on a miss), ±130 ≈ 18 (full record, FULL HOUSE in its best stretches) */
+    decayKnee: 14,
     /**
      * A section cap BELOW the meter doesn't clamp it (the act-2 seam used to drop FULL HOUSE 24 → 16 in one step):
      * the excess glides down at this many members per beat on top of the decay (24 → 16 over ~6 beats), and
@@ -218,6 +229,8 @@ export const Tun = {
     fullAt: 12,
     /** BIG CATCH / FULL HOUSE mode (bonus stem) at >= this */
     bigCatchAt: 20,
+    /** the projection booth opens fully at this crowd (audio/mix.ts BOOTH): below it the record plays thin (report: boothBeats) */
+    boothBelow: 14,
   },
 
   /**
@@ -271,6 +284,14 @@ export const Tun = {
     closeRate: 0.8,
     /** rise animation (beats) */
     riseBeats: 4,
+    /**
+     * THREAT (iteration 6, review iter5 cut list: the Burn cried wolf): `threat` = how far it is pulled in from its rest,
+     * 0 at rest → 1 at `threatSpan` beats closer. Its drum-fill LUNGE scales with it (at rest it only pulses: a lunge
+     * there could never reach you anyway), 'lunge' events fire only when threat > 0, and a pull only FLARES it when the
+     * threat is ≥ `flareAt` (one missed reward = no flare; a stumble or two misses = it flares)
+     */
+    threatSpan: 0.5,
+    flareAt: 0.5,
   },
 
   /**
@@ -303,6 +324,28 @@ export const Tun = {
      */
     pinnedSteps: 2,
     offerTimes: 3,
+  },
+
+  /**
+   * NEAR-MISS "WHEW" (iteration 6, review iter5 fix 5): a landing / takeoff inside the last `ms` of a lethal window, or a
+   * spike passed within `grazePx`, emits a `whew` event (+ a 'whew' stamp): a gasp and a cream puff, no score change.
+   * At most one per `gapBeats`.
+   */
+  whew: {
+    ms: 40,
+    grazePx: 12,
+    gapBeats: 0.75,
+  },
+
+  /**
+   * NOTABLE STAMPS (iteration 6, review iter5 cut list): only these moments raise a `stamp` event (the art's stamp);
+   * per-press grades stay in `grade` (bells) without a stamp. `phraseBeats` = the musical phrase for 'firstPerfect'.
+   */
+  stamps: {
+    phraseBeats: 16,
+    streaks: [10, 25, 50, 100] as readonly number[],
+    /** after the last listed streak, every this many */
+    streakEvery: 50,
   },
 
   /** failure hints: after the player fails the same thing `after` times, show a short tip once */

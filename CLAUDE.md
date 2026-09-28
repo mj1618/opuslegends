@@ -74,11 +74,27 @@ World y grows DOWN; the base ground top is y = 0.
   action (Perfect ±33 / Great ±85 / Good ±135 ms, early +10). Grades drive score, feedback, the combo and the
   crowd (`game/crowd.ts`, skill meter → the music reward via `audio/stage.ts`) — never physics.
 - **Game events** (`game/events.ts`, iteration 3): `game.events.on(type, fn)` — grade / miss / combo / crowd /
-  fullHouse / stumble / death / burn (lunge, pull, caught) / setPiece / smash (giant index) / hint, emitted from
+  fullHouse / stumble / death / burn (lunge, pull, caught; `threat`) / setPiece / smash (giant index) / hint, emitted from
   the fixed-step sim. Pollable state: `game.crowd.{value,count,norm,bigCatch}`, `game.combo` / `comboPeak`
-  (consecutive Great+), `game.chaser.{x,gap,lunge,danger,flare}`, `game.setPiece`. Presentation hooks here only.
-- **Crowd = skill meter** (`Tun.crowd`): wakes at 8, Perfect +1 · Great +0.5 · Good +0.25 · Miss −2 · stumble −4 ·
-  death −6, decays 0.4/beat, section caps (`crowd` items). FULL HOUSE (≥ 20) needs a near-clean chorus. A cap BELOW
+  (consecutive Great+), `game.chaser.{x,gap,lunge,danger,flare,threat}`, `game.setPiece`. Presentation hooks here only.
+  **Iteration 6:** `stamp` = the ONLY moments worth a stamp (kind firstPerfect = first Perfect of a 4-bar phrase · streak
+  = combo 10/25/50/100/+50 · heave · giant · whew · canister; `text` suggested) — per-press grades stay bells, no stamp;
+  `whew` = a NEAR-MISS (`Tun.whew`): 'lip' = a jump landed with its toes within 40 ms of a lethal lip (a pit's far side,
+  a lift / post edge), 'coyote' = took off with < 40 ms of coyote time left over a lethal pit, 'graze' = passed a spike
+  within 12 px; ≤ 1 per 0.75 beat, launches / hook rides never count; `canister` = a hidden film canister picked up.
+  **Film canisters** (`canister` items → `RuntimeLevel.canisters`, `Game.collectCanister`): 3, one per act, at the APEX
+  of a HELD jump where the song line only asks for a tap hop (43 the chimney, 170 the roof's searchlight, 315 Big Jim's
+  shoulder over the lapel); clue = 2 tokens up the held arc + a glint on the 2 beats before the takeoff
+  (`render/canisterDraw.ts` placeholder). Checkpoints snapshot them; `stats.canisters/canistersTotal`; `?hunt=1`
+  (`playtest --hunt`) makes the bot hold those jumps; `slack.mjs --canisters` checks each is off the song line, reachable
+  and survivable (`--scout` lists every tap hop that survives being held). **The rank** (`game/rank.ts`,
+  `Game.rank()`, report `rank`): crowd time 27 + timing 27 + tokens 18 + deaths 18 + canisters 10 → S ≥ 92 BOX-OFFICE
+  SMASH · A ≥ 85 CRITICS' PICK · B ≥ 68 CULT CLASSIC · C ≥ 45 B-MOVIE · D STRAIGHT TO VIDEO (a flawless run with no
+  canister is an A). No in-run falls/stumbles counter (the poster has it).
+- **Crowd = skill meter** (`Tun.crowd`): wakes at **14** (iteration 6: the booth's open point — the record plays FULL
+  from beat 0), Perfect +1 · Great +0.5 · Good +0.25 · Miss −2 · stumble −4 · death −6; it RESTS at 14 (`restAt`):
+  above it decays 0.3/beat (+0.04 per member over 14), below it recovers 0.12/beat — thin sound is the COST of misses
+  for a few bars, not the default. Section caps (`crowd` items, ≥ 16 everywhere). FULL HOUSE (≥ 20) needs a near-clean chorus. A cap BELOW
   the meter (a new act's verse) never clamps: the excess glides down 1/beat (no FULL HOUSE → 16 cliff at a seam).
   **The drop** (`Game.chorusDrop`): a clean (all Great+) Hup-Hup-HEY in the 8 beats before a chorus cap (≥ 20), or a
   crowd item's `earn` beats graded Great+, fills the house 0.5 beat early so FULL HOUSE lands ON the chorus downbeat.
@@ -94,6 +110,9 @@ World y grows DOWN; the base ground top is y = 0.
   catches missed rewards stop feeding it and it rests at 2.5 without lunging; after 3 it can't kill (a hero with no
   forward progress for 2 beats — a softlock — is still caught). Lazy / reckless bots finish with ≤ 2 catches per spot.
   Hook rides grab by the hero's POSITION when he's behind the grid (a stumble's knockback), not only the song beat.
+  **Threat (iteration 6):** `chaser.threat` 0..1 = how far it's pulled in from its rest (0.5 beat = 1). Its fill lunge
+  scales with it (at rest a fill is a pulse, not a surge), 'lunge' events fire only with threat > 0, and a pull only
+  FLARES it at threat ≥ 0.5 (a single missed reward doesn't; a stumble or two misses do). It crying wolf was noise.
 - **Failure hints**: 6 first-appearance prompts in the level (3 in act 1, 3 in act 2: `hint` items); anything else
   is taught by placement + `Game.FAIL_HINTS`, shown once after the player fails the same thing twice.
 - **Mix** (`audio/audioSystem.ts`, `audio/mix.ts`): music (record at unity + overlay stems) → **projection
@@ -272,7 +291,8 @@ src/
            player.ts      controller: run+surge, hop (beats), strike, stumble (constants in tunables.ts)
            physics.ts     AABB world (+ switchable dynamic solids)    judge.ts  timing grades
            crowd.ts       skill meter (weighted, decays)  autoplay.ts  bot (+ jitter / late / skip / spatial catch-up)
-           events.ts      typed gameplay → presentation event bus (grades, combo, crowd, the Burn, set-pieces)
+           events.ts      typed gameplay → presentation event bus (grades, combo, crowd, the Burn, set-pieces, stamps,
+                          whew near-misses, canisters)      rank.ts  the poster's rank (letter + billing tier)
            stats.ts       timing/frame stats         entities.ts  runtime records   jumpProfile.ts  jump arcs
            mech/          act-2 mechanics from level items the builder doesn't know: thrownBottle.ts, rollingBall.ts,
                           hook.ts (hook rides), index.ts (Mechanics: step/reset/beat telegraphs, set-piece cues, hook rides,

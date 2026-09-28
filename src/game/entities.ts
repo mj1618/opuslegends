@@ -49,6 +49,27 @@ export interface Lum {
   angle: number;
 }
 
+/**
+ * A hidden FILM CANISTER (iteration 6, the replay hook): one per act, hung at the APEX of a HELD jump from `from` where the
+ * song line only asks for a tap hop (or a risky spot) — the optional high route. Touch it to pick it up (the poster
+ * counts them). `glint` (presentation): the beat window it glints in (from − 2 … from), the clue.
+ */
+export interface FilmCanister {
+  id: number;
+  /** its position in the level (0-based: act order) */
+  index: number;
+  /** the takeoff beat of the held jump that reaches it */
+  from: number;
+  /** the beat the hero passes it (the apex of that jump) */
+  beat: number;
+  x: number;
+  y: number;
+  r: number;
+  collected: boolean;
+  /** time since pickup (presentation) */
+  collectT: number;
+}
+
 /** Lums dropped by a stumble: hovers for a bar, re-collectable. */
 export interface LooseLum {
   x: number;

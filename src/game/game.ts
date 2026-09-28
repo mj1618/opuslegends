@@ -47,10 +47,12 @@ import { makeSprites } from '../render/sprites';
 import { AutoPlayer } from './autoplay';
 import { Calibrator, median } from './calibrate';
 import { Crowd } from './crowd';
-import type { ActionMarker, BouncePad, Breakable, Enemy, PendulumTarget, LooseLum } from './entities';
-import { GameEvents } from './events';
+import type { ActionMarker, BouncePad, Breakable, Enemy, FilmCanister, PendulumTarget, LooseLum } from './entities';
+import { GameEvents, type StampKind, type WhewKind } from './events';
+import { FALL_OUT } from './mech';
 import { Judge, type JudgeResult } from './judge';
 import { type MechHost, Mechanics } from './mech';
+import { rankRun, type RunRank } from './rank';
 import { jumpProfile } from './jumpProfile';
 import { Player } from './player';
 import { FrameStats, RunStats, summarize } from './stats';
@@ -142,9 +144,11 @@ export class Game {
    * The Burn (chaser). `x` = world x of its front (the kill line, lunge included); `gap` = where it wants to be
    * (beats behind the music line, Tun.chaser); `rel` = where it is (beats behind the line, before the lunge);
    * `lunge` 0..1 = the drum-fill lunge envelope; `danger` 0..1 = how close it is to the hero (1 = touching);
-   * `flare` 0..1 = decaying pulse on every pull (stumble / missed reward).
+   * `flare` 0..1 = decaying pulse on a pull that puts you in danger (iteration 6: a stumble, or misses piling up — not a
+   * single missed reward); `threat` 0..1 = how far it is pulled in from its rest (0 = resting: its fill lunges are only a
+   * pulse, nothing to fear; see Tun.chaser.threatSpan).
    */
-  chaser = { active: false, x: -Infinity, riseBeat: 0, gap: Tun.chaser.restGap, rel: Tun.chaser.restGap + 0.5, lunge: 0, danger: 0, flare: 0 };
+  chaser = { active: false, x: -Infinity, riseBeat: 0, gap: Tun.chaser.restGap, rel: Tun.chaser.restGap + 0.5, lunge: 0, danger: 0, flare: 0, threat: 0 };
   /** the scripted set-piece in progress (level `setPiece` items; gameplay 'launch'), for the art/audio */
   setPiece: { name: string; beat: number; beats: number } | null = null;
   /** beats of the song's drum fills (the Burn lunges on them) */
@@ -157,6 +161,10 @@ export class Game {
   private pendingHint: string | null = null;
   /** beats spent at FULL HOUSE this run, crowd value at each bar line (report) */
   private fullHouseBeats = 0;
+  /** beats run this run (replays after a death included) / of them with the record in the booth (crowd < Tun.crowd.boothBelow) / FULL HOUSE beats per song section */
+  private runBeats = 0;
+  private boothBeats = 0;
+  private fullHouseBySection: Record<string, number> = {};
   private crowdTrace: { beat: number; value: number }[] = [];
   private burnStats = { pulls: 0, lunges: 0, minMarginBeats: Infinity, caught: 0 };
   popups: Popup[] = [];
@@ -200,6 +208,17 @@ export class Game {
   private snap = { lums: new Set<number>(), crowd: Tun.crowd.start, pendulums: new Set<number>(), burnGap: Tun.chaser.restGap as number };
   /** breakables already smashed at the last checkpoint (and the tokens they paid) */
   private snapBroken = new Set<number>();
+  /** film canisters picked up at the last checkpoint (iteration 6) */
+  private snapCanisters = new Set<number>();
+  /** NEAR-MISS bookkeeping (iteration 6): last whew beat, the jump's coyote left at takeoff, spikes' closest pass (px) */
+  private lastWhewBeat = -Infinity;
+  /** what put the hero in the air last: only a JUMP's landing can be a near-miss (not a launch / hook ride / fall) */
+  private airFrom: 'jump' | 'other' = 'other';
+  private preStep = { coyote: 0, grounded: false };
+  private graze = new Map<number, number>();
+  /** NOTABLE STAMPS (iteration 6): the 4-bar phrase that already had its first Perfect, the next streak milestone */
+  private perfectPhrase = -1;
+  private nextStreak = 0;
   /** hero was standing in a pool last step (splash fx) */
   private inPool = false;
   private lumStreak = { count: 0, lastBeat: -99 };
@@ -330,6 +349,9 @@ export class Game {
     this.pendingHint = null;
     this.level.hints = this.level.hints.filter((h) => !h.dynamic);
     this.fullHouseBeats = 0;
+    this.runBeats = 0;
+    this.boothBeats = 0;
+    this.fullHouseBySection = {};
     this.crowdTrace = [];
     this.burnStats = { pulls: 0, lunges: 0, minMarginBeats: Infinity, caught: 0 };
     this.checkpointIndex = -1;
@@ -344,13 +366,22 @@ export class Game {
     this.stats.pendulumsTotal = this.level.pendulums.filter((f) => f.beat >= start - 1e-6).length;
     this.stats.breakablesTotal = this.level.breakables.filter((b) => b.beat >= start - 1e-6).length + this.mech.bottles.filter((b) => b.tokens > 0 && b.beat >= start - 1e-6).length;
     this.stats.phrasesTotal = this.level.phrases.filter((ph) => ph.beats[0] >= start - 1e-6).length;
+    this.stats.canistersTotal = this.level.canisters.filter((c) => c.beat >= start - 1e-6).length;
+    this.snapCanisters = new Set();
+    this.perfectPhrase = -1;
+    this.nextStreak = 0;
     this.level.checkpoints.forEach((cp, i) => {
       if (cp.beat <= start + 1e-6) {
         cp.reached = true;
         this.checkpointIndex = i;
       }
     });
-    if (params.autoplay) this.bot = new AutoPlayer(this.level.actions, this.tempo, params.miss, params.jitter, params.seed, params.late, params.skip);
+    if (params.autoplay) {
+      // ?hunt=1: the bot takes the film canisters' high routes (holds the jumps that reach them)
+      const hunt = (a: ActionMarker) => params.hunt && a.type === 'jump' && this.level.canisters.some((c) => Math.abs(c.from - a.beat) < 1e-6);
+      const acts = this.level.actions.map((a) => (hunt(a) ? { ...a, hold: 1 } : a));
+      this.bot = new AutoPlayer(acts, this.tempo, params.miss, params.jitter, params.seed, params.late, params.skip);
+    }
     const cold = fromBeat === undefined && params.start === null && this.level.def.coldOpen && params.coldOpen;
     this.crowd.reset(crowdCapAt(this.level, start));
     this.wasFullHouse = false;
@@ -425,6 +456,11 @@ export class Game {
       b.broken = this.snapBroken.has(b.id);
       b.brokenT = b.broken ? 99 : 0;
     }
+    for (const c of L.canisters) {
+      c.collected = this.snapCanisters.has(c.id);
+      c.collectT = c.collected ? 99 : 0;
+    }
+    this.graze.clear();
     for (const b of L.bouncePads) if (b.beat >= beat - 0.5) b.used = false;
     for (const sg of L.signs) if (sg.beat >= beat - 0.5) sg.hit = false;
     this.inPool = false;
@@ -433,7 +469,7 @@ export class Game {
     this.mech.reset(beat);
     const rest = Tun.chaser.restGap + this.burnRestBonus;
     const gap = Math.min(rest, Math.max(this.snap.burnGap, Tun.chaser.respawnMinGap + this.burnRestBonus));
-    this.chaser = { active: false, x: -Infinity, riseBeat: 0, gap, rel: gap + 0.5, lunge: 0, danger: 0, flare: 0 };
+    this.chaser = { active: false, x: -Infinity, riseBeat: 0, gap, rel: gap + 0.5, lunge: 0, danger: 0, flare: 0, threat: 0 };
     this.progress = { x: beat * this.level.ppb, beat };
     this.burnStumbles = [];
     for (const b of [...this.dropsDone]) if (b >= beat - 1e-6) this.dropsDone.delete(b);
@@ -462,6 +498,7 @@ export class Game {
     this.stats.pendulums = this.snap.pendulums.size;
     this.stats.breakables = this.snapBroken.size + this.batted.size;
     this.stats.heaves = this.heaved.size;
+    this.stats.canisters = this.snapCanisters.size;
     this.judge.reset(beat);
     for (const i of [...this.heaveReady]) if (this.level.phrases[i].beats[0] >= beat - 1e-6) this.heaveReady.delete(i);
     const x = beat * this.level.ppb;
@@ -571,6 +608,7 @@ export class Game {
       burnGap: this.chaser.active ? this.chaser.gap : Tun.chaser.restGap,
     };
     this.snapBroken = new Set(this.level.breakables.filter((b) => b.broken).map((b) => b.id));
+    this.snapCanisters = new Set(this.level.canisters.filter((c) => c.collected).map((c) => c.id));
     this.snapBatted = new Set(this.batted);
     this.snapHeaved = new Set(this.heaved);
     this.burnGrace = 0;
@@ -634,6 +672,7 @@ export class Game {
     for (const l of this.level.lums) if (l.collected) l.collectT += presDt;
     for (const f of this.level.pendulums) if (f.struck) f.struckT += presDt;
     for (const b of this.level.breakables) if (b.broken) b.brokenT += presDt;
+    for (const c of this.level.canisters) if (c.collected) c.collectT += presDt;
     for (const b of this.level.bouncePads) b.kick = Math.max(0, b.kick - presDt * 3);
     for (const sg of this.level.signs) sg.swing = Math.max(0, sg.swing - presDt * 1.5);
     for (const pu of this.popups) pu.t += presDt;
@@ -934,10 +973,13 @@ export class Game {
       if (this.controls.strikePressed) this.gradePress('strike', this.controls.strikePressTime);
     }
     this.updateSlams(beatW);
+    this.preStep.coyote = p.coyote;
+    this.preStep.grounded = p.grounded;
     p.step(dt, this.controls, this.level.world);
     this.controls.clearEdges();
     this.updateEntities(dt, beatW);
     this.mech.step(dt, beatW, p, this.phase === 'run', this.controls.right);
+    if (this.mech.hook) this.airFrom = 'other';
     this.beatEvents(beatW);
 
     if (this.phase === 'finished') {
@@ -945,6 +987,7 @@ export class Game {
       if (this.phaseTimer <= 0 && this.scene === 'play') {
         this.scene = 'end';
         this.conductor.stop('fade');
+        this.stage.onPoster(this.rank().letter); // THE END flourish + the rank's sting (audio/mix.ts POSTER_SFX)
         this.log('endScreen', {});
       }
       return;
@@ -968,7 +1011,13 @@ export class Game {
   private beatTick(beatW: number, dBeat: number): void {
     this.crowd.decay(dBeat);
     this.chorusDrop(beatW);
-    if (this.crowd.bigCatch) this.fullHouseBeats += dBeat;
+    this.runBeats += dBeat;
+    if (this.crowd.value < Tun.crowd.boothBelow) this.boothBeats += dBeat;
+    if (this.crowd.bigCatch) {
+      this.fullHouseBeats += dBeat;
+      const sec = this.song.sectionAt?.(beatW)?.name ?? '?';
+      this.fullHouseBySection[sec] = (this.fullHouseBySection[sec] ?? 0) + dBeat;
+    }
     const bar = Math.floor(beatW / 4);
     if (Math.floor((beatW - dBeat) / 4) !== bar) {
       this.crowdTrace.push({ beat: bar * 4, value: round3(this.crowd.value) });
@@ -1162,6 +1211,7 @@ export class Game {
       c.x = -Infinity;
       c.danger = 0;
       c.lunge = 0;
+      c.threat = 0;
       return;
     }
     const dBeats = dt / this.tempo.secondsPerBeatAt(beatW);
@@ -1173,17 +1223,21 @@ export class Game {
     c.gap = Math.min(B.restGap + this.burnRestBonus, c.gap + B.relaxPerBeat * dBeats);
     const step = B.closeRate * dBeats;
     c.rel = c.rel > c.gap ? Math.max(c.gap, c.rel - step) : Math.min(c.gap, c.rel + step);
+    // iteration 6: THREAT = how far it's pulled in from its rest (0 resting … 1 = a stumble's worth): it only lunges /
+    // flares in earnest when it can actually reach you
+    c.threat = clamp((B.restGap + this.burnRestBonus - c.gap) / B.threatSpan, 0, 1);
     // drum-fill lunges (deterministic from the world beat, so rewinds replay them exactly)
     while (this.lungeIdx < this.lungeBeats.length && this.lungeBeats[this.lungeIdx] <= beatW) {
-      if (this.burnCatches < B.restAfter) {
+      if (this.burnCatches < B.restAfter && c.threat > 0) {
         this.burnStats.lunges++;
-        this.events.emit('burn', { kind: 'lunge', beat: this.lungeBeats[this.lungeIdx], gap: c.gap, danger: c.danger });
+        this.events.emit('burn', { kind: 'lunge', beat: this.lungeBeats[this.lungeIdx], gap: c.gap, danger: c.danger, threat: c.threat });
       }
       this.lungeIdx++;
     }
     const last = this.lungeIdx > 0 ? this.lungeBeats[this.lungeIdx - 1] : -Infinity;
     const d = beatW - last;
-    c.lunge = d < 0 ? 0 : d < B.lungeRise ? Math.sin((d / B.lungeRise) * Math.PI * 0.5) : d < B.lungeRise + B.lungeFall ? 1 - (d - B.lungeRise) / B.lungeFall : 0;
+    // (the lunge's reach scales with the threat: at rest a fill is a pulse, not a surge at your heels)
+    c.lunge = c.threat * (d < 0 ? 0 : d < B.lungeRise ? Math.sin((d / B.lungeRise) * Math.PI * 0.5) : d < B.lungeRise + B.lungeFall ? 1 - (d - B.lungeRise) / B.lungeFall : 0);
     // the assist: after `restAfter` catches in this segment it stops lunging
     if (this.burnCatches >= B.restAfter) c.lunge = 0;
     c.x = (beatW - c.rel + B.lungeBeats * c.lunge) * L.ppb;
@@ -1207,7 +1261,7 @@ export class Game {
     if (beatW > c.riseBeat + B.riseBeats) this.burnStats.minMarginBeats = Math.min(this.burnStats.minMarginBeats, margin);
     if (margin < 0) {
       this.burnStats.caught++;
-      this.events.emit('burn', { kind: 'caught', beat: beatW, gap: c.gap, danger: 1 });
+      this.events.emit('burn', { kind: 'caught', beat: beatW, gap: c.gap, danger: 1, threat: 1 });
       this.die('chaser');
     }
   }
@@ -1215,10 +1269,13 @@ export class Game {
   /** feed the Burn: it jumps `beats` closer (a stumble, a missed reward) */
   private feedBurn(beats: number): void {
     const c = this.chaser;
+    const B = Tun.chaser;
     c.gap = Math.max(0, c.gap - beats);
-    c.flare = Math.min(1, c.flare + beats / Tun.chaser.stumblePull);
+    c.threat = clamp((B.restGap + this.burnRestBonus - c.gap) / B.threatSpan, 0, 1);
+    // iteration 6: it only FLARES when the pull puts you in danger (a single missed reward from rest doesn't)
+    if (c.threat >= B.flareAt) c.flare = Math.min(1, c.flare + beats / B.stumblePull);
     this.burnStats.pulls++;
-    this.events.emit('burn', { kind: 'pull', beat: this.worldBeat, gap: c.gap, danger: c.danger });
+    this.events.emit('burn', { kind: 'pull', beat: this.worldBeat, gap: c.gap, danger: c.danger, threat: c.threat });
   }
 
   /** hits push the Burn back a little */
@@ -1288,8 +1345,16 @@ export class Game {
         h.alive = false;
         h.vx = 500 + Math.random() * 200;
         h.vy = -900;
+        this.graze.delete(h.id);
         this.stumble(`spike@${h.beat}`);
+        continue;
       }
+      this.watchGraze(h.id, h.rect, hurt, beatW);
+    }
+    // --- hidden film canisters (iteration 6): touch = picked up
+    for (const c of L.canisters) {
+      if (c.collected || Math.abs(c.x - p.x) > 200) continue;
+      if (circleRect(c.x, c.y, c.r, hurt)) this.collectCanister(c, beatW);
     }
     // --- lums (generous circle vs box)
     const cx = p.x;
@@ -1366,6 +1431,18 @@ export class Game {
       }
     }
     this.events.emit('grade', { grade: r.grade as 'perfect' | 'great' | 'good', verb: a.type === 'strike' ? 'strike' : 'jump', beat: a.beat, errMs: r.errMs, combo: this.combo, heave, x: p.x, y: p.y });
+    // the NOTABLE ones get a stamp (iteration 6): a Heave, a streak milestone, the first Perfect of a 4-bar phrase
+    if (heave) this.stamp('heave', a.beat, 'HEAVE!');
+    else if (this.combo >= this.streakTarget()) {
+      this.stamp('streak', a.beat, `${this.combo} IN A ROW!`);
+      this.nextStreak++;
+    } else if (r.grade === 'perfect') {
+      const ph = Math.floor(a.beat / Tun.stamps.phraseBeats);
+      if (ph !== this.perfectPhrase) {
+        this.perfectPhrase = ph;
+        this.stamp('firstPerfect', a.beat, 'PERFECT!');
+      }
+    }
   }
 
   private onMissTarget(a: ActionMarker): void {
@@ -1405,6 +1482,132 @@ export class Game {
   private breakCombo(reason: 'good' | 'miss' | 'stumble' | 'death'): void {
     if (this.combo > 0) this.events.emit('combo', { broken: this.combo, reason });
     this.combo = 0;
+    this.nextStreak = 0;
+  }
+
+  /** the combo at which the next streak stamp fires (Tun.stamps.streaks, then every streakEvery) */
+  private streakTarget(): number {
+    const S = Tun.stamps;
+    const k = this.nextStreak;
+    return k < S.streaks.length ? S.streaks[k] : S.streaks[S.streaks.length - 1] + (k - S.streaks.length + 1) * S.streakEvery;
+  }
+
+  /** a NOTABLE moment (iteration 6): the art stamps these, nothing else */
+  private stamp(kind: StampKind, beat: number, text: string, x = this.player.x, y = this.player.y): void {
+    this.events.emit('stamp', { kind, beat, x, y, text, combo: this.combo });
+  }
+
+  // ====================================================================== near-miss WHEW (iteration 6)
+
+  private whew(kind: WhewKind, ms: number, x = this.player.x, y = this.player.y): void {
+    if (this.phase !== 'run' || this.worldBeat - this.lastWhewBeat < Tun.whew.gapBeats) return;
+    this.lastWhewBeat = this.worldBeat;
+    this.stats.whews++;
+    const beat = round3(this.worldBeat);
+    this.events.emit('whew', { kind, beat, x, y, ms: Math.round(ms) });
+    this.stamp('whew', beat, 'WHEW!', x, y);
+    this.log('whew', { kind, beat, ms: Math.round(ms) });
+  }
+
+  /** is the world at x (just past a surface's edge) a LETHAL drop from height y? (a pit, or a fall-out drop) */
+  private lethalBelow(x: number, y: number): boolean {
+    const f = this.level.floorYAt(x);
+    if (Number.isNaN(f)) return !this.solidTopAt(x, y + 1, 2000);
+    return f - y > FALL_OUT;
+  }
+
+  /** a platform / block / active slam top within [y, y + depth] covering x (the pits under lifts and posts) */
+  private solidTopAt(x: number, y: number, depth: number): boolean {
+    const L = this.level;
+    for (const s of L.platforms) if (x >= s.x && x < s.x + s.w && s.y >= y && s.y <= y + depth) return true;
+    for (const s of L.blocks) if (x >= s.x && x < s.x + s.w && s.y >= y && s.y <= y + depth) return true;
+    for (const f of L.slams) if (x >= f.solid.x && x < f.solid.x + f.solid.w && f.solid.y >= y && f.solid.y <= y + depth) return true;
+    return false;
+  }
+
+  /** the left end (world x) of the surface the hero stands on at height y, scanning from xr leftward */
+  private surfaceLeft(xr: number, y: number): number {
+    const L = this.level;
+    const on = (x: number) => Math.abs(L.floorYAt(x) - y) < 3 || this.solidTopAt(x, y - 3, 6);
+    let x = xr;
+    for (let k = 0; k < 40 && on(x - 4); k++) x -= 4;
+    return x;
+  }
+
+  /** landed: toes within the last Tun.whew.ms of a lethal pit's far lip (an early hop that barely made it) */
+  private checkLandWhew(): void {
+    const p = this.player;
+    if (this.phase !== 'run' || !p.grounded || this.airFrom !== 'jump') return;
+    this.airFrom = 'other';
+    const speed = Math.max(300, Math.abs(p.vx), p.maxSpeed * 0.8);
+    const front = p.x + p.w / 2 - 1;
+    const lip = this.surfaceLeft(front, p.y);
+    if (lip > p.x + p.w / 2 || !this.lethalBelow(lip - 6, p.y)) return;
+    const ms = ((front - lip) / speed) * 1000;
+    if (ms < Tun.whew.ms) this.whew('lip', ms, lip, p.y);
+  }
+
+  /** took off from the coyote time with < Tun.whew.ms of it left, over a lethal pit (a late hop that barely made it) */
+  private checkJumpWhew(kind: string): void {
+    const p = this.player;
+    if (kind !== 'coyote' || this.phase !== 'run') return;
+    const ms = this.preStep.coyote * 1000;
+    if (ms < Tun.whew.ms && this.lethalBelow(p.x, p.groundY)) this.whew('coyote', ms);
+  }
+
+  /** a spike passed within Tun.whew.grazePx without touching it */
+  private watchGraze(id: number, r: Rect, hurt: Rect, beatW: number): void {
+    const dx = Math.max(r.x - (hurt.x + hurt.w), 0, hurt.x - (r.x + r.w));
+    const dy = Math.max(r.y - (hurt.y + hurt.h), 0, hurt.y - (r.y + r.h));
+    if (dx > 160) {
+      // passed it: judge the closest approach once
+      const g = this.graze.get(id);
+      if (g !== undefined && hurt.x > r.x + r.w) {
+        this.graze.delete(id);
+        if (g > 0 && g < Tun.whew.grazePx) this.whew('graze', (g / Math.max(300, Math.abs(this.player.vx))) * 1000, r.x + r.w / 2, r.y);
+      }
+      return;
+    }
+    if (this.phase !== 'run' || this.player.invulnerable) return;
+    const d = Math.hypot(dx, dy);
+    this.graze.set(id, Math.min(this.graze.get(id) ?? Infinity, d));
+    void beatW;
+  }
+
+  // ====================================================================== film canisters + the rank (iteration 6)
+
+  private collectCanister(c: FilmCanister, beatW: number): void {
+    c.collected = true;
+    c.collectT = 0;
+    this.stats.canisters = this.level.canisters.filter((k) => k.collected).length;
+    this.sfx.chime(this.song.key.root + 48, true);
+    this.camera.addTrauma(0.2);
+    this.zoomPunch(0.04);
+    this.flashScreen('#FFE9C2', 0.25);
+    this.particles.emit({ x: c.x, y: c.y, count: 30, speed: [200, 700], life: [0.4, 0.9], size: [6, 14], color: '#FFE24A', shape: PShape.Spark, drag: 2.5 });
+    this.events.emit('canister', { index: c.index, found: this.stats.canisters, total: this.stats.canistersTotal, beat: round3(beatW), x: c.x, y: c.y });
+    this.stamp('canister', round3(beatW), `FILM CANISTER ${this.stats.canisters}/${this.stats.canistersTotal}`, c.x, c.y);
+    this.log('canister', { index: c.index, beat: round3(beatW) });
+  }
+
+  /** the poster's RANK (iteration 6): crowd time + timing + tokens + deaths (+ film canisters) → letter + tier */
+  rank(): RunRank {
+    const g = this.judge.counts;
+    return rankRun({
+      runBeats: this.runBeats,
+      boothBeats: this.boothBeats,
+      fullHouseBeats: this.fullHouseBeats,
+      perfect: g.perfect,
+      great: g.great,
+      good: g.good,
+      miss: g.miss,
+      tokens: this.stats.lums,
+      tokensTotal: this.stats.lumsTotal,
+      deaths: this.stats.deaths,
+      canisters: this.stats.canisters,
+      canistersTotal: this.stats.canistersTotal,
+      finished: this.stats.finished,
+    });
   }
 
   // ====================================================================== failure hints (iteration 3)
@@ -1471,6 +1674,7 @@ export class Game {
   private launch(b: BouncePad, beatW: number): void {
     const p = this.player;
     b.used = true;
+    this.airFrom = 'other';
     b.kick = 1;
     const sec = Math.max(0.25, this.tempo.beatToTime(b.landBeat) - this.tempo.beatToTime(beatW));
     const v = launchVelocity(sec, p.y - b.landY, p.spb);
@@ -1499,6 +1703,7 @@ export class Game {
     this.player.strikeHitSomething = true;
     this.events.emit('smash', { beat: b.beat, x: b.x, y: b.y, big: b.big, giant: b.giant, index: b.giantIndex });
     if (b.giant) {
+      this.stamp('giant', b.beat, b.look === 'finalHit' ? 'THE END!' : ['KRAK!', 'SMASH!', 'WHAM!', 'KA-BOOM!'][b.giantIndex % 4] ?? 'KRAK!', b.x, b.y);
       // the walkdown kegs: the act's money shot — a real hitstop (repaid, so the hero lands back on the beat)
       this.hitstop = Tun.strike.giantHitstop;
       this.stats.hitstops++;
@@ -1640,6 +1845,8 @@ export class Game {
 
   private onPlayerJump(kind: string): void {
     const p = this.player;
+    this.checkJumpWhew(kind);
+    this.airFrom = 'jump';
     this.logAction('jump', this.controls.jumpPressTime);
     this.sfx.hop(this.quantizedWhen('jump'));
     this.emitDust(p.x, p.y, 8, 0);
@@ -1650,6 +1857,7 @@ export class Game {
     const p = this.player;
     const k = clamp(vy / 1800, 0, 1);
     if (this.phase === 'countIn' || this.phase === 'coldOpen') return;
+    this.checkLandWhew();
     this.sfx.land(0.25 + k * 0.5);
     this.emitDust(p.x, p.y, 6 + Math.round(k * 10), 0);
     if (k > 0.75) this.camera.addTrauma(Tun.juice.shakeOnLandHard);
@@ -1823,8 +2031,12 @@ export class Game {
       breakablesTotal: this.stats.breakablesTotal,
       heaves: this.stats.heaves,
       phrases: this.stats.phrasesTotal,
+      canisters: this.stats.canisters,
+      canistersTotal: this.stats.canistersTotal,
+      whews: this.stats.whews,
+      rank: this.rank(),
       grades: { ...this.judge.counts },
-      crowd: { end: this.crowd.count, endValue: round3(this.crowd.value), peak: this.crowd.peak, fullHouseBeats: round3(this.fullHouseBeats), trace: this.crowdTrace },
+      crowd: { end: this.crowd.count, endValue: round3(this.crowd.value), peak: this.crowd.peak, fullHouseBeats: round3(this.fullHouseBeats), runBeats: round3(this.runBeats), boothBeats: round3(this.boothBeats), fullHouseBySection: Object.fromEntries(Object.entries(this.fullHouseBySection).map(([k, v]) => [k, round3(v)])), trace: this.crowdTrace },
       combo: { peak: this.comboPeak, end: this.combo },
       burn: { ...this.burnStats, minMarginBeats: round3(this.burnStats.minMarginBeats), endGap: round3(this.chaser.gap) },
       failHints: [...this.hintsShown],

@@ -26,6 +26,7 @@ import type {
   CrowdCap,
   Checkpoint,
   Enemy,
+  FilmCanister,
   FxCue,
   PendulumTarget,
   Hazard,
@@ -61,6 +62,8 @@ export interface RuntimeLevel {
   blocks: Solid[];
   enemies: Enemy[];
   lums: Lum[];
+  /** hidden film canisters (iteration 6), in beat order; `index` = act order */
+  canisters: FilmCanister[];
   hazards: Hazard[];
   pendulums: PendulumTarget[];
   slams: SlamPlatform[];
@@ -101,6 +104,8 @@ const DEFAULT_LUM_H = 62;
 
 /** Jabber geometry (see file header) */
 export const JABBER = { w: 70, h: 96, hurtK: 0.72, contactBeats: 0.42 } as const;
+/** film canister pickup radius (px, circle vs the hero's box; generous: it's a reward for taking the route) */
+export const CANISTER_R = 44;
 /** Pendulum target geometry */
 export const PENDULUM = { strikeHeight: 150, highStrikeHeight: 390, ahead: 90, len: 300, amp: 0.55, r: 26, rBig: 36, periodBeats: 4 } as const;
 /** slam platform geometry/timing (beats relative to the slam beat) */
@@ -239,6 +244,7 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
   const pendulums: PendulumTarget[] = [];
   const phrases: Phrase[] = [];
   const breakables: Breakable[] = [];
+  const canisters: FilmCanister[] = [];
   const bouncePads: BouncePad[] = [];
   const signs: LowSign[] = [];
   const crowdCaps: CrowdCap[] = [];
@@ -416,6 +422,20 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
         }
         break;
       }
+      case 'canister': {
+        // at the APEX of a held jump pressed ON `from` (the builder's own jump profile, like lumJump)
+        const prof = jumpProfile(spb, runSpeed, ppb);
+        const takeoffY = groundYNear(X(it.from));
+        let apexI = 0;
+        for (let i = 1; i < prof.heights.length; i++) if (prof.heights[i] > prof.heights[apexI]) apexI = i;
+        const apexBeats = ((apexI + 1) * prof.dt) / spb;
+        const beat = it.from + apexBeats + (it.dx ?? 0);
+        const y = takeoffY - heightAt(prof, (beat - it.from) * spb) - Tun.player.height * 0.6 - (it.dh ?? 0);
+        canisters.push({ id: id++, index: 0, from: it.from, beat, x: X(beat), y, r: CANISTER_R, collected: false, collectT: 0 });
+        // the CLUE: tokens up the held arc's rise, where it is clearly above the tap hop (a hop won't take them)
+        if (it.clue !== false) for (const db of [0.5, 0.8]) addLum(it.from + db, takeoffY - heightAt(prof, db * spb) - Tun.player.height * 0.6);
+        break;
+      }
       case 'checkpoint': {
         const x = X(it.beat);
         checkpoints.push({ beat: it.beat, x, y: groundYNear(x), reached: false, flash: 0 });
@@ -469,6 +489,8 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
   pendulums.sort((a, b) => a.beat - b.beat);
   slams.sort((a, b) => a.beat - b.beat);
   breakables.sort((a, b) => a.beat - b.beat);
+  canisters.sort((a, b) => a.beat - b.beat);
+  canisters.forEach((c, i) => (c.index = i));
   bouncePads.sort((a, b) => a.beat - b.beat);
   signs.sort((a, b) => a.beat - b.beat);
   crowdCaps.sort((a, b) => a.beat - b.beat);
@@ -488,6 +510,7 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
     blocks,
     enemies,
     lums,
+    canisters,
     hazards,
     pendulums,
     slams,

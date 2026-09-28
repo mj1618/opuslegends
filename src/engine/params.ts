@@ -20,6 +20,7 @@
  *   ?device=<ms>  autoplay: the bot hears the audio this late (unreported device latency; calibration fixes it)
  *   ?calib=1      run the cold open's projector sync (latency tap test) — the bot taps it too
  *   ?resync=1     autoplay: accept a re-offered projector sync (the auto-drift pinned at its clamp): pause, tap, resume
+ *   ?hunt=1       autoplay: HOLD the jumps that reach the hidden film canisters (the high routes; iteration 6)
  *   ?autolat=0    disable the in-run latency auto-drift
  *   ?song=<id>    edit (default: the original recording's level edit) | full (the whole original) |
  *                 placeholder (synth track). Falls back to placeholder if the licensed file is missing.
@@ -58,6 +59,8 @@ export interface Params {
   calib: boolean;
   /** autoplay: the bot ACCEPTS a re-offered projector sync (pause → tap test → resume), like a player following the prompt */
   resync: boolean;
+  /** autoplay: the bot takes the film canisters' high routes (holds those jumps) */
+  hunt: boolean;
   /** auto-calibration drift of the latency offset during the run (default on; ?autolat=0 disables) */
   autoLatency: boolean;
 }
@@ -98,6 +101,7 @@ function readParams(): Params {
     device: num('device') ?? 0,
     calib: flag('calib'),
     resync: flag('resync'),
+    hunt: flag('hunt'),
     autoLatency: q.get('autolat') !== '0',
   };
 }
