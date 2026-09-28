@@ -92,3 +92,17 @@ Open questions for the redesign:
   camera punches on stabs) are specified but not built.
 - A density linter (required actions per window, verb mix, max same-verb run) belongs in `npm run playtest`.
 - Should the Freeze and the jabber bow bounce (optional high route) become real routes?
+
+## Iteration 1 — outcome + fun review
+Shipped: slice (cold open + bars 0-32), Slim art lab (42nd St, bar, film pass, audience; not integrated),
+sampled instrument palette, beat map + 2:04 edit of the ORIGINAL recording (user rejected our cover), overlay stems.
+User verdicts: "boring/no challenge" → (density raised) → "too hard, not dynamic, very repetitive".
+Fun review (docs/reviews/iter1.md, `npm run rubric`): 3/11 gates pass. 67% of actions are threats; 1.4-2.3 lethal/bar;
+no breathers; chorus easier than verses; 18/24 bars identical quarter-note patterns; no twist bars 18-31; world
+doesn't react to stabs; crowd maxes by bar 8.
+
+## Iteration 2 — "Flip the mix" on the original song (in progress)
+Driven by the review's top fixes. Parallel: (a) engine: tempo-map run speed, original edit + beatmap + overlay
+stems wired to the crowd, limiter; (b) art integration of src/art into the game; (c) act-1 redesign of bars
+1-~33 of the edit: reward-majority actions, sparse lethal threats on accents, sawtooth 8-bar blocks, rhythmic
+variety from the original's figures, a twist every 8 bars, height changes, world reactions on every stab.
