@@ -155,6 +155,7 @@ contacts avoided, the verb, and any set-piece. Fill the same table for our autop
 | A3 | **Threat budget** (lethal + stumble) per bar | ≤ 1.5 average outside climaxes, ≤ 2.5 in climaxes | L |
 | A4 | **Threats on accents**: lethal actions whose beat matches an accent-lane onset (±1/12 beat) | ≥ 90% of lethal, ≥ 75% of stumble | L |
 | A5 | **Lethal timing slack**: every lethal action survives late/early error | 0 deaths at `--jitter=130` (no late presses) for all lethal outside 89–92; stumbles survive ±110 ms | J |
+| A5h | **No hidden lethals** (iteration 5, a hard gate): no action marked reward / stumble kills when pressed up to ±150 ms off or skipped; every lethal ≥ −70 (acts 2+: −85) / +150 ms | 0 failures in `node playtest/slack.mjs --level=src/level/index.ts#gameLevel --hidden` (run by `npm run playtest` before the browser; it fails the playtest) | L (sim) |
 | A6 | **No threat walls**: consecutive beats that each carry a threat | ≤ 4 (≤ 6 in 73–92). Exception: an *isochronous run* (same verb, same interval, e.g. slam lifts) of ≤ 8 counts as one threat per bar | L |
 | A7 | **Safe re-entry**: threats in the first 2 beats after a checkpoint, a launch, a mode change or a camera whip | 0; the first bar after a checkpoint is ≤ section mean intensity | L |
 | A8 | **Teach before threat**: the first appearance of each hazard type or mechanic is non-lethal (reward, stumble, or safe pool) | 100%; its first lethal use is ≥ 2 bars later | L (first-occurrence scan) |
