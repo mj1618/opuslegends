@@ -27,6 +27,7 @@
  *                     requires completion; REPORTS deaths/stumbles (is it hard but fair?)
  *   --late=<p>        fraction of presses that are an extra 60-110 ms late
  *   --seed=<n>        jitter seed
+ *   --dist=<dir>      build/serve folder (default dist) — use a private one when agents run in parallel
  *   --out=<dir>       output folder (default playtest/out) — lets several runs go in parallel
  */
 import { execSync } from 'node:child_process';
@@ -46,6 +47,8 @@ const args = Object.fromEntries(
 const outDir = args.out ? resolve(root, String(args.out)) : join(root, 'playtest', 'out');
 const interval = Number(args.interval ?? 2000);
 const video = !args['no-video'];
+// --dist=<dir>: build into / serve from a private folder so parallel agents sharing this tree don't clobber dist/
+const distDir = args.dist ? String(args.dist) : 'dist';
 
 // Thresholds for pass/fail
 const MAX_EXEC_ERR_MS = 12; // one 120 Hz step + margin
@@ -62,10 +65,10 @@ async function main() {
 
   if (!args['no-build']) {
     log('building…');
-    execSync('npm run build', { cwd: root, stdio: 'inherit' });
+    execSync(`npx tsc --noEmit && npx vite build --outDir ${distDir} --emptyOutDir`, { cwd: root, stdio: 'inherit' });
   }
 
-  const server = await preview({ root, logLevel: 'warn', preview: { port: 4174, strictPort: false, open: false } });
+  const server = await preview({ root, logLevel: 'warn', preview: { port: 4174, strictPort: false, open: false }, build: { outDir: distDir } });
   const base = server.resolvedUrls?.local?.[0];
   if (!base) throw new Error('vite preview did not report a URL');
   const q = new URLSearchParams({ autoplay: '1' });
