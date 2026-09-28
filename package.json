@@ -9,7 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "playtest": "node playtest/playtest.mjs"
+    "playtest": "node playtest/playtest.mjs",
+    "rubric": "node playtest/rubric.mjs"
   },
   "devDependencies": {
     "playwright": "^1.63.0",
