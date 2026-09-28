@@ -36,6 +36,8 @@ export class TintBake {
   static budget = 3;
   static used = 0;
   static composes = 0;
+  /** total device pixels held by all TintBakes (channels + output) */
+  static pixelsTotal = 0;
   /** call once per frame */
   static frame(): void {
     TintBake.used = 0;
@@ -56,6 +58,7 @@ export class TintBake {
     this.res = artResolution() * resMul;
     for (let i = 0; i < nChannels; i++) this.channels.push(makeCanvas(w * this.res, h * this.res));
     this.out = makeCanvas(w * this.res, h * this.res);
+    TintBake.pixelsTotal += this.pixels();
   }
 
   /** context for painting channel i in logical units (white = full coverage) */

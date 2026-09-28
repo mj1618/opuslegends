@@ -1,5 +1,5 @@
 /** Shared drawing helpers (ink outlines, glows, sparkles, puffs). */
-import { type Ctx, type Sprite, drawSprite, sprite } from './canvas';
+import { type Ctx, type Sprite, artResolution, drawSprite, makeCanvas } from './canvas';
 import { TAU } from './math';
 import { PAL } from '../palette';
 
@@ -12,24 +12,56 @@ export function inkFill(g: Ctx, fill: string | CanvasGradient, ow = 3, outline: 
   g.fill();
 }
 
-/** Soft radial glow sprite (cached per colour/radius). Draw with 'lighter' for light, normal for haze. */
-export function glowSprite(color: string, radius: number, hardness = 0.0): Sprite {
-  const R = Math.ceil(radius);
-  return sprite(`glow:${color}:${R}:${hardness}`, R * 2, R * 2, R, R, (g) => {
-    // colour stops fade to an alpha-0 version of the same colour (no grey fringes)
-    const g2 = g.createRadialGradient(0, 0, 0, 0, 0, R);
-    g2.addColorStop(0, withAlpha(color, 1));
-    if (hardness > 0) g2.addColorStop(hardness, withAlpha(color, 0.9));
-    g2.addColorStop(0.5, withAlpha(color, 0.35));
-    g2.addColorStop(1, withAlpha(color, 0));
-    g.fillStyle = g2;
-    g.fillRect(-R, -R, R * 2, R * 2);
-  });
+const glowCache = new Map<string, Sprite>();
+const GLOW_MAX = 96;
+
+function parseColor(c: string): [number, number, number] {
+  if (c.startsWith('#')) {
+    const h = c.length === 4 ? c.replace(/#(.)(.)(.)/, '#$1$1$2$2$3$3') : c;
+    const n = parseInt(h.slice(1, 7), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  const m = c.match(/rgba?\(([^)]+)\)/);
+  if (m) {
+    const [r, g, b] = m[1].split(',').map((v) => parseFloat(v));
+    return [r, g, b];
+  }
+  return [255, 255, 255];
+}
+
+/**
+ * Soft radial glow sprite (radius 64 logical px), cached per colour quantised to 32 levels per
+ * channel in a small LRU (lighting transitions produce endless colour variants).
+ */
+export function glowSprite(color: string): Sprite {
+  const [r, g0, b] = parseColor(color).map((v) => Math.round(Math.max(0, Math.min(255, v)) / 8) * 8);
+  const key = `${r},${g0},${b}`;
+  let s = glowCache.get(key);
+  if (s) {
+    glowCache.delete(key);
+    glowCache.set(key, s);
+    return s;
+  }
+  const R = 64;
+  const res = artResolution();
+  const c = makeCanvas(R * 2 * res, R * 2 * res);
+  const g = c.getContext('2d')!;
+  g.setTransform(res, 0, 0, res, R * res, R * res);
+  const gr = g.createRadialGradient(0, 0, 0, 0, 0, R);
+  gr.addColorStop(0, `rgba(${key},1)`);
+  gr.addColorStop(0.5, `rgba(${key},0.35)`);
+  gr.addColorStop(1, `rgba(${key},0)`);
+  g.fillStyle = gr;
+  g.fillRect(-R, -R, R * 2, R * 2);
+  s = { canvas: c, w: R * 2, h: R * 2, ox: R, oy: R, res };
+  glowCache.set(key, s);
+  if (glowCache.size > GLOW_MAX) glowCache.delete(glowCache.keys().next().value as string);
+  return s;
 }
 
 export function drawGlow(g: Ctx, x: number, y: number, color: string, radius: number, alpha = 1, additive = true): void {
   if (alpha <= 0.005) return;
-  const s = glowSprite(color, 64);
+  const s = glowSprite(color);
   const k = radius / 64;
   const pa = g.globalAlpha;
   const op = g.globalCompositeOperation;
@@ -40,17 +72,8 @@ export function drawGlow(g: Ctx, x: number, y: number, color: string, radius: nu
   g.globalCompositeOperation = op;
 }
 
-function withAlpha(c: string, a: number): string {
-  if (c.startsWith('#')) {
-    const n = parseInt(c.slice(1), 16);
-    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
-  }
-  const m = c.match(/rgba?\(([^)]+)\)/);
-  if (m) {
-    const [r, gg, b] = m[1].split(',').map((v) => parseFloat(v));
-    return `rgba(${r},${gg},${b},${a})`;
-  }
-  return c;
+export function glowCacheSize(): number {
+  return glowCache.size;
 }
 
 export function star4(g: Ctx, x: number, y: number, R: number, rot: number, col: string, thin = 0.22): void {

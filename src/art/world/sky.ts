@@ -51,21 +51,24 @@ export class Sky {
         };
         for (let c = 0; c < 9; c++) {
           const cx = (c / 9) * W + r2() * 200;
-          const cy = 120 + r2() * 250;
+          const cy = 150 + r2() * 170;
           const len = 260 + r2() * 420;
           for (let k = 0; k < 14; k++) {
             const x = cx + (k / 14) * len;
             const y = cy - Math.sin((k / 14) * Math.PI) * (40 + r2() * 30) + r2() * 16;
-            const rad = 50 + r2() * 60;
+            const rad = 45 + r2() * 50;
             for (const dx of [0, -W, W]) {
               blob(body, x + dx, y, rad, 0.9);
               blob(rim, x + dx - 6, y - rad * 0.35, rad * 0.75, 0.9);
             }
           }
-          // flat base
+          // soft flattened base
           body.globalCompositeOperation = 'destination-out';
-          body.fillStyle = 'rgba(0,0,0,0.6)';
-          body.fillRect(cx - 100, cy + 40, len + 200, 200);
+          const fb = body.createLinearGradient(0, cy + 10, 0, cy + 90);
+          fb.addColorStop(0, 'rgba(0,0,0,0)');
+          fb.addColorStop(1, 'rgba(0,0,0,0.7)');
+          body.fillStyle = fb;
+          body.fillRect(cx - 200, cy + 10, len + 400, 200);
           body.globalCompositeOperation = 'source-over';
         }
         // rims only where there is body

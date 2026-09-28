@@ -10,8 +10,12 @@ import { type RGB, desat, hex, lum, mix, mul } from '../core/color';
 import { clamp01, smooth } from '../core/math';
 import { RGBP } from '../palette';
 
-export const LIGHT_KEYS = ['preDawn', 'dawn', 'morning', 'cave', 'storm', 'sunset', 'dusk', 'parchment'] as const;
-export type LightKey = (typeof LIGHT_KEYS)[number];
+/**
+ * Keyframes live in named SETS (one per theme). The coast set below is the demo/default; a theme
+ * registers its own with `registerLights('poolhall', {...})` and activates it with `useLights()`.
+ * Every keyframe is a partial over `baseLighting` so themes only specify what differs.
+ */
+export type LightKey = string;
 
 export interface Lighting {
   skyTop: RGB;
@@ -58,11 +62,16 @@ export interface Lighting {
   parchment: number;
   /** extra background saturation loss (0..1) */
   bgDesat: number;
+  /** theme accent light (neon, lamps, magic...) colour + strength */
+  accent: RGB;
+  accentAmt: number;
+  /** extra fog/smoke density 0..1 (themes decide how to draw it) */
+  fog: number;
 }
 
 const H = hex;
 
-const base = (o: Partial<Lighting>): Lighting => ({
+export const baseLighting = (o: Partial<Lighting>): Lighting => ({
   skyTop: H('#4FB3E6'),
   skyMid: H('#8FD3F0'),
   skyLow: H('#DDF3F7'),
@@ -98,10 +107,15 @@ const base = (o: Partial<Lighting>): Lighting => ({
   caustics: 0,
   parchment: 0,
   bgDesat: 0.3,
+  accent: H('#FF4FA3'),
+  accentAmt: 0,
+  fog: 0,
   ...o,
 });
+const base = baseLighting;
 
-export const LIGHTS: Record<LightKey, Lighting> = {
+/** Demo set: the Stack Coast day arc (pre-dawn -> parchment). */
+export const COAST_LIGHTS: Record<string, Lighting> = {
   preDawn: base({
     skyTop: H('#0B1030'),
     skyMid: H('#1E2450'),
@@ -310,6 +324,34 @@ export const LIGHTS: Record<LightKey, Lighting> = {
   }),
 };
 
+const SETS = new Map<string, Record<string, Lighting>>([['coast', COAST_LIGHTS]]);
+let ACTIVE = 'coast';
+/** the active keyframe set (the lab dropdown + director resolve keys here) */
+export let LIGHTS: Record<string, Lighting> = COAST_LIGHTS;
+export let LIGHT_KEYS: string[] = Object.keys(COAST_LIGHTS);
+
+/** Register a keyframe set (partials over baseLighting). Order of keys = order of the day arc. */
+export function registerLights(name: string, keys: Record<string, Partial<Lighting>>): void {
+  const set: Record<string, Lighting> = {};
+  for (const k of Object.keys(keys)) set[k] = baseLighting(keys[k]);
+  SETS.set(name, set);
+}
+
+export function useLights(name: string): void {
+  const s = SETS.get(name);
+  if (!s) throw new Error(`unknown light set ${name}`);
+  ACTIVE = name;
+  LIGHTS = s;
+  LIGHT_KEYS = Object.keys(s);
+}
+
+export function lightSets(): string[] {
+  return [...SETS.keys()];
+}
+export function activeLightSet(): string {
+  return ACTIVE;
+}
+
 function lerpN(a: number, b: number, t: number) {
   return a + (b - a) * t;
 }
@@ -336,13 +378,14 @@ export class LightingDirector {
   version = 0;
 
   constructor(key: LightKey = 'morning') {
-    this.key = key;
-    this.current = LIGHTS[key];
+    this.key = LIGHTS[key] ? key : LIGHT_KEYS[0];
+    this.current = LIGHTS[this.key];
     this.from = this.current;
     this.to = this.current;
   }
 
   set(key: LightKey, seconds = 2): void {
+    if (!LIGHTS[key]) return;
     this.key = key;
     this.from = this.current;
     this.to = LIGHTS[key];
