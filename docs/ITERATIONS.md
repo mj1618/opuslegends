@@ -344,3 +344,48 @@ rides, bottle bat grace, scramble ≤ 150 px), `camera` items' `ground` (`camera
   the floor's edge). Staircase flights + hops: a hop landing on a flight lands early (fine for rewards, never before a
   lethal). The ledge scramble makes a missed reward hop cost time, not a life — and three in a row feed the Burn (the
   lazy bot dies at bar 35). Strikes 0.34 beat apart execute 67 ms late (the active window), so keep them ≥ 0.66 apart.
+
+## Iteration 4 — gameplay fixes
+Driven by `docs/reviews/iter3.md` fixes 3, 5, 8 (and the crowd half of 7). Code: `game/{game,crowd,calibrate,tunables,
+autoplay,stats}.ts`, `level/slice.ts`, `render/calibDraw.ts` (the card; the art pass reskinned it as a film leader),
+`engine/params.ts`, `playtest/{playtest,rubric}.mjs`.
+- **The Burn can't kill twice in a row.** Respawn at rest (1.75 beats, was 1.1), the first stumble after a respawn only
+  flares it, and after a CATCH it rests 0.5 beat further back until the next checkpoint. Harsh bots (±160 + 20 % late,
+  3 runs, whole level): 0–1 catches per run, never two in a row (the review saw 3–14 in bars 40–41).
+- **Crowd.** Wakes at 8 (the intro is thin, not the booth horn), Good +0.25. A lowered cap no longer clamps: the act-2
+  seam glides 23.9 → 18.3 → 16 over 2 bars instead of dropping in one step. **The drop:** a clean (all Great+)
+  Hup-Hup-HEY in the 8 beats before a chorus cap fills the house half a beat early, so FULL HOUSE + its cheer land ON the
+  chorus downbeat (88 and 204 for autoplay; act 3's crowd item `earn: [271.65]` does it for the break shot). To keep
+  FULL HOUSE a skill state, the meter now decays faster the fuller it is (+0.05/beat per member above 12): FULL HOUSE
+  beats over the level: ±40 155–158, sloppy 17–62, ±130 7–37, uncalibrated 22–29.
+- **Latency: "SYNC THE PROJECTOR".** A cold-open tap test (8 clicks at the song's tempo, tap X; median of the last 6
+  taps vs the click's audible time → `conductor.latency`, stored). It runs on the first STRIKE of a first-ever run,
+  on ↓ in the cold open, on X in the pause screen, and with `?calib=1`; SPACE skips (and is remembered). In the run an
+  auto-drift nudges the offset toward the player's median error (clear bias only, ≤ 8 ms per bar, ±40 ms). New bot
+  model `--device=<ms>`: the bot HEARS the music late, so calibration corrects it like a human. Device +90 ms bots:
+  the tap test measures 88 / 90 / 89 ms → 0 deaths and 88–94 % Perfect; without the test the drift walks to +40 ms.
+- **Act 1:** the chorus pits that punished early presses (94 −60, 98 / 106 −65 ms) now end sooner (−85 / −90); the
+  ±130 teeth moved to a new pit on 116 (bar 30 b1, −80/+150), away from the bars 24–28 burst. Hop-led blocks: 5
+  strikes became token hops (13, 23, 65, 81, 121): intro and honky-tonk lead with the hop, rooftops and chorus with the
+  strike (B5 PASS, 3/3 lead changes; chorus 58 % strikes). Rubric bars 1–33 with bot reports: **gate 11/11**.
+- **Poster:** "bottles & crates" counts smashes + bats once per checkpoint rewind, over totals from the start beat
+  (autoplay 119/119, was 102/95); heaves = completed Hup-Hup-HEYs whatever the HEY hits (7/7); best combo line.
+- **Tools:** `--device`, `--calib`, `--autolat=0`; sloppy runs print deaths/stumbles per act; the rubric's `--bars`
+  counts only that range's deaths (per-act A9/A10/A11).
+
+Measured on the whole level (acts 1–3 as committed at `0861854`, `--dist=dist-fix`; deaths per run, act 1 / 2 / 3):
+
+| Profile | Runs | Act 1 | Act 2 | Act 3 |
+|---|---|---|---|---|
+| autoplay | 1 | 0 | 0 | 0 (218+ actions on time; the full-level playtest PASSES) |
+| skilled ±40 | 3 | 0, 0, 0 | 0, 0, 0 | 0, 0, 0 |
+| sloppy ±85 + 10 % late | 5 | 1, 1, 0, 1, 0 (**0.6**) | 0, 0, 0, 1, 0 | 1, 0, 0, 1, 1 |
+| ±130 | 3 | 3, 2, 1 (**2.0**) | 0, 1, 4 | 2, 1, 4 |
+| device +90 ms, calibrated | 3 | 0, 0, 0 | 0, 0, 0 | 0, 0, 0 |
+| device +90 ms, drift only | 3 | 0, 0, 0 | 0, 0, 0 | 0, 1, 0 |
+| ±160 + 20 % late | 3 | 5, 3, 11 | 5, 9, 6 | 6, 13, 15 (DNF at 40) |
+| lazy (skips rewards) | 1 | caught ×12 at bar 14 | — | — |
+
+- Open (other owners): pit loops for the ±160 bot in act 3 (277 ×8 in one run, 311 / 317 ×4) and the act-2 cradle-miss
+  path (a missed cradle → ladder scrambles at 189.8 / 192.3 → Burn catches at 191 for harsh bots). Act 3's ±130 rate
+  (2.3 per act) is above act 2's (1.7). The pit on 116 is the ±160 bot's act-1 hotspot (2–4 deaths); fine for ±130.
