@@ -154,3 +154,18 @@ struck: 58% of shouts struck), E3 (the 4-hop lift run is 4–5 threats in the ru
 Weak spots: probably now *too forgiving* for a skilled player (the bot doesn't model reading, so real first-timers
 will stumble more); the bar top barely reads as a height change; the rooftops need art for walls/edges; the tag
 and turnaround breakables are placeholder skins; the lift run is the only real skill check.
+
+## Iteration 2 — outcome + fun review
+Shipped: original recording (2:04 edit) + tempo-map run speed + limiter + overlay stems; art integrated (Slim, 42nd St,
+honky-tonk, film pass, audience, danger language, world reactions); act 1 (edit bars 1-33) redesigned reward-first.
+Review (docs/reviews/iter2.md): gate 11/11, fair + readable + busy, but NO TEETH: no bot dies between ±40 and ±160 ms;
+skipping all rewards or eating all stumbles still finishes; crowd hits FULL HOUSE even at 30% misses; skilled bot
+99% Perfect → no skill ceiling; Burn off-screen; 12 hint banners feel like a tutorial; 50/112 actions look alike.
+
+## Iteration 3 — Teeth, feedback, wow + act 2 (in progress)
+Parallel: (a) act-1 gameplay: knee-slide fix, Burn pressure, lethal combo at each block peak, tighter gaps,
+skill-measuring crowd, hints cut to 3; (b) audio: crowd you can hear (thin 'projection booth' filter at low crowd,
+cowbell/stomps up at FULL HOUSE), miss/grade sounds; (c) art: grade stamps + combo counter, wow moments (Burn lunges,
+giant walkdown smash, bigger launch, chorus shot), per-section breakables, dancing goons, act-2 environments
+(building exterior climb, bowling alley); (d) act 2 level (edit bars 34-60) per review plan.
+Difficulty targets per 33 bars: sloppy ±85 ms 0.5-1.5 deaths, ±130 ms 2-4, skilled ±40 ms 0.
