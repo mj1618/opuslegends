@@ -1,0 +1,102 @@
+/** Shared drawing helpers (ink outlines, glows, sparkles, puffs). */
+import { type Ctx, type Sprite, drawSprite, sprite } from './canvas';
+import { TAU } from './math';
+import { PAL } from '../palette';
+
+/** Stroke the current path with a thick outline, then fill it (outline stays outside). */
+export function inkFill(g: Ctx, fill: string | CanvasGradient, ow = 3, outline: string = PAL.outline): void {
+  g.lineWidth = ow * 2;
+  g.strokeStyle = outline;
+  g.stroke();
+  g.fillStyle = fill;
+  g.fill();
+}
+
+/** Soft radial glow sprite (cached per colour/radius). Draw with 'lighter' for light, normal for haze. */
+export function glowSprite(color: string, radius: number, hardness = 0.0): Sprite {
+  const R = Math.ceil(radius);
+  return sprite(`glow:${color}:${R}:${hardness}`, R * 2, R * 2, R, R, (g) => {
+    // colour stops fade to an alpha-0 version of the same colour (no grey fringes)
+    const g2 = g.createRadialGradient(0, 0, 0, 0, 0, R);
+    g2.addColorStop(0, withAlpha(color, 1));
+    if (hardness > 0) g2.addColorStop(hardness, withAlpha(color, 0.9));
+    g2.addColorStop(0.5, withAlpha(color, 0.35));
+    g2.addColorStop(1, withAlpha(color, 0));
+    g.fillStyle = g2;
+    g.fillRect(-R, -R, R * 2, R * 2);
+  });
+}
+
+export function drawGlow(g: Ctx, x: number, y: number, color: string, radius: number, alpha = 1, additive = true): void {
+  if (alpha <= 0.005) return;
+  const s = glowSprite(color, 64);
+  const k = radius / 64;
+  const pa = g.globalAlpha;
+  const op = g.globalCompositeOperation;
+  g.globalAlpha = pa * Math.min(1, alpha);
+  if (additive) g.globalCompositeOperation = 'lighter';
+  drawSprite(g, s, x, y, 0, k, k);
+  g.globalAlpha = pa;
+  g.globalCompositeOperation = op;
+}
+
+function withAlpha(c: string, a: number): string {
+  if (c.startsWith('#')) {
+    const n = parseInt(c.slice(1), 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+  const m = c.match(/rgba?\(([^)]+)\)/);
+  if (m) {
+    const [r, gg, b] = m[1].split(',').map((v) => parseFloat(v));
+    return `rgba(${r},${gg},${b},${a})`;
+  }
+  return c;
+}
+
+export function star4(g: Ctx, x: number, y: number, R: number, rot: number, col: string, thin = 0.22): void {
+  g.save();
+  g.translate(x, y);
+  g.rotate(rot);
+  g.fillStyle = col;
+  g.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4;
+    const rr = i % 2 === 0 ? R : R * thin;
+    g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  g.closePath();
+  g.fill();
+  g.restore();
+}
+
+/** Perfect / reward sparkle: white 4-point star with gold core + additive glow. */
+export function sparkle(g: Ctx, x: number, y: number, R: number, rot = 0, alpha = 1): void {
+  if (alpha <= 0.01) return;
+  drawGlow(g, x, y, PAL.gold, R * 2.2, alpha * 0.7);
+  const pa = g.globalAlpha;
+  g.globalAlpha = pa * alpha;
+  star4(g, x, y, R, rot, '#FFFFFF');
+  star4(g, x, y, R * 0.5, rot + 0.4, PAL.gold);
+  g.globalAlpha = pa;
+}
+
+export function puff(g: Ctx, x: number, y: number, r: number, alpha: number, col = '#F4F0E6'): void {
+  if (alpha <= 0.01) return;
+  const pa = g.globalAlpha;
+  g.globalAlpha = pa * alpha;
+  g.fillStyle = col;
+  g.beginPath();
+  g.arc(x, y, r, 0, TAU);
+  g.arc(x + r * 0.8, y + r * 0.2, r * 0.7, 0, TAU);
+  g.arc(x - r * 0.7, y + r * 0.3, r * 0.6, 0, TAU);
+  g.fill();
+  g.globalAlpha = pa;
+}
+
+/** Filled circle helper */
+export function disc(g: Ctx, x: number, y: number, r: number, col: string): void {
+  g.fillStyle = col;
+  g.beginPath();
+  g.arc(x, y, r, 0, TAU);
+  g.fill();
+}
