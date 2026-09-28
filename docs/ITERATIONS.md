@@ -477,3 +477,12 @@ Driven by `docs/reviews/iter4.md` fixes 2, 3, 6, 7, 10 and the level-data halves
   - Hitstop moves the world, not the music: any press-timed physics after a hitstop needs the debt repaid.
   - A reward hop right before a pit is a hidden lethal unless its late landing clears the lip.
   - The rubric's C1 with 3 sections requires strict ordering, so act 3's gauntlet has no intensity budget left.
+
+## Iteration 5 — outcome
+Shipped: finale lands full-frame on 340 (strike freeze, push-in, Big Jim flattened, iris on Slim, THE END, marquee
+victory pose, poster), curtain hides the sunset until the 272 drop, fallen letters read as walkways, HUD cleanup,
+nine mid-act visual beats + rain, readable pool-room call/response, cache pre-warm. Gameplay: hidden-lethal gate
+(`slack.mjs --hidden`, part of `npm run playtest`), Burn assist (no lock-out loops), calibration re-offer, a hitstop
+lag bug fixed (cause of the 116 loop), chorus-4 teeth. Rubric 11/11 per act AND whole level.
+Deaths/run (act1/2/3): ±40 0/0/0 · ±85 0.4/0/0.1 · ±130 1.4/0.8/1.5 · ±160 3.0/3.7/5.0.
+Open decision: sloppy (±85) players barely die under the −85/+150 rule.
