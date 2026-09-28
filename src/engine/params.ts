@@ -9,6 +9,8 @@
  *   ?probe=1      live audio sync probe (AudioWorklet onset detector on the music bus)
  *   ?miss=<beats> comma-separated beats whose intended action the autoplay bot deliberately skips
  *                 on its FIRST attempt (tests stumble / death -> checkpoint respawn -> music rewind)
+ *   ?skip=<kinds> autoplay ALWAYS skips actions of these fail kinds: none (lazy: ignores every reward),
+ *                 stumble (reckless: eats every stumble threat) — the "teeth" bots
  *   ?jitter=<ms>  autoplay presses each action at a random offset in [-ms, +ms] (seeded by ?seed):
  *                 validates that the level is fair for human timing (Good window = 135 ms)
  *   ?sloppy=1     = ?jitter=85&late=0.1 (a sloppy human: presses re-rolled every attempt)
@@ -27,6 +29,8 @@ export interface Params {
   seed: number;
   /** autoplay: beats to deliberately miss once */
   miss: number[];
+  /** autoplay: fail kinds the bot ALWAYS skips ('none' = a lazy player, 'stumble' = a reckless one) */
+  skip: string[];
   /** live audio sync probe (implied by autoplay) */
   probe: boolean;
   /** Skip the title screen (implied by autoplay). */
@@ -69,6 +73,7 @@ function readParams(): Params {
       .filter((x) => x.trim() !== '')
       .map(Number)
       .filter(Number.isFinite),
+    skip: (q.get('skip') ?? '').split(',').map((x) => x.trim()).filter(Boolean),
     skipTitle: autoplay || flag('skiptitle'),
     jitter: num('jitter') ?? (flag('sloppy') ? 85 : 0),
     late: num('late') ?? (flag('sloppy') ? 0.1 : 0),

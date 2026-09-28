@@ -318,7 +318,9 @@ export class Player implements Body {
       this.strikeBuffer = 0;
       this.strikeTime = 0;
       this.strikeHitSomething = false;
-      if (!this.grounded && this.vy > -Tun.strike.airPop) this.vy = Math.min(this.vy, -Tun.strike.airPop);
+      // (airPop 0 = no pop at all: iteration 3 fix — `min(vy, -0)` used to zero a FALLING hero's speed, a hidden
+      // hover that delayed landings after every air strike and let air strikes rescue early jumps over pits)
+      if (Tun.strike.airPop > 0 && !this.grounded && this.vy > -Tun.strike.airPop) this.vy = Math.min(this.vy, -Tun.strike.airPop);
       this.kick(Tun.juice.strikeStretch[0], Tun.juice.strikeStretch[1]);
       this.events.strike();
     }
@@ -425,13 +427,20 @@ export class Player implements Body {
   }
 
   private worldRef: CollisionWorld | null = null;
+  /**
+   * Extra low ceilings that aren't collision solids (the knee-slide signs): while one is overhead the hero
+   * can't stand up or hop — he stays ducked (AUTO-CROUCH, iteration 3: releasing ↓ a hair before the held
+   * note ends no longer stands him up into the sign's tail) and a hop press waits in the jump buffer.
+   */
+  lowCeilings: (r: Rect) => boolean = () => false;
   setWorld(w: CollisionWorld): void {
     this.worldRef = w;
   }
 
   private headroom(h: number): boolean {
-    if (!this.worldRef) return true;
     const r = { x: this.x - this.w / 2, y: this.y - h, w: this.w, h: h - 1 };
+    if (this.sliding && this.lowCeilings(r)) return false;
+    if (!this.worldRef) return true;
     return !this.worldRef.overlapsSolid(r);
   }
 

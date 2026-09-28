@@ -134,6 +134,8 @@ export const Tun = {
     hitstop: 0.055,
     /** hitstop for a Heave (completed Hup-Hup-HEY) */
     heaveHitstop: 0.09,
+    /** hitstop for a GIANT breakable (the walkdown kegs) */
+    giantHitstop: 0.08,
     /** after hitstop, the sim runs this much faster until the lost time is repaid (keeps the hero on the beat) */
     catchUpRate: 0.35,
     /** upward pop when striking in the air — 0: a pop would delay the landing and push the next hop off the beat */
@@ -154,40 +156,76 @@ export const Tun = {
     dropHoverBeats: 4,
   },
 
-  /** Timing grades (ms, symmetric) — early side gets +earlyBonusMs. Score/feedback/crowd only, never physics. */
+  /**
+   * Timing grades (ms, symmetric) — early side gets +earlyBonusMs. Score/feedback/crowd only, never physics.
+   * Iteration 3: Perfect ±45 → ±33 (+10 early) so a ±40 ms player earns Greats sometimes (a skill ceiling).
+   */
   judge: {
-    perfectMs: 45,
-    greatMs: 90,
+    perfectMs: 33,
+    greatMs: 85,
     goodMs: 135,
-    earlyBonusMs: 12,
+    earlyBonusMs: 10,
     /** early presses within this window sound on the target beat (SFX quantisation) */
     quantizeEarlyMs: 150,
   },
 
-  /** The crowd (streak meter + music reward; DESIGN's "crab choir") */
+  /**
+   * The crowd = the SKILL meter + music reward (iteration 3, review iter2 fix 2): weighted by grade, it
+   * decays, and misses hurt. FULL HOUSE (bigCatchAt) needs a near-clean chorus (≥ ~80% Perfect/Great).
+   */
   crowd: {
     start: 3,
     min: 3,
     max: 24,
-    perGood: 1,
+    perPerfect: 1,
+    perGreat: 0.5,
+    perGood: 0,
+    /** a completed on-grid Hup-Hup-HEY */
     perPhrase: 3,
-    stumbleLoss: 0.25,
-    /** members lost per missed target (judge expiry) — the meter moves for real players */
-    perMiss: 1,
+    /** members lost per missed target (judge expiry) */
+    perMiss: 2,
+    /** members lost per stumble */
+    stumbleLoss: 4,
+    /** members lost on a death (from the checkpoint's value) */
+    deathLoss: 6,
+    /** the meter cools by this many members per beat while above `min` */
+    decayPerBeat: 0.4,
     /** shouts stem: -6 dB at 0 members -> 0 dB at `fullAt` */
     fullAt: 12,
-    /** BIG CATCH mode (bonus stem) at >= this */
+    /** BIG CATCH / FULL HOUSE mode (bonus stem) at >= this */
     bigCatchAt: 20,
   },
 
-  /** The Chaser (chaser): DESIGN §4 */
+  /**
+   * The Chaser (the Burn): DESIGN §4, iteration 3 "the Burn remembers". Its front sits `gap` beats behind the
+   * music line; `gap` rests at `restGap`, every stumble PULLS it `stumblePull` closer, every missed reward feeds
+   * it `missPull`, and it backs off `relaxPerBeat` (+ `relaxPerHit` per graded press) toward rest. On every
+   * drum fill it LUNGES `lungeBeats` for a beat. It moves toward its target at `closeRate` beats per beat.
+   * One stumble = it's on screen and hungry; two stumbles close together (or a stumble into a fill) = caught.
+   */
   chaser: {
-    /** beats behind the music grid */
-    behindBeats: 2,
-    /** when behind its target it advances at this multiple of run speed (hero surge is 1.15) */
-    catchUpMul: 1.1,
+    /** resting distance behind the music line (beats) */
+    restGap: 1.75,
+    stumblePull: 0.75,
+    missPull: 0.2,
+    relaxPerBeat: 0.04,
+    relaxPerHit: 0.06,
+    /** after a death the Burn restarts at max(checkpoint gap, this) */
+    respawnMinGap: 1.1,
+    /** drum-fill lunge: extra reach (beats) and envelope (rise, fall) in beats */
+    lungeBeats: 0.3,
+    lungeRise: 0.25,
+    lungeFall: 0.9,
+    /** how fast the front closes on / backs off from its target (beats of distance per beat) */
+    closeRate: 0.8,
     /** rise animation (beats) */
     riseBeats: 4,
+  },
+
+  /** failure hints: after the player fails the same thing `after` times, show a short tip once */
+  hints: {
+    after: 2,
+    beats: 5,
   },
 
   slide: {
@@ -233,7 +271,8 @@ export const Tun = {
     followX: 9,
     followY: 3.5,
     /** player screen-y fraction when grounded */
-    groundFraction: 0.72,
+    /** 0.66 (was 0.72, review iter2 fix 7): the play band sits higher, less dead strip below the ground */
+    groundFraction: 0.66,
     /** keep the player within these screen-y fractions */
     topMargin: 0.2,
     bottomMargin: 0.88,

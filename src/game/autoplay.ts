@@ -8,6 +8,7 @@
  *     attempt; ?late=<p> adds an extra 60-110 ms delay to a fraction p of presses. `?sloppy=1` =
  *     jitter 85 + late 0.1: a "sloppy human" to check the level is hard but fair (report deaths)
  *   - ?miss=<beats>: skips the action at those beats once (stumble / death tests)
+ *   - ?skip=none|stumble: ALWAYS skips actions of those fail kinds (lazy / reckless player)
  *   - after a stumble the hero is BEHIND the grid (surging to catch up); the bot then presses when
  *     the hero physically reaches the action's position, like a human reacting to the world
  */
@@ -44,7 +45,11 @@ export class AutoPlayer {
   private coldOpenT = 0;
   private coldOpenDone = false;
 
-  constructor(actions: readonly ActionMarker[], tempo: TempoMap, misses: number[] = [], jitterMs = 0, seed = 1, lateProb = 0) {
+  /** fail kinds always skipped (lazy / reckless bots) */
+  private skipKinds: Set<string>;
+
+  constructor(actions: readonly ActionMarker[], tempo: TempoMap, misses: number[] = [], jitterMs = 0, seed = 1, lateProb = 0, skip: string[] = []) {
+    this.skipKinds = new Set(skip);
     this.actions = actions;
     this.tempo = tempo;
     this.misses = new Set(misses);
@@ -103,6 +108,7 @@ export class AutoPlayer {
       if (behind && hero && hero.x < a.x + this.offsets[this.idx] * (hero.ppb / this.tempo.secondsPerBeatAt(a.beat)) - 2) break;
       this.idx++;
       if (this.misses.delete(a.beat)) continue; // sabotage: skip this one once
+      if (this.skipKinds.has(a.failKind)) continue; // lazy / reckless bot
       const b = BUTTON[a.type];
       if (b === 'jump' ? c.jump : b === 'strike' ? c.strike : c.down) c.apply(b, false, stepEnd);
       c.apply(b, true, stepEnd - dt);

@@ -26,6 +26,8 @@
  *   --sloppy          "sloppy human" (jitter 85 ms + 10% late presses, re-rolled every attempt): only
  *                     requires completion; REPORTS deaths/stumbles (is it hard but fair?)
  *   --late=<p>        fraction of presses that are an extra 60-110 ms late
+ *   --skip=<kinds>    the bot ALWAYS skips actions of these fail kinds: none (lazy) / stumble (reckless)
+ *   --max-deaths=<n>  stop the run after n deaths (for bots that are expected never to finish)
  *   --seed=<n>        jitter seed
  *   --song=<id>       edit (default) | full | placeholder — passed as ?song= (falls back to the
  *                     placeholder, with an on-screen note, if the licensed recording is missing)
@@ -83,7 +85,9 @@ async function main() {
   if (args.sloppy) q.set('sloppy', '1');
   if (args.seed) q.set('seed', String(args.seed));
   if (args.song) q.set('song', String(args.song));
-  const sloppy = !!(args.sloppy || args.late);
+  if (args.skip) q.set('skip', String(args.skip));
+  const sloppy = !!(args.sloppy || args.late || args.skip);
+  const maxDeaths = args['max-deaths'] !== undefined ? Number(args['max-deaths']) : Infinity;
   const strictTiming = !args.miss && !args.jitter && !sloppy;
   const url = `${base}?${q}`;
   log('url', url);
@@ -125,6 +129,7 @@ async function main() {
     }
     state = await page.evaluate(() => window.__game.state());
     if (state.scene === 'end') break;
+    if (state.deaths >= maxDeaths) break;
     if (state.loadError) break;
     await page.waitForTimeout(100);
   }

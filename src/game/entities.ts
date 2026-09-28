@@ -164,6 +164,17 @@ export interface Hint {
   beat: number;
   beats: number;
   text: string;
+  /** icon key for the renderer: 'run' | 'jump' | 'strike' | 'down' | 'burn' (text is the fallback) */
+  icon?: string;
+  /** raised at runtime by a repeated failure (removed on a new run) */
+  dynamic?: boolean;
+}
+
+/** a scripted wow moment (level `setPiece` item): Game emits it on its beat and exposes game.setPiece */
+export interface SetPiece {
+  beat: number;
+  name: string;
+  beats: number;
 }
 
 /** Breakable target (bottle/crate/neon letter): strike it on its beat -> token burst. Plain data. */
@@ -179,6 +190,10 @@ export interface Breakable {
   baseY: number;
   high: boolean;
   big: boolean;
+  /** GIANT (the walkdown kegs): 2x, heavy hitstop, the act's money shot */
+  giant: boolean;
+  /** position in its run of consecutive giants (0, 1, 2, …), -1 if not giant */
+  giantIndex: number;
   look: BreakableLook;
   /** tokens it bursts into (counted in lumsTotal) */
   tokens: number;

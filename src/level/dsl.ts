@@ -5,8 +5,16 @@
  * (see the autoplay --jitter playtests):
  *
  *   spikeHop(38)    tap-hop ON 38 over a spike at 38.45           (stumble if missed) ~±110 ms
- *   gapHop(52)      tap-hop ON 52 over a gap 52.22..52.68         (death if missed)   ~-120/+200 ms
- *   gapJump(56)     held jump ON 56 over a gap 56.3..57.6 (lands ~58)                  ~-160/+230 ms
+ *   gapHop(52)      tap-hop ON 52 over a pit; timing presets (GAP_FIT, measured by playtest/slack.mjs):
+ *                     'std'   52.09..52.75  ~-110/+150 ms  (iteration 3 default)
+ *                     'teach' 52.22..52.77  ~-100/+200 ms  (bars 1-16: a sloppy ±85 ms player never dies here)
+ *                     'tight' 52.09..52.84  ~-85/+150 ms   (the chorus body: jump too EARLY and you land short)
+ *                     'peak'  52.09..52.88  ~-75/+150 ms   (the lethal combination at a block's peak bar)
+ *                   The LATE side stays generous everywhere (+150 ms: an uncalibrated-latency player still clears);
+ *                   the teeth are on the early side, so a tight pit must not follow a hop within ~0.5 beat (the jump
+ *                   buffer would save an early press and hide the teeth)
+ *   gapJump(56)     held jump ON 56 over a long pit (lands ~58): 'std' 56.3..57.6 ~-165/+230 ms,
+ *                     'teach' 56.3..57.75 ~-115/+230 ms, 'tightDrop' (off a raised floor) ~-85/+235 ms
  *   jabber(106)     strike ON 106 (the jabber's jab beat)         (stumble if missed) ~-220/+135 ms
  *   pendulum(23)    strike ON 23 (bottom of the swing)            (pure bonus)
  *   slamRun(72,2)   hop from the ledge ON 71, then ON every beat; platforms slam on 72, 73;
@@ -51,12 +59,33 @@ export function spike(beat: number): LevelItem {
   return { type: 'spike', beat };
 }
 
-export function gapHop(beat: number): LevelItem[] {
-  return [{ type: 'gap', from: beat + 0.22, to: beat + 0.68, action: { type: 'jump', beat, hold: TAP } }, lumArcHop(beat)];
+/**
+ * Pit timing presets [from, to] in beats after the press beat (iteration 3; windows measured with the real
+ * controller by `node playtest/slack.mjs`). The late side is set by where the pit starts (+ coyote time), the
+ * early side by where it ends (an early hop lands short).
+ */
+export const GAP_FIT = {
+  teach: [0.22, 0.77],
+  std: [0.09, 0.75],
+  tight: [0.09, 0.86],
+  peak: [0.09, 0.88],
+} as const;
+export const GAP_JUMP_FIT = {
+  teach: [0.3, 1.75],
+  std: [0.3, 1.6],
+  /** off a raised surface onto the floor below (the bar top): the landing comes later, so the pit is longer */
+  tightDrop: [0.3, 2.06],
+} as const;
+export type GapFit = keyof typeof GAP_FIT | readonly [number, number];
+
+export function gapHop(beat: number, fit: GapFit = 'std'): LevelItem[] {
+  const [f, t] = typeof fit === 'string' ? GAP_FIT[fit] : fit;
+  return [{ type: 'gap', from: beat + f, to: beat + t, action: { type: 'jump', beat, hold: TAP } }, lumArcHop(beat)];
 }
 
-export function gapJump(beat: number): LevelItem[] {
-  return [{ type: 'gap', from: beat + 0.3, to: beat + 1.6, action: { type: 'jump', beat, hold: 1 } }, lumArcJump(beat)];
+export function gapJump(beat: number, fit: keyof typeof GAP_JUMP_FIT | readonly [number, number] = 'std'): LevelItem[] {
+  const [f, t] = typeof fit === 'string' ? GAP_JUMP_FIT[fit] : fit;
+  return [{ type: 'gap', from: beat + f, to: beat + t, action: { type: 'jump', beat, hold: 1 } }, lumArcJump(beat)];
 }
 
 /** Safe version of a gap: a shallow rock pool (falling in costs time, not a life). */
@@ -81,9 +110,9 @@ export function pendulum(beat: number, big = false): LevelItem {
  * `first`..`first+n-1`, hop actions on `first-1` .. `first+n-1` (each hop lands on the next
  * beat's platform, the last one on the far ledge at `first+n`). Lums arc over every hop.
  */
-export function slamRun(first: number, n: number): LevelItem[] {
+export function slamRun(first: number, n: number, top?: readonly [number, number]): LevelItem[] {
   const out: LevelItem[] = [{ type: 'gap', from: first - 0.72, to: first + n - 0.3 }];
-  for (let i = 0; i < n; i++) out.push({ type: 'slam', beat: first + i });
+  for (let i = 0; i < n; i++) out.push(top ? { type: 'slam', beat: first + i, from: top[0], to: top[1] } : { type: 'slam', beat: first + i });
   for (let b = first - 1; b <= first + n - 1; b++) {
     out.push({ type: 'action', action: { type: 'jump', beat: b, hold: TAP, fail: 'death' } });
     out.push(lumArcHop(b));
@@ -115,8 +144,8 @@ export function hupHupHey(beat: number, target: 'jabber' | 'pendulum' = 'jabber'
  * Air strike: a held jump over a gap ON `beat` and a high pendulum struck mid-air ON `beat + 1`
  * (it hangs too high to reach from the ground).
  */
-export function jumpStrike(beat: number): LevelItem[] {
-  return [...gapJump(beat), { type: 'pendulum', beat: beat + 1, high: true, action: { type: 'strike', beat: beat + 1 } }];
+export function jumpStrike(beat: number, fit: keyof typeof GAP_JUMP_FIT | readonly [number, number] = 'std', big = false): LevelItem[] {
+  return [...gapJump(beat, fit), { type: 'pendulum', beat: beat + 1, high: true, big, action: { type: 'strike', beat: beat + 1 } }];
 }
 
 /**
@@ -166,9 +195,14 @@ export function crate(beat: number, look: BreakableLook = 'crate'): LevelItem {
   return bottle(beat, look, true);
 }
 
-/** a breakable hung high: only reachable in the air (mid-jump, mid-launch) */
-export function bottleHigh(beat: number, look?: BreakableLook): LevelItem {
-  return { type: 'breakable', beat, high: true, look, action: { type: 'strike', beat } };
+/** a GIANT keg (2x, 8 tokens, a real hitstop): the walkdown's money shot — strike ON `beat` */
+export function giantKeg(beat: number, look: BreakableLook = 'crate'): LevelItem {
+  return { type: 'breakable', beat, look, giant: true, action: { type: 'strike', beat } };
+}
+
+/** a breakable hung high: only reachable in the air (mid-jump, mid-launch); `h` overrides the height */
+export function bottleHigh(beat: number, look?: BreakableLook, h?: number, big = false): LevelItem {
+  return { type: 'breakable', beat, high: true, h, big, look, action: { type: 'strike', beat } };
 }
 
 /** held jump ON `beat` with a high bottle struck mid-air ON `beat + 1` (over safe ground) */
@@ -191,7 +225,9 @@ export function raised(from: number, to: number, h: number): LevelItem {
  * beat + SIGN.lead to just before the release (stumble if you're standing).
  */
 export function slideUnder(beat: number, beats: number): LevelItem[] {
-  const out: LevelItem[] = [{ type: 'lowSign', from: beat + 0.5, to: beat + beats - 0.12, action: { type: 'slide', beat, hold: beats } }];
+  // iteration 3: the sign ends 0.25 beat before the release (was 0.12) and the hero auto-crouches while under
+  // it (Player.lowCeilings), so letting go of ↓ a little early never stands him up into its tail
+  const out: LevelItem[] = [{ type: 'lowSign', from: beat + 0.5, to: beat + beats - 0.25, action: { type: 'slide', beat, hold: beats } }];
   // a low token line under the sign (the slide's pay; also grabbed when you run it standing and get hit)
   for (let b = beat + 1 / 3; b < beat + beats - 0.1; b += 1 / 3) out.push({ type: 'lum', beat: b, h: 26 });
   return out;

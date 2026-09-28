@@ -34,6 +34,7 @@ import type {
   LowSign,
   Lum,
   Phrase,
+  SetPiece,
   SkyCue,
   SlamPlatform,
 } from '../game/entities';
@@ -76,6 +77,8 @@ export interface RuntimeLevel {
   cameraCues: CameraCue[];
   skyCues: SkyCue[];
   hints: Hint[];
+  /** scripted wow moments (sorted by beat) */
+  setPieces: SetPiece[];
   /** ground look changes (by beat) */
   groundCues: { beat: number; style: GroundStyle }[];
   /** beat the Chaser rises (Infinity = never) */
@@ -116,9 +119,13 @@ export const SPIKE = { visW: 62, visH: 54, hurtW: 28, hurtH: 28 } as const;
  * hero's beat position is hit by presses from ~-210 ms to ~+220 ms (neighbouring strikes ≥ 0.66 beat
  * apart can't reach it). `h` = centre height above the ground surface; `highH` = only reachable in the air.
  */
-export const BREAK = { ahead: 200, r: 30, rBig: 40, h: 110, highH: 330, tokens: 3, tokensBig: 6 } as const;
-/** Bounce pad geometry: pad half-width (beats), trigger band above the pad top (px) */
-export const BOUNCE = { halfBeats: 0.3, trigger: 130, padH: 18 } as const;
+export const BREAK = { ahead: 200, r: 30, rBig: 40, rGiant: 64, h: 110, hGiant: 130, highH: 330, arcBox: 120, tokens: 3, tokensBig: 6, tokensGiant: 8 } as const;
+/**
+ * Bounce pad geometry: pad half-width (beats), trigger band above the pad top (px). A runner is launched when he
+ * reaches the pad's centre (minus `fireAhead` px) — so the flight starts ON the pad's beat and the arc tokens /
+ * arc bottles (which assume that) are exact; a hopper is launched as he comes down on it.
+ */
+export const BOUNCE = { halfBeats: 0.3, trigger: 130, padH: 18, fireAhead: 8 } as const;
 /**
  * Low sign: bottom edge `clear` px above the ground (sliding hero = 40 tall, standing = 100), top at
  * `top` (a held jump can't clear it). The sign starts `lead` beats after the slide beat (dsl slideUnder)
@@ -198,7 +205,9 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
         break;
       }
       case 'slam': {
-        const s: Solid = { kind: 'oneway', x: X(it.beat + SLAM.from), y: -(it.h ?? 0), w: X(SLAM.to - SLAM.from), h: SLAM.thickness, active: true };
+        const f0 = it.from ?? SLAM.from;
+        const f1 = it.to ?? SLAM.to;
+        const s: Solid = { kind: 'oneway', x: X(it.beat + f0), y: -(it.h ?? 0), w: X(f1 - f0), h: SLAM.thickness, active: true };
         world.add(s);
         slams.push({ id: id++, beat: it.beat, set: ((Math.round(it.beat) % 2) + 2) % 2 === 0 ? 'A' : 'B', solid: s, lift: 0, wasDown: true });
         break;
@@ -238,6 +247,7 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
   const cameraCues: CameraCue[] = [];
   const skyCues: SkyCue[] = [];
   const hints: Hint[] = [];
+  const setPieces: SetPiece[] = [];
   const groundCues: { beat: number; style: GroundStyle }[] = [];
   const marks: { beat: number; on: boolean }[] = [];
   const actions: ActionMarker[] = [];
@@ -326,18 +336,29 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
         const bx = X(it.beat) + BREAK.ahead;
         const base = groundYNear(X(it.beat));
         const high = !!it.high;
-        const h = it.h ?? (high ? BREAK.highH : BREAK.h);
+        const giant = !!it.giant;
+        let h = it.h ?? (high ? BREAK.highH : giant ? BREAK.hGiant : BREAK.h);
+        // a high breakable inside a LAUNCH flight rides the launch arc: centred in the strike box on its beat
+        const pad = high && it.h === undefined ? bouncePads.find((p) => it.beat > p.beat && it.beat < p.landBeat) : undefined;
+        if (pad) {
+          const v = launchVelocity((pad.landBeat - pad.beat) * spb, pad.y - pad.landY, spb);
+          h = base - (pad.y - launchHeightAt(v, spb, (it.beat - pad.beat) * spb) - BREAK.arcBox);
+        }
+        const prev = breakables[breakables.length - 1];
+        const giantIndex = giant ? (prev && prev.giant && it.beat - prev.beat <= 1.01 ? prev.giantIndex + 1 : 0) : -1;
         breakables.push({
           id: id++,
           beat: it.beat,
           x: bx,
           y: base - h,
-          r: it.big ? BREAK.rBig : BREAK.r,
+          r: giant ? BREAK.rGiant : it.big ? BREAK.rBig : BREAK.r,
           baseY: base,
           high,
-          big: !!it.big,
-          look: it.look ?? (it.big ? 'crate' : 'bottle'),
-          tokens: it.tokens ?? (it.big ? BREAK.tokensBig : BREAK.tokens),
+          big: !!it.big || giant,
+          giant,
+          giantIndex,
+          look: it.look ?? (it.big || giant ? 'crate' : 'bottle'),
+          tokens: it.tokens ?? (giant ? BREAK.tokensGiant : it.big ? BREAK.tokensBig : BREAK.tokens),
           broken: false,
           brokenT: 0,
         });
@@ -416,7 +437,10 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
         groundCues.push({ beat: it.beat, style: it.style });
         break;
       case 'hint':
-        hints.push({ beat: it.beat, beats: it.beats ?? 8, text: it.text });
+        hints.push({ beat: it.beat, beats: it.beats ?? 8, text: it.text, icon: it.icon });
+        break;
+      case 'setPiece':
+        setPieces.push({ beat: it.beat, name: it.name, beats: it.beats ?? 4 });
         break;
       case 'chaser':
         chaserBeat = Math.min(chaserBeat, it.beat);
@@ -478,7 +502,8 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
     fx,
     cameraCues,
     skyCues,
-    hints,
+    hints: hints.sort((a, b) => a.beat - b.beat),
+    setPieces: setPieces.sort((a, b) => a.beat - b.beat),
     groundCues: groundCues.sort((a, b) => a.beat - b.beat),
     chaserBeat,
     marks,
@@ -583,6 +608,21 @@ export function launchVelocity(sec: number, dh: number, spb: number): number {
     else hi = mid;
   }
   return (lo + hi) / 2;
+}
+
+/** height above the takeoff `sec` seconds into a free launch flight at speed `v` */
+export function launchHeightAt(v: number, spb: number, sec: number): number {
+  const J = Tun.jump;
+  const tApex = J.timeToApexBeats * spb;
+  const g = (2 * J.height) / (tApex * tApex);
+  const dt = 1 / Tun.sim.hz;
+  let vy = -v;
+  let y = 0;
+  for (let t = 0; t < sec; t += dt) {
+    vy = Math.min(vy + g * (vy > 0 ? J.fallGravityMul : 1) * dt, J.maxFallSpeed);
+    y -= vy * dt;
+  }
+  return y;
 }
 
 /** [beat offset, height above takeoff] samples along a launch arc, every 1/3 beat (skipping the pad). */

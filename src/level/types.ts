@@ -47,7 +47,7 @@ export interface BeatReactSpec {
   phase?: number;
 }
 
-export type FxKind = 'flash' | 'shake' | 'zoom' | 'bgPulse';
+export type FxKind = 'flash' | 'shake' | 'zoom' | 'bgPulse' | 'shot';
 /** lighting presets (act 1: 42nd Street golden hour -> neon dusk/night -> the honky-tonk bar's lamplight) */
 export type SkyPreset = 'golden' | 'neon' | 'honkytonk' | 'facade' | 'lanes';
 /** walkable-surface look per reel */
@@ -62,7 +62,13 @@ export type BreakableLook = 'bottle' | 'glass' | 'crate' | 'neon' | 'jug' | 'win
  *   windowCrash  Slim's Heave smashes THROUGH a window into the building (the pre-chorus HEY)
  *   lanes        inside: the Blacklight Lanes (bowling alley)
  */
-export type SetPieceName = 'climb' | 'bigJimGlint' | 'windowCrash' | 'lanes';
+export type SetPieceName = 'climb' | 'bigJimGlint' | 'windowCrash' | 'lanes' | ActOneSetPiece;
+/**
+ * Act 1 set-pieces (iteration 3 wow moments; Game also emits every setPiece item as a `setPiece` event and
+ * exposes `game.setPiece` while it lasts): 'bigLaunch' (bar 9: the launch onto the neon roofs, apex on the
+ * sky-flip), 'chorusShot' (bar 23: the chorus is a different SHOT), 'walkdown' (bar 29: the giant keg smash).
+ */
+export type ActOneSetPiece = 'bigLaunch' | 'chorusShot' | 'walkdown';
 /** thrown-bottle styles: 'bottle' = strike it ON the beat (bat it back), 'firebomb' = hop its flames ON the beat */
 export type ThrowStyle = 'bottle' | 'firebomb';
 
@@ -85,9 +91,10 @@ export type LevelItem =
   | { type: 'pendulum'; beat: number; big?: boolean; high?: boolean; action?: IntendedAction }
   /**
    * slam platform that SLAMS (solid) on `beat` (and every 2 beats), lifts on the swung offbeat; set by parity.
+   * `from`/`to` = press-top extent in beats relative to `beat` (default SLAM.from/to; narrower = tighter timing).
    * `h` = press-top height above the street when down (default 0; act 2's lifts run high up the building)
    */
-  | { type: 'slam'; beat: number; h?: number }
+  | { type: 'slam'; beat: number; from?: number; to?: number; h?: number }
   /** a Hup-Hup-HEY phrase: the three action beats (hop, hop, STRIKE) — the strike becomes a Heave */
   | { type: 'phrase'; beats: [number, number, number] }
   /** collectible lums ("lum") at beat, `h` px above the floor. `note` = explicit chord-tone index */
@@ -111,14 +118,14 @@ export type LevelItem =
   /** scansion marks (∪ – on the ground) on/off from `beat`; bar lines stay on */
   | { type: 'marks'; beat: number; on: boolean }
   /** HUD hint shown from `beat` for `beats` (first-appearance tutorial text) */
-  | { type: 'hint'; beat: number; text: string; beats?: number }
+  | { type: 'hint'; beat: number; text: string; beats?: number; icon?: string }
   /**
    * Breakable target (bottle / glass / crate / neon letter) standing `h` px above the ground-level
    * surface, placed so a strike pressed ON `beat` smashes it (±~200 ms). Pure reward: it bursts into
    * `tokens` tokens; a miss costs nothing but the tokens. `high` = hangs so high it can only be hit
    * mid-jump / mid-launch. `beat` may sit on the swung "and" (x.66).
    */
-  | { type: 'breakable'; beat: number; h?: number; high?: boolean; big?: boolean; look?: BreakableLook; tokens?: number; action?: IntendedAction }
+  | { type: 'breakable'; beat: number; h?: number; high?: boolean; big?: boolean; giant?: boolean; look?: BreakableLook; tokens?: number; action?: IntendedAction }
   /**
    * Bounce pad (LAUNCH): when the hero reaches it (running over it or landing on it) he is flung up
    * so that he lands on a surface `land` px above base ground (default: the pad's own surface)

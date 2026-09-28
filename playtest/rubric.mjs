@@ -172,7 +172,7 @@ const kindOf = (a) => {
   if (t === 'gap') return verbOf(a) === 'jump' ? 'gap-long' : 'gap';
   if (t === 'thrown') return it?.style === 'firebomb' ? 'firebomb' : 'thrown'; // two shapes: a bottle to bat, flames to hop
   if (t === 'pendulum') return it?.high ? 'pendulum-high' : it?.big ? 'pendulum-big' : 'pendulum';
-  if (t === 'breakable') return it?.high ? 'breakable-high' : it?.big ? 'breakable-big' : 'breakable';
+  if (t === 'breakable') return it?.high ? 'breakable-high' : it?.giant ? 'breakable-giant' : it?.big ? 'breakable-big' : 'breakable';
   if (t === 'action' && a.type === 'jump' && (slamBeats.has(a.beat) || slamBeats.has(a.beat + 1))) return a.failKind === 'death' ? 'slam' : 'slam-safe';
   if (t === 'action' && a.type === 'jump' && poolBeats.some((p) => Math.abs(p - (a.beat + 0.22)) < 0.05 || Math.abs(p - (a.beat + 0.3)) < 0.05)) return 'pool';
   if (t === 'action') return a.type === 'jump' ? 'lumArc' : 'free';
@@ -233,6 +233,7 @@ for (let i = 1; i < allActions.length; i++) {
 for (const it of level.items) {
   if (it.type === 'platform') note('route:high', it.from, 'mode', 'optional high route (awning)');
   if (it.type === 'chaser') note('chaser', it.beat, 'set-piece', 'the Burn (chaser) rises');
+  if (it.type === 'setPiece') note('setPiece:' + it.name, it.beat, 'set-piece', `set-piece: ${it.name}`);
   if (it.type === 'sky' && it.beat >= level.startBeat) note('sky:' + it.preset, it.beat, 'context', `sky → ${it.preset}`);
   if (it.type === 'ground') note('ground:' + it.style, Math.max(it.beat, level.startBeat), 'context', `ground → ${it.style}`);
 }
