@@ -463,7 +463,7 @@ export function drawEndScreen(ctx: CanvasRenderingContext2D, g: Game, b: BeatInf
   const total = gr.perfect + gr.great + gr.good + gr.miss;
   const lines: [string, string][] = [
     ['brass tokens', `${g.stats.lums} / ${g.stats.lumsTotal}`],
-    ['targets smashed', `${g.stats.pendulums} / ${g.stats.pendulumsTotal}`],
+    ...(g.stats.pendulumsTotal > 0 ? ([['targets smashed', `${g.stats.pendulums} / ${g.stats.pendulumsTotal}`]] as [string, string][]) : []),
     ...(typeof (r as { breakablesTotal?: number }).breakablesTotal === 'number' && (r as { breakablesTotal: number }).breakablesTotal > 0
       ? ([['bottles & crates', `${(r as { breakables?: number }).breakables ?? 0} / ${(r as { breakablesTotal: number }).breakablesTotal}`]] as [string, string][])
       : []),

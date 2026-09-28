@@ -508,7 +508,15 @@ export function drawJabber(g: Ctx, x: number, y: number, P: JabberPose): void {
   g.fillStyle = '#3A2418';
   g.fillRect(hx - 14, hy - 2, 5, 12);
   g.fillRect(hx + 9, hy - 2, 5, 12);
-  if (dead) {
+  if (P.flying && !P.dead) {
+    // landed his jab: off he goes, laughing
+    cartoonEye(g, hx - 7, hy - 1, { r: 4, style: 'happy', ink: K });
+    cartoonEye(g, hx + 3, hy - 1, { r: 3.6, style: 'happy', ink: K });
+    g.fillStyle = INK;
+    g.beginPath();
+    g.ellipse(hx - 3, hy + 9, 6, 5, 0, 0, TAU);
+    g.fill();
+  } else if (dead) {
     // X eyes
     g.strokeStyle = INK;
     g.lineWidth = 2.5;
@@ -527,7 +535,9 @@ export function drawJabber(g: Ctx, x: number, y: number, P: JabberPose): void {
   g.strokeStyle = INK;
   g.lineWidth = 2.5;
   g.beginPath();
-  if (flex > 0.3 || jab > 0.3) {
+  if (P.flying && !P.dead) {
+    // (laugh drawn above)
+  } else if (flex > 0.3 || jab > 0.3) {
     g.moveTo(hx - 9, hy + 8);
     g.lineTo(hx + 3, hy + 7);
   } else g.arc(hx - 3, hy + 11, 5, 1.1 * Math.PI, 1.9 * Math.PI);
@@ -709,7 +719,7 @@ export function drawChaser(g: Ctx, frontX: number, top: number, t: number, yBott
 
 /** splice across the frame: a diagonal cut, cream tape with sprockets, "SC. n" in grease pencil. */
 export function drawSplice(g: Ctx, x: number, y0: number, y1: number, reached: boolean, flash: number, scene: string, groundY: number): void {
-  const a = reached ? 0.3 + 0.5 * flash : 0.22;
+  const a = reached ? 0.14 + 0.5 * flash : 0.16;
   g.fillStyle = `rgba(244,239,226,${a})`;
   g.beginPath();
   g.moveTo(x - 34, y0);
@@ -1179,9 +1189,27 @@ export function drawLowSign(g: Ctx, x: number, y: number, w: number, h: number, 
   g.font = `italic ${Math.round(fs)}px "Impact", "Haettenschweiler", "Arial Narrow Bold", sans-serif`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText('DUCK!', 0, h * 0.42);
-  g.font = `bold ${Math.round(fs * 0.3)}px "Trebuchet MS", sans-serif`;
-  g.fillText('▼ SLIDE ▼', 0, h * 0.75);
+  // lettering sits low, where the eye is when you run at it; tall panels get a striped header
+  const ty = Math.max(h * 0.42, h - fs * 1.35);
+  g.fillText('DUCK!', 0, ty);
+  g.font = `bold ${Math.round(Math.max(16, fs * 0.3))}px "Trebuchet MS", sans-serif`;
+  g.fillText('▼ SLIDE ▼', 0, Math.min(h - 22, ty + fs * 0.75));
+  if (ty > h * 0.5) {
+    g.save();
+    roundRectPath(g, -hw + 8, 8, w - 16, ty - fs * 0.75 - 8, 5);
+    g.clip();
+    for (let yy = -w; yy < ty; yy += 34) {
+      g.fillStyle = CF.fig;
+      g.beginPath();
+      g.moveTo(-hw, yy);
+      g.lineTo(hw, yy + w * 0.6);
+      g.lineTo(hw, yy + w * 0.6 + 14);
+      g.lineTo(-hw, yy + 14);
+      g.closePath();
+      g.fill();
+    }
+    g.restore();
+  }
   // bulbs chase along the top edge
   const ch = Math.floor(b.beat * 2);
   for (let i = 0, n = Math.max(3, Math.round(w / 36)); i < n; i++) {
