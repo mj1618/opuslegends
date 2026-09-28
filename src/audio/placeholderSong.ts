@@ -17,7 +17,7 @@
  * TempoMap, so onsets land exactly on the (swung) grid (verify with analyzeBeatAlignment / probe).
  */
 import type { LaneEvent, SongDef, SongMap } from './song';
-import { mtof } from './song';
+import { defineSong, mtof } from './song';
 import type { TempoMap } from './tempoMap';
 
 const BPM = 164;
@@ -93,7 +93,7 @@ const CHORUS_MELODY: [number, number, number][] = [
   [28, E3, 0.67], [28.67, D3, 0.33], [29, E3, 1], [30, G3, 0.67], [30.67, A3, 0.33], [31, A3, 0.67], [31.67, As3, 0.33],
 ];
 
-export const placeholderSong: SongDef = {
+export const placeholderSong: SongDef = defineSong({
   id: 'placeholder-boogie-164',
   title: 'Placeholder Boogie (164 shuffle)',
   artist: 'synth',
@@ -111,7 +111,8 @@ export const placeholderSong: SongDef = {
     bonus: { kind: 'synth', render: (song, tempo) => render(song, tempo, 'bonus') },
   },
   stemGains: { shouts: 0.5, bonus: 0 },
-};
+  firstBar: 0, // bar 0 = the pickup
+});
 
 type Part = 'main' | 'shouts' | 'bonus';
 

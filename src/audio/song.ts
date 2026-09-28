@@ -11,8 +11,12 @@
  *              `tempo` = tempo points. Use the debug beat-alignment tool (see
  *              analyzeBeatAlignment) to check the beat map against the audio's onsets.
  */
+import { Lane, type BarEnergy, type LaneEventBase, type LaneName, type LaneTypes } from './lanes';
 import type { TempoPoint } from './tempoMap';
 import { TempoMap } from './tempoMap';
+
+export { Lane } from './lanes';
+export type * from './lanes';
 
 export interface MusicalKey {
   /** MIDI note of the tonic, e.g. 52 = E3 */
@@ -58,7 +62,8 @@ export interface SongMap {
   lanes: Record<string, LaneEvent[]>;
 }
 
-export interface SongDef {
+/** The plain data of a song (what placeholderSong / songFromBeatmap provide); see defineSong(). */
+export interface SongData {
   id: string;
   title: string;
   artist?: string;
@@ -83,6 +88,52 @@ export interface SongDef {
   stems?: Record<string, SongSource>;
   /** initial stem gains (linear), default 1 */
   stemGains?: Record<string, number>;
+  /** bar number of beat 0 in this song's own numbering (default 1: the edit's bar 1 = beat 0; placeholder 0 = pickup) */
+  firstBar?: number;
+}
+
+/**
+ * A song: its data + typed queries over the beat map (build with defineSong()).
+ *   song.lane('snare').between(96, 128)        typed lane events (audio/lanes.ts)
+ *   song.section('chorus1') / sectionAt(beat)  section spans
+ *   song.energyAt(beat)                        bar intensity 0..1 (energy lane)
+ *   song.barBeat(9, 3)                         beat of bar 9, beat 3 in the song's bar numbering
+ */
+export interface SongDef extends SongData {
+  lane<K extends LaneName>(name: K): Lane<LaneTypes[K]>;
+  lane(name: string): Lane<LaneEventBase>;
+  section(name: string): SongSection | undefined;
+  sectionAt(beat: number): SongSection | undefined;
+  /** energy-lane intensity (0..1) of the bar containing `beat`; undefined if the song has no energy lane */
+  energyAt(beat: number): number | undefined;
+  /** first beat of `bar` (+ beatInBar - 1), in the song's own bar numbering (firstBar) */
+  barBeat(bar: number, beatInBar?: number): number;
+}
+
+/** Attach the lane/section queries to song data (lanes are built once, lazily). */
+export function defineSong(data: SongData): SongDef {
+  const cache = new Map<string, Lane<LaneEventBase>>();
+  const lane = (name: string): Lane<LaneEventBase> => {
+    let l = cache.get(name);
+    if (!l) {
+      l = new Lane(name, (data.map?.lanes[name] ?? []) as LaneEventBase[]);
+      cache.set(name, l);
+    }
+    return l;
+  };
+  const sections = () => data.map?.sections ?? [];
+  const song: SongDef = {
+    ...data,
+    lane: lane as SongDef['lane'],
+    section: (name) => sections().find((x) => x.name === name),
+    sectionAt: (beat) => sections().find((x) => beat >= x.startBeat - 1e-6 && beat < x.endBeat - 1e-6),
+    energyAt: (beat) => {
+      const e = (lane('energy') as Lane<BarEnergy>).prev(beat + 1e-6);
+      return e ? e.intensity : undefined;
+    },
+    barBeat: (bar, beatInBar = 1) => (bar - (data.firstBar ?? 1)) * data.beatsPerBar + (beatInBar - 1),
+  };
+  return song;
 }
 
 export const SCALES = {
@@ -150,7 +201,7 @@ export function songFromBeatmap(json: BeatmapJson, baseUrl: string): SongDef {
   const main: SongSource = useStems ? stems.base : { kind: 'file', url: fileUrl(files[mainName]) };
   if (useStems) delete stems.base;
   const sections: SongSection[] = (json.sections ?? []).map((x) => ({ name: x.name, label: x.label, startBeat: x.startBeat, endBeat: x.endBeat }));
-  return {
+  return defineSong({
     id: json.song.id,
     title: json.song.title,
     artist: json.song.artist,
@@ -164,7 +215,8 @@ export function songFromBeatmap(json: BeatmapJson, baseUrl: string): SongDef {
     map: { sections, lanes: (json.lanes ?? {}) as Record<string, LaneEvent[]> },
     source: main,
     stems,
-  };
+    firstBar: 1,
+  });
 }
 
 /** Valid swing ratios: 0.5 = straight 8ths, 0.667 = triplet shuffle, 0.75 = dotted-8th + 16th. */
