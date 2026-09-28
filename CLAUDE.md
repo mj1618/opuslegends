@@ -14,6 +14,14 @@ Every decision is judged by whether it makes the level more fun to play.
 - `docs/ITERATIONS.md` — log of every iteration: goal, what shipped, fun review, next step. Read it first.
 - `docs/DESIGN.md` — the current creative bible (song, hero, world, mechanics). Source of truth for creative choices.
 - `docs/research/` — raw research / idea pools. Ideas are chosen by: compile many -> filter bad -> pick randomly among good (avoid "mean" ideas).
+- `docs/FUN_RUBRIC.md` — researched, measurable criteria for a fun music level. **Every iteration ends with a FUN
+  REVIEW** against it (`docs/reviews/iterN.md`): score each criterion from level data, autoplay video/screens and
+  sloppy-bot death logs, then rank fixes. The review's top findings pick the next iteration.
+- User playtest feedback outranks everything. So far: first "boring, no challenge, nothing going on", then
+  "too hard, not dynamic, very repetitive". Aim: Rayman-level — constantly busy and rewarding, fair difficulty,
+  a new twist every few bars.
+- Music: the game plays the ORIGINAL Jim Croce recording (user-supplied, gitignored under `assets/audio/licensed/`,
+  never commit it). Our music pipeline (`tools/music/`) only makes the beat map, overlay reward stems and SFX.
 
 ## Sub-agent rules
 - Stay inside the scope you were given; don't rewrite systems you weren't asked to touch.
