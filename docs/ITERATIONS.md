@@ -405,3 +405,75 @@ stretches; pool-room call/response hard to see; HUD clutter.
 spread pit 116, level cues for mid-act visual beats + pool-room readability; (b) art: finale full-frame through
 340 + HUD hide + victory pose, sunset-before-drop, fallen letters as floor, HUD polish, mid-act visual beats,
 visible call/response.
+
+## Iteration 5 — gameplay notes
+Driven by `docs/reviews/iter4.md` fixes 2, 3, 6, 7, 10 and the level-data halves of 4 and 5. Code: `game/{game,tunables}.ts`,
+`game/mech/index.ts` (hooks), `engine/params.ts` (`?resync`), `level/{slice,act2,act3,dsl,index,types}.ts`,
+`playtest/{slack,playtest,rubric}.mjs`. Commits `452517b`, `19496a1`, `cfeb427`, `6028f13`, `f75c20b`.
+- **No hidden lethals.** `slack.mjs --hidden` sweeps EVERY action (±300 ms + a skip) and fails on a reward/stumble that
+  kills inside ±150 ms or when skipped, or a lethal under −70/+150 (acts 2-3 author to −85). It is a gate in
+  `npm run playtest` (~10 s, before the browser) and rubric row A5h. Fixed: 59 is a bottle (was a hop into the bar-16
+  pit); 275 is a strike, so 276's early side is real; the first fist is walked onto (no 308 hop), so 309 has a real early
+  side; 324's lip moved to +0.36 so a late 323 ring hop lands.
+- **The hitstop stole early-side slack.** After a late strike the world lags the music by up to 80 ms (hitstop debt).
+  An on-beat hop then took off early: the ±130 bot died at 116 on −87 ms presses (the window is −120). A jump press
+  now repays the debt first (`Game.flushDebt`). `slack.mjs` has no hitstop, so every lethal right after a strike was
+  harder in the game than the sim said. Now they match.
+- **Burn assist.** It kills only when pulled below 0.95 beat. The only pulling stumble in the last 2 bars doesn't count
+  toward that, so one stumble never catches, even after misses or into a lunge (it scorches your heels). Per checkpoint
+  segment:
+  - After 2 catches, missed rewards stop feeding it and it rests at 2.5 with no lunge.
+  - After 3 catches it can't kill.
+  - A hero with no forward progress for 2 beats (a softlock) is still caught.
+
+  Hooks grab by the hero's position when he is behind the grid (the reckless bot looped 26× at the zip). The burn hint
+  now reads "SWING (X) at the gold — every miss feeds the BURN".
+- **Resync.** The projector sync is offered by a toast at the next checkpoint or respawn count-in, never mid-action, and
+  `Game.resyncOffer` is set for the pause screen. It is offered when 16 presses average ≥ 45 ms off, or when the drift
+  sits at its ±40 clamp for 2 steps; at most 3 times. With `--resync` the bot accepts it (pause → tap test → resume).
+- **Teeth, reshaped to the song.** All new windows are −85..−105 / +150, each after a strike or landing (no jump
+  buffer):
+  - Chorus 4: a new well on 284 (the G is shortened), the Bluffer pair on the HEYs 277 · 278, and 280 at −90.
+  - The gauntlet: 309, 312, 318.
+  - The Rack: a chip tower on 264.
+
+  The song's outro (bars 78-86) is its calmest section, so the gauntlet can't outgrow the Rack in intensity (rubric
+  C1/C2). The act-3 shape is breakdown 4.31, chorus 4 6.63, outro 4.30, which passes by a hair (see act3_plan).
+- **Act 1:** 116 is 'std' (the ±130 repeat pit), 84 is CHORUS_FIT (−95), and the 'teach' pits of bars 1-16 end
+  0.05 beat sooner (−125/−130).
+- **Level cues** (types committed first for the art agent, `MidActBeat` in `types.ts`):
+
+  | Act | Cues |
+  |---|---|
+  | 1 | doorKick 64 (+ zoom punch), signDrop 78, spotlights 84–120, brawl 92–112, houseLights 120 |
+  | 2 | lightChase 136–152, streetReveal 152 (a 1-bar camera tilt, ground 0.44), searchlights 164–180, tenants 172–180 |
+  | 3 | a camera push-in on each Pool Room call bar (0.84 / 0.86) |
+
+  The answer rhythms already match the calls (1 · &2 · 3).
+- **Rubric:** the block grid restarts on `LevelDef.acts` (gameLevel `[1, 34, 61]`). The fixed grid from bar 1
+  straddled the act seams, so the Rack and the drop were judged as one breakdown block at verse caps. Gates with the bot
+  reports below: whole level **11/11** (was 8/11), acts **11/11 ×3**. The whole level still fails C2 (2 valleys, needs
+  3) and A11. A11 means the ±85 bot has too few teeth.
+- **Measured** (build `6028f13`, whole level from the cold open, deaths per run by act):
+
+  | Profile | Runs | Act 1 | Act 2 | Act 3 | Notes |
+  |---|---|---|---|---|---|
+  | autoplay | 1 | 0 | 0 | 0 | PASS incl. the hidden gate; exec ≤ 4 ms |
+  | skilled ±40 | 3 | 0 | 0 | 0 | 86–92 % Perfect, FULL HOUSE 155–158 beats |
+  | sloppy ±85 + 10 % late | 10 | 0.4 | 0.0 | 0.1 | FULL HOUSE 24–83 beats |
+  | ±130 | 10 | 1.4 | 0.8 | **1.5** | per 32 bars: act 3 highest (2.0 vs 1.7) |
+  | ±160 + 20 % late | 3 | 3.0 | 3.7 | **5.0** | 3/3 finish; longest same-spot run 3 (200.6, 284.7 pits) |
+  | lazy (`--skip=none`, ±40) | 3 | 5 | 5 | 6 | caught once per spot, **finishes** (was 52.6 ×14, DNF) |
+  | reckless (`--skip=stumble`, ±40) | 3 | 4 | 7–8 | 3 | ≤ 2 catches per spot, **finishes** (was 93.5 ×13, DNF) |
+  | device +90, drift only | 3 | 0 | 0 | 0 | 21–22 % Perfect; 3 resync prompts shown each run |
+  | device +90, accepts the prompt | 1 | 0 | 0 | 0 | synced at 60 s to +88: 82 % Perfect, FULL HOUSE 157 (was 22 % / 24) |
+
+- **Missed targets (±85 act 3 ≈ 1–1.5, act 2 0.6–1).** Under −85/+150 a uniform ±85 press never misses early. Its
+  10 % late tail (+60..110 ms) fails a +150 late side about 1 % of the time per lethal. The act-2/3 sloppy deaths in
+  iteration 4 were the hidden lethals and single-stumble Burn catches, and both were unfair. Act 1 keeps sloppy teeth
+  only because its chorus pits are −70. Real sloppy teeth in act 3 need a rule change, for example 'peak' −75 on 3–4
+  chorus-4 pits (as act 1 does). That call is the user's after they play.
+- **Lessons.**
+  - Hitstop moves the world, not the music: any press-timed physics after a hitstop needs the debt repaid.
+  - A reward hop right before a pit is a hidden lethal unless its late landing clears the lip.
+  - The rubric's C1 with 3 sections requires strict ordering, so act 3's gauntlet has no intensity budget left.
