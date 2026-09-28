@@ -105,6 +105,8 @@ export class Game {
   private autoErr: number[] = [];
   /** stumbles after a respawn that don't pull the Burn yet (Tun.chaser.respawnGraceStumbles) */
   private burnGrace = 0;
+  /** extra rest distance (beats) after the Burn caught you, until the next checkpoint (Tun.chaser.caughtBonus) */
+  private burnRestBonus = 0;
   /** chorus drops (cap-rise beats) already paid this attempt */
   private dropsDone = new Set<number>();
   /** a paid drop opens its chorus cap early (until its downbeat) */
@@ -343,6 +345,7 @@ export class Game {
     this.heaved.clear();
     this.snapHeaved.clear();
     this.burnGrace = 0;
+    this.burnRestBonus = 0;
     this.autoErr = [];
     if (cold) this.enterColdOpen(start);
     else {
@@ -413,7 +416,8 @@ export class Game {
     this.loose = [];
     this.popups = [];
     this.mech.reset(beat);
-    const gap = Math.min(Tun.chaser.restGap, Math.max(this.snap.burnGap, Tun.chaser.respawnMinGap));
+    const rest = Tun.chaser.restGap + this.burnRestBonus;
+    const gap = Math.min(rest, Math.max(this.snap.burnGap, Tun.chaser.respawnMinGap + this.burnRestBonus));
     this.chaser = { active: false, x: -Infinity, riseBeat: 0, gap, rel: gap + 0.5, lunge: 0, danger: 0, flare: 0 };
     for (const b of [...this.dropsDone]) if (b >= beat - 1e-6) this.dropsDone.delete(b);
     this.dropCapBeat = -Infinity;
@@ -475,6 +479,8 @@ export class Game {
 
   die(cause: string): void {
     if (this.phase !== 'run') return;
+    // caught by the Burn: it keeps an extra distance until the next checkpoint (no catch-twice at one spot)
+    if (cause === 'chaser') this.burnRestBonus = Tun.chaser.caughtBonus;
     this.phase = 'dying';
     this.phaseTimer = Tun.flow.deathTime;
     this.stats.deaths++;
@@ -544,6 +550,7 @@ export class Game {
     this.snapBatted = new Set(this.batted);
     this.snapHeaved = new Set(this.heaved);
     this.burnGrace = 0;
+    this.burnRestBonus = 0;
     this.stage.onCheckpoint();
     this.particles.emit({ x: cp.x, y: cp.y - 200, count: 30, speed: [150, 500], life: [0.5, 1], size: [6, 12], color: '#F8F1DC', gravity: 500, drag: 1.5, shape: PShape.Square });
     this.log('checkpoint', { beat: cp.beat });
@@ -717,9 +724,14 @@ export class Game {
   private autoLatencyStep(): void {
     const A = Tun.autoLatency;
     if (!A.enabled || !params.autoLatency || this.autoErr.length < A.window) return;
-    const med = median(this.autoErr);
+    const errs = this.autoErr;
     this.autoErr = [];
-    if (Math.abs(med) < A.deadMs) return;
+    const med = median(errs);
+    // only a CLEAR bias moves it: |median| beyond 2 standard errors of the median (robust spread: 1.4826 × MAD), so a
+    // merely sloppy player's noise doesn't random-walk the offset
+    const sigma = 1.4826 * median(errs.map((e) => Math.abs(e - med)));
+    const se = (1.2533 * sigma) / Math.sqrt(errs.length);
+    if (Math.abs(med) < Math.max(A.deadMs, 2 * se)) return;
     const cur = this.conductor.latency * 1000;
     const step = clamp(med * A.gain, -A.maxStepMs, A.maxStepMs);
     const next = clamp(cur + step, this.latencyBaseMs - A.rangeMs, this.latencyBaseMs + A.rangeMs);
@@ -1073,7 +1085,7 @@ export class Game {
       c.riseBeat = Math.max(L.chaserBeat, beatW);
       c.rel = c.gap + 0.5;
     }
-    c.gap = Math.min(B.restGap, c.gap + B.relaxPerBeat * dBeats);
+    c.gap = Math.min(B.restGap + this.burnRestBonus, c.gap + B.relaxPerBeat * dBeats);
     const step = B.closeRate * dBeats;
     c.rel = c.rel > c.gap ? Math.max(c.gap, c.rel - step) : Math.min(c.gap, c.rel + step);
     // drum-fill lunges (deterministic from the world beat, so rewinds replay them exactly)
@@ -1108,7 +1120,7 @@ export class Game {
 
   /** hits push the Burn back a little */
   private starveBurn(beats: number): void {
-    this.chaser.gap = Math.min(Tun.chaser.restGap, this.chaser.gap + beats);
+    this.chaser.gap = Math.min(Tun.chaser.restGap + this.burnRestBonus, this.chaser.gap + beats);
   }
 
   private scratchRect: Rect = { x: 0, y: 0, w: 0, h: 0 };

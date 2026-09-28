@@ -241,6 +241,8 @@ export const Tun = {
     respawnMinGap: 1.75,
     /** after a respawn the first stumble doesn't pull the Burn (it flares, nothing more): no catch-twice loops */
     respawnGraceStumbles: 1,
+    /** after the Burn CAUGHT you, it rests this much further back (beats) until the next checkpoint */
+    caughtBonus: 0.5,
     /** drum-fill lunge: extra reach (beats) and envelope (rise, fall) in beats */
     lungeBeats: 0.3,
     lungeRise: 0.25,

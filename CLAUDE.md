@@ -44,7 +44,8 @@ World y grows DOWN; the base ground top is y = 0.
   taps vs the click's audible time (the SFX bus is late by the limiter look-ahead only), stored like `[`/`]`. It runs
   on the first STRIKE of a first-ever run (nothing stored; SPACE skips, a skip is stored too), on ↓ in the cold open,
   on X in the pause screen, and with `?calib=1`. In the run, an **auto-drift** nudges the offset by 0.35 × the median
-  error of every 16 graded presses (≥ 18 ms bias, ≤ 8 ms per bar line, ±40 ms around the calibrated value).
+  error of every 16 graded presses (only a clear bias: ≥ 18 ms and ≥ 2 standard errors of the median, so sloppy noise
+  doesn't random-walk it; ≤ 8 ms per bar line, ±40 ms around the calibrated value).
   `Game.setLatencyMs(ms, store)` sets both the offset and the drift's centre.
   `conductor.outputDelay` = our graph's delay (the booth's 6 ms film delay line + the master limiter's look-ahead,
   measured at load: `AudioSystem.outputDelay`), subtracted from song time.
@@ -81,7 +82,8 @@ World y grows DOWN; the base ground top is y = 0.
   Every stumble PULLS it 0.75 beat closer, every missed reward 0.2 (after it rises), clean play relaxes it
   (+0.04/beat, +0.06 per hit); it LUNGES 0.3 beat on every drum fill (`fills` lane). Two stumbles close together
   (or a stumble into a fill) = caught. Checkpoints snapshot its gap; a respawn restarts it at rest (1.75, iteration 4:
-  was 1.1 → catch-twice loops) and the first stumble after a respawn doesn't pull it (it only flares).
+  was 1.1 → catch-twice loops) and the first stumble after a respawn doesn't pull it (it only flares); after it CAUGHT
+  you it rests 0.5 beat further back until the next checkpoint (`Tun.chaser.caughtBonus`).
 - **Failure hints**: only 3 first-appearance prompts in the level (`hint` items with an `icon`); anything else
   is taught by placement + `Game.FAIL_HINTS`, shown once after the player fails the same thing twice.
 - **Mix** (`audio/audioSystem.ts`, `audio/mix.ts`): music (record at unity + overlay stems) → **projection
