@@ -63,6 +63,7 @@ import { drawCalibration } from './calibDraw';
 import { SlimDriver } from './slimDriver';
 import type { SpriteSet } from './sprites';
 import { Stage } from './stage';
+import { VisualBeats } from './beats';
 
 export { outlineText, roundRect } from './screens';
 
@@ -80,6 +81,8 @@ export class Renderer {
   readonly feedback = new Feedback();
   readonly burn = new Burn();
   readonly act3 = new Act3Art();
+  /** the long rooms' mid-act visual beats (render/beats.ts) */
+  readonly beats = new VisualBeats();
   readonly moments: Moments;
   /** level design tags ('mode' items: street, rooftops, launch, ...) sorted by beat — picks breakable families */
   private modes: { beat: number; mode: string }[] = [];
@@ -154,6 +157,7 @@ export class Renderer {
       this.stage.streetLight.setBlend('neon', 'neon', 1);
       this.stage.street.update(dt);
       drawTitleScreen(ctx, g, b, this.stage, slimState, this.clock);
+      if (g.scene === 'title') this.warm(ctx, b);
       g.debug.drawScreen(ctx);
       this.endAt = -1;
       return;
@@ -173,6 +177,8 @@ export class Renderer {
     this.director.update(dt, this.feed, b, cam, envHere);
     const wbNow = cold ? L.def.startBeat : g.worldBeat;
     this.moments.update(g, dt, this.feed, cam, wbNow, this.director.active);
+    this.beats.update(g, cam, this.director, this.director.active ? this.stage.envAt(L, g.player.x) : '', wbNow);
+    this.director.brawl = this.beats.brawling;
     this.feedback.update(g, g.paused ? 0 : dt);
     if (g.stats.stumbles > this.lastStumbles) this.burnFlare = 1;
     this.lastStumbles = g.stats.stumbles;
@@ -180,6 +186,8 @@ export class Renderer {
     if (g.freezeFx > this.lastFreeze + 1e-4) this.perfectAt = this.clock;
     this.lastFreeze = g.freezeFx;
 
+    // pre-warm the scenes (+ the finale's freeze buffer) while nothing is at stake: cold open, count-in, pauses
+    if (cold || g.phase === 'countIn' || g.paused) this.warm(ctx, b);
     const acam: ArtCamera = { x: cam.rx, y: cam.ry, zoom: cam.rzoom };
     // act 3's finale: seconds since the FINAL HIT (NaN before it); the frame freezes on the strike (see below)
     this.act3.track(g, this.clock);
@@ -210,6 +218,7 @@ export class Renderer {
     );
     this.moments.gelScale = envHere === 'roof' ? 0.15 : envHere === 'theatre' ? 0 : 1;
     this.moments.drawBehind(ctx, b);
+    this.beats.drawBehind(ctx, b, cam.rx);
     ctx.restore();
 
     ctx.save();
@@ -219,6 +228,7 @@ export class Renderer {
     this.sc.time = this.clock;
     this.sc.wb = cold ? L.def.startBeat : g.worldBeat;
     this.act3.behind(ctx, g, cam, v.x0, v.x1, this.stage.light(envHere), b, this.clock); // act 3: Big Jim (render/act3Draw.ts)
+    this.beats.drawWorld(ctx, g, b, v.x0, v.x1); // the facade's window chase / tenants (render/beats.ts)
     this.drawLevel(ctx, v.x0, v.x1, v.y0, v.y1, b);
     // SLIM
     if (!(g.player.mode === 'dead' && g.fade > 0.5)) {
@@ -261,6 +271,7 @@ export class Renderer {
     this.moments.heroSy = hsy;
     this.moments.drawScreen(ctx, b, (x, y) => [VIEW_W / 2 + (x - cam.rx) * cam.rzoom, VIEW_H / 2 + (y - cam.ry) * cam.rzoom]);
     this.director.draw(ctx, b);
+    this.beats.drawFront(ctx, b, hsx, hsy);
     this.feedback.drawScratches(ctx, hsx, hsy, cam.rzoom);
     // act 3: the hush, the finale's iris, THE END, the victory (render/act3Draw.ts)
     this.act3.screen(ctx, g, (x, y) => [VIEW_W / 2 + (x - cam.rx) * cam.rzoom, VIEW_H / 2 + (y - cam.ry) * cam.rzoom], hsx, hsy, b, this.clock, this.stage.light(envHere));
@@ -425,6 +436,45 @@ export class Renderer {
     ctx.restore();
   }
 
+  private warmed = false;
+  private warmX = 0;
+
+  /**
+   * one pre-warm step per frame: the scenes (render/stage.ts prewarm), then the freeze buffer, then the whole level's
+   * play layer window by window (skins, fonts, glow sprites, gradients bake on first use: a ~20 ms first-draw spike at
+   * the honky-tonk's first low sign, found with a per-section timer) — all into the throwaway freeze buffer
+   */
+  private warm(ctx: CanvasRenderingContext2D, b: BeatInfo): void {
+    if (this.warmed) return;
+    if (!this.stage.prewarm(this.game.level, b)) return;
+    const src = ctx.canvas;
+    if (!this.freezeCv || this.freezeCv.width !== src.width || this.freezeCv.height !== src.height) {
+      this.freezeCv = document.createElement('canvas');
+      this.freezeCv.width = src.width;
+      this.freezeCv.height = src.height;
+      return;
+    }
+    const L = this.game.level;
+    const fc = this.freezeCv.getContext('2d');
+    if (!fc || this.warmX > L.finishX + 2400) {
+      this.warmed = true;
+      return;
+    }
+    const x0 = this.warmX;
+    const x1 = x0 + 2400;
+    this.warmX = x1;
+    const fy = L.floorYAt(x0 + 1200);
+    const cy = (Number.isNaN(fy) ? 0 : fy) - 250;
+    fc.setTransform(this.game.display.scale, 0, 0, this.game.display.scale, 0, 0);
+    fc.save();
+    fc.translate(VIEW_W / 2, VIEW_H / 2);
+    fc.scale(0.8, 0.8);
+    fc.translate(-(x0 + 1200), -cy);
+    this.sc.b = b;
+    this.drawLevel(fc, x0, x1, cy - 700, cy + 700, b);
+    fc.restore();
+  }
+
   /** copy the finished film frame (backing-store pixels) for the final hit's freeze */
   private freezeFrame(ctx: CanvasRenderingContext2D, hx: number, hy: number): void {
     const src = ctx.canvas;
@@ -436,6 +486,7 @@ export class Renderer {
     const fc = this.freezeCv.getContext('2d');
     if (!fc) return;
     fc.setTransform(1, 0, 0, 1, 0, 0);
+    fc.clearRect(0, 0, src.width, src.height);
     fc.drawImage(src, 0, 0);
     this.frozen = true;
     this.frozenHero = [hx, hy];

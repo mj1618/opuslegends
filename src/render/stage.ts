@@ -249,6 +249,52 @@ export class Stage {
     return sc;
   }
 
+  private warmQ: Env[] | null = null;
+  private warmCv: HTMLCanvasElement | null = null;
+
+  /**
+   * PRE-WARM (first-frame spikes): build + draw ONE not-yet-seen scene per call into a throwaway canvas at the backing
+   * resolution, so its layers bake and its lighting composes before the run reaches it (the ~25 ms first-bake spike moves
+   * to the title / cold open / count-in). Returns true when every scene is warm.
+   */
+  prewarm(L: RuntimeLevel, b: BeatInfo): boolean {
+    if (!this.warmQ) this.warmQ = ENVS.filter((e) => e !== 'street');
+    const e = this.warmQ.shift();
+    if (!e) {
+      this.warmCv = null;
+      return true;
+    }
+    const w = Math.round(VIEW_W * this.resScale);
+    const h = Math.round(VIEW_H * this.resScale);
+    if (!this.warmCv || this.warmCv.width !== w) {
+      this.warmCv = document.createElement('canvas');
+      this.warmCv.width = w;
+      this.warmCv.height = h;
+    }
+    const g = this.warmCv.getContext('2d');
+    if (!g) return false;
+    g.setTransform(this.resScale, 0, 0, this.resScale, 0, 0);
+    const bd = this.boundaries(L).find((q) => q.to === e);
+    const cam = this.sceneCam(L, e, { x: (bd?.x ?? 0) + 900, y: -250, zoom: 1 });
+    const sc = this.scene(e);
+    sc.update(0);
+    sc.drawPass(g, cam, b, 'back');
+    sc.drawPass(g, cam, b, 'front');
+    // the env's floor too (floor art caches its patterns on first use)
+    const style = { light: this.light(e), capL: true, capR: true };
+    const rect = { x: cam.x - 400, y: 0, w: 800, h: 300 };
+    g.setTransform(this.resScale, 0, 0, this.resScale, 0, 0);
+    if (e === 'bar') drawBarFloor(g, rect, style);
+    else if (e === 'facade') drawFireEscape(g, rect, style, NaN, NaN);
+    else if (e === 'lanes') drawLanesFloor(g, rect, style, b);
+    else if (e === 'poolroom') drawFeltFloor(g, rect, style);
+    else if (e === 'casino') drawRackFloor(g, rect, style, b);
+    else if (e === 'roof') drawRoofFloor(g, rect, style);
+    else if (e === 'penthouse') drawPenthouseFloor(g, rect, style);
+    else if (e === 'theatre') drawFilmstripFloor(g, rect, style, b);
+    return false;
+  }
+
   private bases = new Map<Env, number>();
   private basesKey: unknown = null;
 

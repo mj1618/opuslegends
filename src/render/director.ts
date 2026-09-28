@@ -50,11 +50,14 @@ export class Director {
   private lastSnare = -1;
   private lastKick = -1;
   private lastCrash = -1;
+  private lastHey = -1;
   private flyers: Flyer[] = [];
   private specks: Speck[] = [];
   private seed = 7;
   /** true when the director should run (song playing, in play) */
   active = false;
+  /** a bar brawl is on (render/beats.ts): chairs + bottles fly on every kick and snare */
+  brawl = false;
   /** 0..1 extra accent intensity from level fx cues (bgPulse) */
   extPulse = 0;
 
@@ -89,6 +92,9 @@ export class Director {
         if (feed.chorus && this.rand() < 0.35 * e) this.burst(1, env);
       }
       if (b.count.kick !== this.lastKick && b.since.kick < 0.1 && env === 'bar') this.dust(Math.round(3 + 6 * e));
+      // the brawl: chairs + bottles fly on the record's HEYs (a volley), one now and then on the snare
+      if (this.brawl && b.count.hey !== this.lastHey && b.since.hey < 0.1) this.burst(3, env);
+      else if (this.brawl && b.count.snare !== this.lastSnare && b.since.snare < 0.1 && this.rand() < 0.5) this.burst(1, env);
       if (b.count.crash !== this.lastCrash && b.since.crash < 0.1) this.bloom = Math.max(this.bloom, 0.5 * e);
       if (this.extPulse > 0.01) {
         this.bloom = Math.max(this.bloom, this.extPulse * 0.6);
@@ -99,6 +105,7 @@ export class Director {
     this.lastSnare = b.count.snare;
     this.lastKick = b.count.kick;
     this.lastCrash = b.count.crash;
+    this.lastHey = b.count.hey;
     // --- decay
     this.punch *= Math.exp(-dt / 0.09);
     cam.hitZoom = this.punch;
