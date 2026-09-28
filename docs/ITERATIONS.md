@@ -486,3 +486,14 @@ nine mid-act visual beats + rain, readable pool-room call/response, cache pre-wa
 lag bug fixed (cause of the 116 loop), chorus-4 teeth. Rubric 11/11 per act AND whole level.
 Deaths/run (act1/2/3): ±40 0/0/0 · ±85 0.4/0/0.1 · ±130 1.4/0.8/1.5 · ±160 3.0/3.7/5.0.
 Open decision: sloppy (±85) players barely die under the −85/+150 rule.
+Review (docs/reviews/iter5.md): 7.0/10 ("good, not great"; Castle Rock ≈ 9). Blocks: 5,7,7,8,6,5,8,8,9,7,6. Missing FEEL:
+intro plays thin (crowd too low), final hit on 340 connects with nothing, Slim small/bleached, stamp noise, no stakes
+after beat 320.
+
+## Iteration 6 — Feel pass (in progress)
+(a) gameplay: crowd start 14 (music full from beat 0; thin = cost of misses), −75 on chorus-4 pits 276/280/284 and
+act-1 pit 92 → −80, stakes in the gauntlet up to ~332, near-miss WHEW, cut in-run fail counter, replay hooks (rank
+on poster, 3 hidden film canisters); (b) audio: token pickups play the vocal melody, WHEW + goon-instrument sounds;
+(c) art: final hit lands on Big Jim's face on 340, Slim bigger + never bleached, cut noise (per-action stamps → only
+notable ones, Burn flares when safe, checkpoint beams), goons play the song's parts, fast foreground speed layer,
+facade varies every 4 bars.
