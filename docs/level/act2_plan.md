@@ -1,142 +1,141 @@
 # Act 2 plan: verse 3 → chorus 3 → tag on the ORIGINAL recording (edit bars 34–60)
 
-*Level designer's plan for iteration 3. Same method as act 1 (`docs/level/act1_plan.md`): written bar by bar against
-the edit's beat-map lanes (`assets/audio/jim_edit.beatmap.json`), `docs/FUN_RUBRIC.md` and the iteration-2 review's
-act-2 plan (`docs/reviews/iter2.md`). Implemented in `src/level/act2.ts`; joined to act 1 by `src/level/index.ts`.*
+*Level designer's plan, iteration 4 (the rework driven by `docs/reviews/iter3.md` fixes 1, 2, 6 and the act-2 parts of
+8). Implemented in `src/level/act2.ts`; joined to act 1 and act 3 by `src/level/index.ts`. Iteration 3's version is in
+git history (`8dd967a^`).*
 
-## Boundaries (confirmed from `original_edit.md` §3 and the beat map's sections)
+**What changed and why.** Iteration 3's act 2 was act 1 reskinned (launch, stop-time, safe lifts, Hup-Hup-HEY, launch
+into the chorus, goons on the HEYs, lethal lifts, DUCK sign, four giant smashes, in the same order), its "climb" rose
+790 px over 12,300 px of run (a walkway along a wall), and it broke the late-side rule (pits +110…+125 ms, bottles
++70), so an uncalibrated player died 6–11 times in it after a clean act 1. Iteration 4 keeps the rhythm cells and the
+bottles' telegraph and changes the shape:
 
-| Edit bars | Beats | Section (edit) | Song bars |
+- **It climbs.** 0 → 1,620 px in bars 35–41 (fire-escape flights, ledge hops, storey jumps, alleys jumped up, a
+  hoist), up to 1,964 px on the tower's sill by bar 51, then **the chorus drops** ~1,000 px down a cable into the
+  Lanes. The act is a mountain: up the verse, the summit in the stop-time (Big Jim's glint), the plunge on the drop.
+- **One new verb: the HOOK.** Strike ON the beat to hook the cue over a rope / line / cradle and ride it. It is taught
+  safe three times (the hoist 148, the laundry line 178.66, the cradle 188), then tested lethal twice in the chorus
+  (the zip 204, the pinsetter's sweep bar 212). No other new mechanic.
+- **Every set-piece that copied act 1 is gone** (table at the end).
+- **Fair:** every pit ≥ −90/+150 ms, every moving threat ≥ +140 ms late, measured.
+
+## Boundaries
+
+| Edit bars | Beats | Section | Height (px above the street) |
 |---|---|---|---|
-| 34–49 | 132–196 | verse 3 (boogie bass 34–41, stop-time 44–47: `bassOut` 172–174, 178–187) | 63–78 |
-| 50–51 | 196–204 | pre-chorus 3 (HUP 200 · HUP 201 · HEY 202; bass D# pedal, walk-up 200–204) | 79–80 |
-| 52–59 | 204–236 | chorus 3 (HEY 209, 210, 218; hook-A walkdown 228–232) | 81–88 |
-| 60 | 236–240 | tag 3 (fill &3 238.76, &4 239.68, → 240) | 89 |
+| 34 | 132–136 | verse 3: the breath, out the door | 0 |
+| 35–41 | 136–164 | verse 3: THE CLIMB (boogie bass; the peak is bar 41, .93) | 0 → 1,620 |
+| 42–49 | 164–196 | verse 3: the roof + STOP-TIME (bass out 172–174, 178–187), the cradle | 1,620 → 1,864 → 1,924 |
+| 50–51 | 196–204 | pre-chorus 3 (HUP 200 · HUP 201 · HEY 202) | 1,924 → 1,964 (the sill) |
+| 52–59 | 204–236 | chorus 3: THE DROP + the Blacklight Lanes | 1,964 → **950** (the lane deck) |
+| 60 | 236–240 | tag 3 | 950 |
 
-Act 2 ends on **beat 240 = bar 61 beat 1**, the breakdown downbeat (act 3 starts there). Bar *n* starts on beat
-`4(n−1)`; "&" = +0.66.
+Act 2 ends on **beat 240 on the lane deck, h 950** (`ACT2_END`); act 3 starts from `endHeight()` in `index.ts`.
+Checkpoints: **132, 164, 196, 220, 236**. Crowd caps: 16 from bar 36 (the seam's breath lets the crowd glide down
+over bars 34–35), 19 at the pre-chorus (a clean Hup-Hup-HEY earns FULL HOUSE on the zip's downbeat), 24 in the chorus.
 
-## The seam (act 1 → act 2)
+## New pieces
 
-Act 1's `finish` (beat 132) is dropped by `level/index.ts`; its final flash + shake on 132 stays. Act 1's last
-springboard (pad on 131) lands **ON 133** — outside: the ground style flips from the honky-tonk's timber to
-`facade` on 132 (the stage draws the bar's front door there), `setPiece: climb` starts, and Slim is on 42nd Street
-at the foot of the Jimperial with bottles already coming out of the windows. The world x is continuous (one level,
-x = beat × 384). Checkpoints: **132, 164, 196, 220, 236** (every ≤ 8 bars; the tag is one).
+| Piece | Item | Verb | Miss | Window (slack.mjs) |
+|---|---|---|---|---|
+| **Hook ride** (`game/mech/hook.ts`) | `{type:'hook', style:'rope'\|'line'\|'cradle', path}` | X ON its beat: the cue hooks, Slim rides the path (feet heights by x); strikes still work while riding, jumps don't | what's under the path: stairs / ladders (reward: nothing but the tokens) or a pit (death) | −100/+185 ms (grab: press in [−0.3, +0.5] beat) |
+| Fire-escape flight | `Terrain.stairs(a, b, rise)` (floors, ≤ 24 px risers) | none: the 26 px step-up assist walks you up, hands free | — | — |
+| Storey jump | `Terrain.storey(beat, rise)` (`ledge`, hold 1) | – up to 150 px onto the next landing | a tap bonks: the ledge scramble (now ≤ 150 px) pops you up, ~0.5 beat lost | — |
+| Camera framing | `camera` item `ground` (screen-y of the ground line, default 0.66) | — | — | 0.52 on the climb, 0.5 on the cradle, 0.42 on the zip (the drop shows) |
+| Set-piece cues | `facadeReveal` (132: tilt up to the penthouse), `zipDrop` (204: `h` = the drop) + iteration 3's `climb`, `bigJimGlint`, `windowCrash`, `lanes` | — | — | — |
 
-## What the record gives act 2 (lanes)
-
-| Bars | Energy | Lanes the level uses |
-|---|---|---|
-| 34–35 | .49 .44 | `verseBoogie` fig 1: E E B B(D#) · E E **G# A A# B** (137.63, 138, 138.66, 139); snares 133/134/135; fill &4 (135.67) |
-| 36–37 | .70 .51 | fig 2: kick 140, 140.94; the climb 145–147 (G# 145.5, A 145.93, A# 146.5, B 147.04); snare-and 146.77 |
-| 38–39 | .61 .70 | fig 3: kick 148, 148.98; the climb 153.7–155.02; fill &4 155.61 |
-| 40–41 | .63 **.93** | fig 4; **bar 41 = the verse's peak: fill on &1 (160.65), &3 (162.68), 4 (162.96)**, kick-and 161.69 |
-| 42–43 | .74 .57 | A7 (bass on A), kick-and 166.63, 170.6, fill-ish 171.67 |
-| 44–47 | .66 .52 .63 .62 | **stop-time**: bass out 172–174 and 178–187; held notes 174.67, **178.67 (1.33)**, **184.67 (1.33)**; `versePeak` 180 |
-| 48–49 | .56 .66 | **B pedal on every beat** (188–191), A 192–194; held 190.66, 193.67, 195.71 |
-| 50 | .48 | no vocal at all; bass D# pedal (the pre-chorus hush) |
-| 51 | .82 | walk-up E E F# G# → A + **HUP 200 · HUP 201 · HEY 202**; fill &3 202.66, &4 203.64 |
-| 52–57 | .79 .76 .80 .62 .78 .85 | A7 climb each A7 bar (A, C#, D, D#, E); **HEY 209, 210, 218**; held note **222.09 (1.48)** |
-| 58 | .70 | **hook-A walkdown** B A G F# on the quarters, stomps every beat |
-| 59–60 | .51 .65 | E lands 232, hook B; tag fill 238.76, 239.68, 240 |
-
-## New pieces (typed data; runtime `src/game/mech/`, placeholder draws `src/render/mechDraw.ts`)
-
-| Piece | Item | Verb | Miss | Window (measured) | Telegraph |
-|---|---|---|---|---|---|
-| **Thrown bottle** (the act's first MOVING threat) | `{type:'thrown', style:'bottle'}` | X ON its beat: bat it back through the window (4 tokens) | stumble (it clocks you ~95 ms after the beat) | −210/+70 ms | the window lights 1 beat before the throw, a goon leans out; dashed arc + red crosshair on the bat point; whistle 1 beat before |
-| **Firebomb** | `{type:'thrown', style:'firebomb'}` | ∪ ON its beat: it bursts a hop ahead ON the beat, hop the flames | stumble | ≈ spike (±110 ms) | same window + arc, a red ring where it lands |
-| **Ledge hop UP** | `{type:'ledge'}` + floors (`Terrain.up`) | ∪ up a 50 px ledge whose edge is +0.55 beat | reward miss: Slim bonks and **scrambles** up (~0.3 beat lost, no stumble) | −130/+120 ms | the ledge |
-| **Gap jumped UP** | `Terrain.gapUp` | – or ∪ over an alley onto a higher fire escape | death (fall-out) | see the table below | red pit |
-| **Rolling ball** | `{type:'ball'}` | ∪ ON its beat: it passes under the hop's middle | stumble | ≈ spike | rolls in for 3 beats, rumble 1 beat before |
-| Window panes / pins / giant pins | `breakable` looks `window`, `pin`, `giant` | X | tokens | ±200 ms | glint |
-| Cradles / pinsetters | `slam` with `h` (lifts high up the building) | ∪ every beat | cradles: a drop to the balcony (safe) · pinsetters: death | pinsetters −110/+120 ms per hop | clack 1 beat before |
-| Set-piece cues | `{type:'setPiece'}` `climb`, `bigJimGlint`, `windowCrash`, `lanes` | — | — | — | presentation (art) |
-
-Two climb rules live in `mech/index.ts`: **ledge scramble** (a hero stalled against a 27–110 px ledge pops up it after
-0.1 s) and **fall-out** (falling > 420 px below the last ledge = death at once: the pits are high above the street).
-
-### Lethal fits (press-offset windows measured with the real controller, `Terrain` comments)
-
-| Beat | Bar | What | Window |
-|---|---|---|---|
-| 140 | 36 b1 (kick) | alley gap, held jump UP +60 | −130/+170 |
-| 153 | 39 b2 (the figure's kick on 2) | alley gap, held jump UP +80 | −110/+130 |
-| 160, 162 | 41 b1, b3 (the fill) | **block peak**: two gaps hopped UP +50 | −100/+110 each |
-| 200 | 51 b1 (HUP) | gap (tap) | −110/+110 |
-| 208 | 53 b1 (kick) | lane gutter | −110/+110 |
-| 212–214 | 54 (A7) | pinsetters over the gutter (3 hops, counts once) | −110/+120 per hop |
-| 224 | 57 b1 (kick) | **chorus peak** gutter | −100/+110 |
-
-## Economy targets
-
-Reward share ≥ 60 % (verse blocks ≥ 60 %, chorus ≥ 45 %); lethal ≤ 0.5/bar in the verse, ≤ 1 in the chorus, 0 in the
-stop-time block (the valley, C2); every lethal on the kick (beat 1/3), a shout or the fill; stumbles on a drum hit; a
-new element every ≤ 8 bars; strikes ≥ 0.66 beat apart (a strike's active window is 186 ms); **never an air strike
-during the descent of a hop that is followed by a gap on the next beat** (an air strike zeroes the fall and makes
-the next takeoff late — found the hard way at 207.66 → 208). Difficulty: slightly harder than act 1 (sloppy ±85 ms:
-~1 death over the act; ±130: 2–5; ±40: 0), a breather after each peak (42–43 after 41; 59–60 after 57–58).
+Retuned (review fix 2): the thrown bottle keeps flying at you, but a swing inside `BAT.grace` (70 ms) of the moment
+it clips you still bats it (−215/+145, was +70); firebomb flames `FIRE.at` 0.5, hurt core 16×18 px (−100/+145, was
+≈ ±100); balls `BALL.at` 0.5, r 16, 200 px/beat (−90/+145, was −95/+115). The art draws them as big as before.
 
 ## Bar by bar
 
-Legend: **∪** tap hop · **–** held jump · **X** strike · **═** slide. **R** reward, **S** stumble, **L** lethal.
-Heights = px above the street.
+Legend: **∪** tap hop · **–** held jump · **X** strike · **═** slide · **H** hook. **R** reward, **S** stumble,
+**L** lethal. Heights = px above the street after the bar.
 
-### Block 1 — THE CLIMB up the Jimperial's facade (bars 34–41, beats 132–164). Follows: the boogie bass. ◆ 132
-| Bar | Music | Actions | Height / mode | World |
-|---|---|---|---|---|
-| 34 | fig 1, snares 133/134/135 | X 133 R (ground-floor window) · ∪ 134 R (areaway: the pit shape, safe) · X 135 **S (first thrown bottle, bat it on the snare)** · tokens on the fill's & | 0, street | door → facade on 132; hint (1 of 2): bat the bottles |
-| 35 | **the bass climbs G# A A# B** | ∪ 136 R (up) · X 137 R · ∪ 138 R (up, A) · X 138.66 R (A#) · ∪ 139 R (up, B) | 0 → 150, **climb** | camera widens (0.86) |
-| 36 | fig 2, kick 140 | – 140 **L (first alley gap, jumped UP)** · X 141 R (high bottle mid-air) · X 142 R · ∪ 143 **S (first firebomb)** | 150 → 210 | — |
-| 37 | the climb 145–147 | X 144 R · ∪ 145 R (up) · ∪ 146 R (up) · X 146.66 R · ∪ 147 R (up) | 210 → 360 | — |
-| 38 | kick 148 | **LAUNCH 148 → 150** (the counterweight ladder: two storeys) · X 149 R (window mid-flight) · X 150.66 R · ∪ 151 R | 360 → 560, launch | zoom-out 0.8 + punch |
-| 39 | fig 3 climb | X 152 **S (bat)** · – 153 **L (gap UP)** · X 154 R (high, the A) · X 155.66 R (fill &) | 560 → 640 | — |
-| 40 | fig 4 | ∪ 156 R (up) · X 157 **S (bat)** · ∪ 158 **S (firebomb)** · X 159 R · X 159.66 R | 640 → 690 | — |
-| 41 | **PEAK .93, fill &1 &3 4** | ∪ 160 **L (gap UP)** · X 160.66 R (fill &1) · X 161.66 **S (bat, kick-and)** · ∪ 162 **L (gap UP)** · X 162.66 R (big window, fill &3) | 690 → 790 | shake, flash on the fill |
+### Bar 34 — the breath (132–136). ◆ 132
+Act 1's last launch lands ON 133 outside the honky-tonk's front door. **Nothing hurts.** X 134 R (a ground-floor
+window, the snare) · ∪ 135 R (the basement areaway: the pit shape) · tokens on the fill's "and". `facadeReveal`: the
+camera tilts up the Jimperial to Big Jim's penthouse glinting at the top — the goal. Height 0.
 
-### Block 2 — the roof ledge + STOP-TIME (bars 42–49, beats 164–196). Follows: the vocal, then the bass. ◆ 164
-| Bar | Music | Actions | Height / mode | World |
-|---|---|---|---|---|
-| 42 | A7 (after the peak) | swung token row · – 166 R | 790, ledges | breather |
-| 43 | kick-and 170.6 | X 169 R (swinging neon letter) · ∪ 170 R · X 170.66 R | 790 | — |
-| 44 | **stop-time: bass out** | X 172 R (**big pane**) · rest · X 174 R (big pane) · ∪ 175 R | 790 | bgPulse on each hit: *your hit is the sound* |
-| 45 | held note 178.67 | X 176 R (big pane) · X 177.66 **S (bat, snare-and)** · ═ 178.66 **S (knee-slide under a window-washer's plank)** | 790 | — |
-| 46 | **versePeak 180** | ∪ 180 R (pop out) · X 181 R (big pane) · X 183 R (big pane) | 790 | **BIG JIM's first glint** in a penthouse window (setPiece 180, 4 beats), flash + zoom 0.84 |
-| 47 | held note 184.67 | X 184 R · – 184.66 R (held jump over a recessed balcony, safe) · X 187 **S (bat)** | 790 | — |
-| 48 | **B pedal, every beat** | ∪ 188 · ∪ 189 · ∪ 190 R (**window-washer cradles**, safe over a balcony) · X 191 R | 790, cradles | clack 1 beat before |
-| 49 | A, held 193.67 | ∪ 192 R (up) · X 193 **S (bat)** · ∪ 194 **S (firebomb)** · X 194.66 R · X 195.66 R | 790 → 840 | — |
-
-### Pre-chorus 3 (bars 50–51, beats 196–204). Follows: the shouts. ◆ 196
-| Bar | Music | Actions | Height | World |
-|---|---|---|---|---|
-| 50 | **no vocal**, D# pedal (.48) | ∪ 196 R · X 197 R · ∪ 198 R (up) · X 199 R | 840 → 890 | the hush before |
-| 51 | **HUP 200 · HUP 201 · HEY 202**, walk-up, fill &4 | ∪ 200 **L (gap)** · ∪ 201 **S (firebomb)** · X 202 **S (the goon in front of the big window)** = **Hup-Hup-HEY → the HEAVE sends him THROUGH the glass** · X 203.66 R (shards) | 890 | setPiece windowCrash, flash + shake; ground → `lanes` at 202.5 |
-
-### Chorus 3 — the BLACKLIGHT LANES (bars 52–59, beats 204–236). Follows: the kick, then the shouts. ◆ 220
-| Bar | Music | Actions | Height / mode | World |
-|---|---|---|---|---|
-| 52 | A7 climb, A on the downbeat | **LAUNCH 204 → 206** · X 205 R (pin mid-air) · X 206.66 R (pin, D#) · ∪ 207 **S (first ball, on the E)** | 890 → 950, lanes | zoom 0.8, flash + shake; hint (2 of 2): hop the balls |
-| 53 | E7, **HEY 209, 210** | ∪ 208 **L (gutter)** · X 209 **S** · X 210 **S** (**a Bluffer PAIR on the HEY HEY**) · X 211 R · X 211.66 R | 950 | flash on each HEY |
-| 54 | A7 | ∪ 212 · ∪ 213 · ∪ 214 **L (PINSETTERS slam on the beat over the gutter)** · X 215 R (E) | pinsetters | — |
-| 55 | E7, **HEY 218** | ∪ 216 **S (ball)** · X 217 R · X 218 **S (Bluffer on the HEY)** · ∪ 219 **S (ball)** | lanes | flash 218 |
-| 56 | A7, **held 222.09** | X 220 R · X 221 R · ═ 222 **S (SLICK RUN: knee-slide under the pinsetter bar)** · X 223.66 R | slick-run | ◆ 220 |
-| 57 | A7 **.85 = the chorus peak** | ∪ 224 **L (peak gutter)** · X 225 **S (Bluffer)** · ∪ 226 **S (ball)** · X 226.66 R | lanes | shake |
-| 58 | **hook-A walkdown** B A G F# | X 228 · X 229 · X 230 · X 231 R (**four GIANT pins**, everyone slams) | lanes | shake on every quarter, zoom 0.76 |
-| 59 | E lands, hook B | ∪ 232 R · X 233 R · ∪ 234 S (ball) · X 235 R | lanes | the breath; flash 232 |
-
-### Tag 3 (bar 60, beats 236–240). ◆ 236
-| Bar | Music | Actions | World |
+### Block 1 — THE CLIMB (bars 35–41, 136–164). Follows: the boogie bass. Hop-led (14 hops, 3 jumps, 8 strikes)
+| Bar | Music | Actions | Height |
 |---|---|---|---|
-| 60 | tag, fill &3 &4 → 240 | ∪ 236 R · X 237 R · ∪ 238 R · X 238.66 R · X 239.66 R (big pin) → **finish 240** (flash + shake) | the breakdown downbeat is act 3's start |
+| 35 | E E **G# A A# B** (the climbing notes on the "and"s) | ∪ 136 R up onto the fire escape · a flight walks you up · ∪ 137.66 R up (G#) · ∪ 138.66 R up (A) · X 139.66 R (B, a window) | 0 → 324 |
+| 36 | fig 2, kick 140 (.70) | **– 140 L the first alley, jumped UP a storey** · X 142 **S the first thrown bottle** (hint) · a flight on 3–4, tokens on the fill | → 602 |
+| 37 | the climb 145–147 (.51) | ∪ 144 R up · **– 145 R a storey jump** (held; a tap scrambles) · ∪ 147 R up (A#) | → 842 |
+| 38 | kick 148 (.61) | **X 148 R H the counterweight rope hoists you two storeys** (the hook's debut; a miss = take the flight under it; hint) · ∪ 150 R (the landing) · ∪ 151 R up | → 1,190 |
+| 39 | the climb 153.7–155 (.70) | ∪ 152 R · ∪ 153 R up (E) · **– 154 L the second alley UP on the A (the boom)** · X 155 R high bottle mid-air · a flight | → 1,420 |
+| 40 | fig 4 (.63) | ∪ 156 R up · a flight · ∪ 158 **S the firebomb** · X 159 R | → 1,540 |
+| 41 | **PEAK .93**, fill &1 &3 4 | **∪ 160 L gap UP** · X 160.66 R (fill &1) · **∪ 162 L gap UP** · X 162.66 R big window (fill &3), shake + flash | → 1,620 |
+
+Thinned from iteration 3's 5 threats in bars 40–41 (the Burn loop) to 1 stumble + the 2 peak gaps.
+
+### Block 2 — the ROOF + STOP-TIME (bars 42–49, 164–196). Follows: the vocal, then the bass. The valley. ◆ 164
+| Bar | Music | Actions | Height |
+|---|---|---|---|
+| 42 | A7, after the peak | ∪ 164 R onto the roof · tokens · – 166 R through tokens | 1,620 |
+| 43 | kick-and 170.6 | X 169 R a swinging neon letter · ∪ 170 R · tokens | |
+| 44 | **stop-time** | X 172 R big neon · rest · X 174 R big neon · ∪ 175 R — your hit is the sound | |
+| 45 | held note 178.67 | X 176 R big · **X 178.66 R H the laundry line, hooked ON the held note: glide over the light well** (a miss drops you 60 px: scramble out) | |
+| 46 | **versePeak 180** | `bigJimGlint` (flash, zoom 0.8) · X 181 R · ∪ 182 R · X 183 R | |
+| 47 | held note 184.67 | – 184.66 R over a recessed balcony · X 187 **S bat** | |
+| 48 | **B pedal (every beat)** | **X 188 R H the window-washer's CRADLE: +80 on each B (188, 189, 190)** · X 190.66 R a pane on the way up (miss the rope: two 120 px ladders, scramble) | → 1,864 |
+| 49 | A, held 195.71 | ∪ 192 R up · ∪ 193 **S firebomb** · X 194 **S bat** · X 195.66 R | → 1,924 |
+
+### Pre-chorus 3 (bars 50–51, 196–204). Follows: the shouts. ◆ 196
+| Bar | Music | Actions |
+|---|---|---|
+| 50 | no vocal, the D# pedal (.48): the hush | ∪ 196 R · X 197 R · ∪ 198 R · X 199.66 R — the Lanes' window glows far below |
+| 51 | **HUP 200 · HUP 201 · HEY 202**, fill &3 &4 | **∪ 200 L hop UP to the sill across a gap** · X 201 **S bat** · X 202 **S the goon: the HEAVE sends him across the light well THROUGH the Lanes' window** (`windowCrash`) · ∪ 203 R through the falling glass. Hands `0∪ 1X 2X` (act 1's were `0∪ 1∪ 2X`) |
+
+### Chorus 3 — THE DROP + the BLACKLIGHT LANES (bars 52–59, 204–236). Follows: the kick, then the shouts. ◆ 220
+| Bar | Music | Actions |
+|---|---|---|
+| 52 | A7, the drop (.79) | **X 204 L H THE ZIP: hook the cable on the chorus downbeat and plunge ~1,000 px** through the smashed window (`zipDrop`, camera ground 0.42) · X 205 R, X 206 R neon letters smashed on the way down · lands 206.6 on the lane deck · X 207 R pin |
+| 53 | E7, **HEY 209 · HEY 210** | ∪ 208 L gutter (std fit) · X 209 **S** · X 210 **S** — ball-return POPS batted back down the lane on the HEYs · ∪ 211 R |
+| 54 | A7 (.80) | **X 212 L H hook the pinsetter's sweep bar over the pit** · X 213 R, X 213.66 R racks smashed mid-ride · ∪ 215 **S ball** (hint) |
+| 55 | E7, **HEY 218** | ∪ 216 R · ∪ 217 **S ball** · X 218 **S** the goon bowler on the HEY · X 219 R pin |
+| 56 | A7, held 222.09 | ∪ 220 R · X 221 R · **═ 222 S the slick run**: knee-slide down the oiled lane under the sweep bar on the held note · X 223.66 R |
+| 57 | A7 **.85 = the chorus peak** | **∪ 224 L the peak gutter** · X 225 **S** goon · X 226 R pin on the ball return as it fires: **the ball-return launch** onto the pinsetter catwalk · X 227 R pin mid-flight |
+| 58 | **hook-A walkdown B A G F#** | the walkdown walked DOWN the catwalk: **∪ 228 L hop down over a pinsetter pit (B)** · X 229 R giant rack STRIKE! (A) · **∪ 230 L hop down (G)** · X 231 R giant rack SPARE! (F#) |
+| 59 | E lands 232, hook B (.51) | ∪ 232 R · ∪ 233 R · ∪ 234 **S ball** · X 235 R pin — the breath |
+
+### Tag 3 (bar 60, 236–240). ◆ 236
+∪ 236 R · ∪ 237 R · ∪ 238 R · X 238.66 R (fill &3) · X 239.66 R big pin (fill &4) → act 3 on 240 (flash + shake).
+
+## Lethal fits (press-offset windows, `node playtest/slack.mjs --level=src/level/act2.ts#act2Level --stumbles`)
+
+| Beat | What | Window | | Beat | What | Window |
+|---|---|---|---|---|---|---|
+| 140 | alley UP (held, +110) | −220/+235 | | 208 | gutter (std) | −115/+150 |
+| 154 | alley UP (held, +110) | −195/+230 | | 212 | hook: the sweep bar | −105/+185 |
+| 160, 162 | gaps UP (tap, +40) | −150/+155 | | 224 | peak gutter | −90/+155 |
+| 200 | gap UP to the sill (tap) | −145/+150 | | 228, 230 | walkdown pits (down 60) | −205/+155, −100/+155 |
+| 204 | hook: THE ZIP | −100/+185 | | | | |
+
+Moving threats: bottles −210…−275/+145, firebombs −100…−270/+145…+150, balls −90…−195/+140…+145.
+
+## Iteration 3 → 4: what replaced the reskins
+
+| Iteration 3 (= act 1 again) | Iteration 4 |
+|---|---|
+| counterweight LAUNCH (38) | the counterweight ROPE: X hooks it, it hoists you (the hook's debut) |
+| DUCK sign knee-slide (45) | the laundry line hooked on the held note |
+| safe cradle LIFTS (48) | the cradle HOIST, one step per B on the B pedal |
+| Hup-Hup-HEY `0∪ 1∪ 2X` into a goon (51) | `0∪ 1X 2X`: hop up to the sill, bat, Heave him through a window across the well |
+| launch into the chorus (52) | THE ZIP down 1,000 px on the chorus downbeat |
+| Bluffers on HEY HEY (53) | ball-return pops batted on the HEYs |
+| lethal pinsetter LIFTS (54) | the sweep-bar hook over the pinsetter pit (with strikes mid-ride) |
+| four giant pins XXXX (58) | the walkdown walked DOWN: ∪ X ∪ X over two pits |
+
+Kept: the thrown bottles (retuned), stop-time big hits, Big Jim's glint, the slick run (the act's one slide), balls.
 
 ## Checks
 
-- `npm run rubric -- --level=src/level/index.ts#gameLevel --bars=34-60 --reports=<act-2 bot dirs>` (the new `--bars`
-  option judges one act inside the whole level; novelty still sees act 1).
-- Autoplay from the cold open through bar 60: 0 deaths, every action executed on time.
-- Bots from the act-2 checkpoint (`--start=132`): sloppy ×5, ±130 ×3, ±40.
+- `node playtest/slack.mjs --level=src/level/act2.ts#act2Level --stumbles` (every window above; `--why` explains a
+  death, `--trace=a,b` prints the hero's path).
+- `npm run rubric -- --level=src/level/index.ts#gameLevel --bars=34-60 --reports=<act-2 bot dirs>` and `--bars=1-60`.
+- Autoplay from 132: 0 deaths, every action on time; bots from 132 (`--start=132`).
 
-## As shipped (iteration 3)
-
-See `docs/ITERATIONS.md` → "Iteration 3 — act 2 notes" for the measured numbers.
+Measured results: `docs/ITERATIONS.md` → "Iteration 4 — act 2 notes".

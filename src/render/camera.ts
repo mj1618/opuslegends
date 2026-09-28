@@ -32,6 +32,8 @@ export class Camera {
   momentZoom = 0;
   /** render-only vertical offset (world px, negative = look up) for set-piece moments (the launch's city reveal) */
   momentY = 0;
+  /** the hero's ground line as a screen-y fraction (level `camera` cues' `ground`, set by Game each frame; act 2's climb) */
+  groundFrac = Tun.camera.groundFraction;
   trauma = 0;
   private lead = 1;
   private t = 0;
@@ -57,7 +59,7 @@ export class Camera {
   }
 
   private targetYForGround(gy: number): number {
-    return gy - (Tun.camera.groundFraction - 0.5) * (VIEW_H / this.frameZoom);
+    return gy - (this.groundFrac - 0.5) * (VIEW_H / this.frameZoom);
   }
 
   /**

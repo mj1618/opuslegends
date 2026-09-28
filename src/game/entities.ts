@@ -153,6 +153,8 @@ export interface CameraCue {
   beat: number;
   zoom: number;
   beats: number;
+  /** ground line screen-y fraction from this cue on (undefined = keep the previous) */
+  ground?: number;
 }
 
 export interface SkyCue {

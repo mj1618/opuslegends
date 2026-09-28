@@ -20,8 +20,8 @@
 import type { HookStyle } from '../../level/types';
 
 export const HOOK = {
-  /** grab window around the hook's beat (beats): press up to `early` before / `late` after */
-  early: 0.3,
+  /** grab window around the hook's beat (beats): press up to `early` before / `late` after (≈ −130/+185 ms measured) */
+  early: 0.38,
   late: 0.5,
   /** hands (the line) above the feet while hanging (px) — presentation */
   hang: 150,

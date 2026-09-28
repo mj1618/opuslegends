@@ -201,7 +201,7 @@ T.stairs(bar(35, 1) + 0.7, bar(35, 2) + 0.45, 144); // 204
 T.up(and(bar(35, 2)), 60); // 264
 T.up(and(bar(35, 3)), 60); // 324
 // bar 36: the first ALLEY, jumped UP a storey on the kick (held); a flight after the snare
-T.gapUp(bar(36, 1), [0.3, 1.25], 110); // 434
+T.gapUp(bar(36, 1), [0.3, 1.45], 110); // 434
 T.stairs(bar(36, 3) + 0.4, bar(36, 4) + 0.4, 168); // 602
 // bar 37: a hop up on the E, a STOREY jump (held) on the A, a hop up on the A#
 T.up(bar(37, 1), 60); // 662
@@ -214,14 +214,14 @@ T.stairs(bar(38, 1) + 0.35, bar(38, 2) + 0.55, 288); // 1130
 T.up(bar(38, 4), 60); // 1190
 // bar 39: up on the E (153), the second ALLEY jumped UP on the A (154, the boom)
 T.up(bar(39, 2), 60); // 1250
-T.gapUp(bar(39, 3), [0.3, 1.25], 110); // 1360
+T.gapUp(bar(39, 3), [0.3, 1.54], 110); // 1360
 T.stairs(bar(39, 4) + 0.6, bar(40, 1) - 0.05, 60); // 1420
 // bar 40: up on the E, a flight, the firebomb on the landing (158)
 T.up(bar(40, 1), 60); // 1480
 T.stairs(bar(40, 1) + 0.7, bar(40, 2) + 0.7, 60); // 1540
 // bar 41: THE PEAK — two gaps hopped UP on the fill (160, 162)
-T.gapUp(bar(41, 1), [0.09, 0.55], 40, TAP); // 1580
-T.gapUp(bar(41, 3), [0.09, 0.55], 40, TAP); // 1620 = the roof
+T.gapUp(bar(41, 1), [0.09, 0.7], 40, TAP); // 1580
+T.gapUp(bar(41, 3), [0.09, 0.7], 40, TAP); // 1620 = the roof
 const H_ROOF = T.h;
 // bars 42-47 on the roof. bar 42: a held jump over a vent (flat). bar 45: the laundry line over a light well (safe:
 // 60 px down, scramble out) on the held note 178.66
@@ -235,20 +235,20 @@ T.set(bar(48, 4) + 0.2, CRADLE0 + 240); // 1860 (ladder 2) = the tower ledge
 // bar 49: up on the kick
 T.up(bar(49, 1), 60); // 1920
 // bar 51: HUP = a hop UP to the big window's sill across a gap (the kick)
-T.gapUp(bar(51, 1), [0.09, 0.55], 40, TAP); // 1960 = the sill
+T.gapUp(bar(51, 1), [0.09, 0.68], 40, TAP); // 1960 = the sill
 const H_SILL = T.h;
 // bar 52: THE DROP — the cable from the sill down to the Lanes' window (hookRide): the light well below is lethal
 T.pit(bar(52, 1) + 0.6, bar(52, 3) + 0.5, H_LANES);
 // bar 53: a gutter on the kick
-T.gapUp(bar(53, 1), [0.09, 0.75], 0, TAP);
+T.gapUp(bar(53, 1), [0.09, 0.8], 0, TAP);
 // bar 54: the pinsetter pit under the sweep bar (the hook ride carries the action)
 T.pit(bar(54, 1) + 0.55, bar(54, 3) + 0.7);
-// bar 57: the peak gutter on the kick, then the ball-return launch (227) lands ON 228 on the pinsetter catwalk
+// bar 57: the peak gutter on the kick, then the ball-return launch (226) onto the pinsetter catwalk
 T.gapUp(bar(57, 1), [0.09, 0.8], 0, TAP);
 T.set(bar(57, 4) + 0.6, H_LANES + 120); // the catwalk (+120): the ball-return launch (226) lands on it at 227.85
 // bar 58: the WALKDOWN walked DOWN the catwalk: hop down a tier over a pinsetter pit on the B (228) and the G (230)
-T.gapUp(bar(58, 1), [0.09, 0.95], -60, TAP); // 1010
-T.gapUp(bar(58, 3), [0.09, 0.95], -60, TAP); // 950
+T.gapUp(bar(58, 1), [0.09, 1.05], -60, TAP); // 1010
+T.gapUp(bar(58, 3), [0.09, 0.9], -60, TAP); // 950
 const terrain = T.end(bar(61) + 40);
 const floorAt = (b: number) => T.hAt(b);
 
@@ -267,7 +267,8 @@ export const act2Items: LevelItem[] = [
   mode(bar(34), 'street'),
   follows(bar(34), 'bassWalks'),
   label(bar(34), 'VERSE 3 — the Jimperial'),
-  { type: 'camera', beat: bar(34), zoom: 0.84, beats: 2 },
+  // camera `ground` = the hero's ground line on screen (default 0.66): the climb frames him HIGH so the street drops away
+  { type: 'camera', beat: bar(34), zoom: 0.84, beats: 2, ground: 0.62 },
   // ---- bar 34: act 1's last launch lands ON 133 on 42nd Street; a ground-floor window on the snare, a hop over the
   // basement areaway on 4, tokens on the fill's "and". Nothing hurts: look up.
   pane(bar(34, 2)),
@@ -278,7 +279,7 @@ export const act2Items: LevelItem[] = [
   // ================================================================ bars 35-41 — THE CLIMB. Follows: the boogie bass
   // ---- bar 35: up onto the fire escape on the kick, a FLIGHT walks you up, the boogie's climbing notes G# (137.63)
   // and A (138.66) are hops UP on the "and"s, a window on the B (139.68)
-  { type: 'camera', beat: bar(35, 1), zoom: 0.86, beats: 4 },
+  { type: 'camera', beat: bar(35, 1), zoom: 0.86, beats: 4, ground: 0.52 },
   mode(bar(35, 1), 'climb'),
   lumRowSwung(bar(35, 1) + 0.9, bar(35, 2) + 0.4, 70), // tokens up the flight
   pane(and(bar(35, 4))),
@@ -329,7 +330,7 @@ export const act2Items: LevelItem[] = [
 
   // ================================================================ BLOCK 2 — the ROOF + STOP-TIME (bars 42-49) ◆ 164
   { type: 'checkpoint', beat: bar(42) },
-  { type: 'camera', beat: bar(42), zoom: 0.9, beats: 4 },
+  { type: 'camera', beat: bar(42), zoom: 0.9, beats: 4, ground: 0.58 },
   mode(bar(42), 'roof'),
   follows(bar(42), 'vocal'),
   label(bar(42), 'THE ROOF'),
@@ -383,6 +384,7 @@ export const act2Items: LevelItem[] = [
   // ---- bar 48: the B pedal (the bass on every beat): strike the WINDOW-WASHER CRADLE's rope on 188 and it hoists you
   // up the tower one step per B (188, 189, 190), a pane smashed on the way up (the held note 190.66)
   mode(bar(48, 1), 'cradle'),
+  { type: 'camera', beat: bar(48, 1), zoom: 0.86, beats: 3, ground: 0.5 },
   follows(bar(48, 1), 'bass'),
   ...hookRide(
     bar(48, 1),
@@ -412,7 +414,7 @@ export const act2Items: LevelItem[] = [
   { type: 'crowd', beat: bar(50), cap: 19 },
   follows(bar(50), 'shouts'),
   label(bar(50), 'PRE-CHORUS — HUP HUP HEY'),
-  { type: 'camera', beat: bar(50), zoom: 0.84, beats: 4 },
+  { type: 'camera', beat: bar(50), zoom: 0.84, beats: 4, ground: 0.55 },
   // ---- bar 50: no vocal, the bass sits on the D#: the hush — a hop, panes, the lanes' window glowing far below
   ...tokenHop(bar(50, 1)),
   pane(bar(50, 2)),
@@ -454,25 +456,24 @@ export const act2Items: LevelItem[] = [
   { type: 'breakable', beat: bar(52, 2), h: -110, look: 'neon', action: { type: 'strike', beat: bar(52, 2) } },
   { type: 'breakable', beat: bar(52, 3), h: -620, look: 'neon', action: { type: 'strike', beat: bar(52, 3) } },
   mode(bar(52, 1), 'zip'),
-  { type: 'camera', beat: bar(52, 1), zoom: 0.76, beats: 1 },
+  { type: 'camera', beat: bar(52, 1), zoom: 0.76, beats: 1, ground: 0.42 },
   fx(bar(52, 1), 'flash', 0.6),
   fx(bar(52, 1), 'shake', 0.4),
   { type: 'ground', beat: bar(52, 3) + 0.3, style: 'lanes' },
   setPiece(bar(52, 3), 'lanes', 34),
   mode(bar(52, 3), 'lanes'),
   fx(bar(52, 3) + 0.6, 'shake', 0.5),
-  { type: 'camera', beat: bar(52, 3), zoom: 0.82, beats: 2 },
+  { type: 'camera', beat: bar(52, 3), zoom: 0.82, beats: 2, ground: 0.66 },
   pin(bar(52, 4)),
   // ---- bar 53 (E7): a gutter on the kick, the record's HEY HEY (209, 210) = two BALL-RETURN POPS batted back down the
   // lane, a hop through tokens on 4 (no ball: five threat beats in a row otherwise)
-  hint(bar(52, 4), 'Bowling balls roll down the lanes — HOP them on the beat!', 5),
   batBottle(bar(53, 2)),
   batBottle(bar(53, 3)),
   fx(bar(53, 2), 'flash', 0.4),
   fx(bar(53, 3), 'flash', 0.4),
   ...tokenHop(bar(53, 4)),
   // ---- bar 54 (A7): hook the PINSETTER's sweep bar on the kick (lethal: the pinsetter pit) and ride it over, smashing a
-  // rack of pins mid-ride on the snare; drop off on 3, a ball on the E (215)
+  // rack of pins mid-ride on the snare; drop off on 3, a hop on the E (215)
   mode(bar(54, 1), 'sweep'),
   ...hookRide(
     bar(54, 1),
@@ -487,13 +488,15 @@ export const act2Items: LevelItem[] = [
     floorAt,
   ),
   bottleHigh(bar(54, 2), 'pin', 160),
+  hint(bar(54, 3), 'Bowling balls roll down the lanes — HOP them on the beat!', 4),
   bottleHigh(and(bar(54, 2)), 'pin', 150),
   mode(bar(54, 3) + 0.75, 'lanes'),
   fx(bar(54, 2), 'bgPulse', 0.6),
-  ...ball(bar(54, 4)),
-  // ---- bar 55 (E7, HEY 218): a hop on the kick, a ball on the snare, the goon bowler on the HEY, a pin on 4
-  ...tokenHop(bar(55, 1)),
-  ...ball(bar(55, 2)),
+  ...tokenHop(bar(54, 4)),
+  // ---- bar 55 (E7, HEY 218): a ball on the kick, a hop, the goon bowler on the HEY, a pin on 4 (the stumbles 2 beats
+  // apart: two close together feed the Burn a catch)
+  ...ball(bar(55, 1)),
+  ...tokenHop(bar(55, 2)),
   jabber(bar(55, 3)),
   fx(bar(55, 3), 'flash', 0.4),
   pin(bar(55, 4)),

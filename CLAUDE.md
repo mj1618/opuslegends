@@ -158,7 +158,15 @@ narrower lift tops, `giantKeg` (walkdown: 2x, 80 ms hitstop), high breakables in
 `setPiece` items ('bigLaunch', 'chorusShot', 'walkdown', act 2's names) for the art/audio.
 **`node playtest/slack.mjs`** measures every lethal action's timing window with the real controller (headless,
 ~2 s), checks every strike target is reachable on its beat and every hop leaves the ground on its beat, and
-predicts deaths per bot profile — run it after any geometry change, then confirm with real bots.
+predicts deaths per bot profile — run it after any geometry change, then confirm with real bots. It runs the act-2
+mechanics too (`game/mech`: bottles, balls, hooks, scramble, fall-out); `--stumbles` sweeps every moving threat and
+hook ride, `--why` says why a run died, `--trace=a,b` prints the hero's path.
+**Act 2 (iteration 4, `docs/level/act2_plan.md`):** the level climbs — `Terrain` in `act2.ts` builds fire-escape
+flights (≤ 24 px risers: the 26 px step-up assist walks you up), storey jumps (held, ≤ 150 px: a tap scrambles) and
+alleys jumped UP; `camera` items take `ground` (the ground line's screen-y, default 0.66; the climb frames at 0.52 so
+the street drops away; `cameraGroundAt`). The act's new verb is the **HOOK RIDE** (`hook` item, `game/mech/hook.ts`):
+strike ON the beat to hook a rope / line / cradle and ride its feet `path`; `game.mech.hook` is the ride in progress.
+Fairness rule for act 2 (and on): pits ≥ −85/+150 ms, moving threats (bottles: `BAT.grace`, firebombs, balls) ≥ +130.
 **Internal names are neutral mechanics** (the skin keeps changing): lum (token), pendulum (swinging
 target, strike at the bottom of its 1-bar swing), spike (stumble hazard), gap (lethal pit), slam
 platform (solid from the beat to the swung "and"), jabber (enemy: bows on the "and", jabs on the beat),
@@ -197,9 +205,10 @@ src/
            build.ts       LevelDef → RuntimeLevel (collision, entities, action markers, slamState, cues)
            slice.ts       THE LEVEL: act 1 on the edit's grid (bar n = beat 4(n-1)): cold open + bars 1-33
                           (intro, verse 1 on the rooftops, honky-tonk, chorus 1, tag, turnaround). Plan: docs/level/act1_plan.md
-           act2.ts        act 2, bars 34-60 (beats 132-240): the climb up the Jimperial's facade on the boogie bass (ledge
-                          hops UP, gaps jumped UP, thrown bottles/firebombs), stop-time + Big Jim's glint, the Heave through
-                          the window, the Blacklight Lanes chorus (balls, pins, pinsetters). Plan: docs/level/act2_plan.md
+           act2.ts        act 2, bars 34-60 (beats 132-240): the climb 0 → 1,620 px up the Jimperial on the boogie bass
+                          (flights, ledge hops, storey jumps, alleys jumped UP, the rope hoist), the roof + stop-time (the
+                          laundry-line hook, Big Jim's glint, the cradle hoist), the Heave across the well, THE DROP (a
+                          1,000 px zip on the chorus downbeat) into the Blacklight Lanes. Plan: docs/level/act2_plan.md
            index.ts       gameLevel = act 1 + act 2 on one world x (THE level Game plays; the act seam lives here)
   game/    game.ts        owns everything: frame loop, time model, run flow (cold open → count-in → run →
                           stumble / death → checkpoint rewind → finish), mechanics, interactions, report
@@ -209,7 +218,8 @@ src/
            events.ts      typed gameplay → presentation event bus (grades, combo, crowd, the Burn, set-pieces)
            stats.ts       timing/frame stats         entities.ts  runtime records   jumpProfile.ts  jump arcs
            mech/          act-2 mechanics from level items the builder doesn't know: thrownBottle.ts, rollingBall.ts,
-                          index.ts (Mechanics: step/reset/beat telegraphs, set-piece cues, ledge scramble, fall-out)
+                          hook.ts (hook rides), index.ts (Mechanics: step/reset/beat telegraphs, set-piece cues, hook rides,
+                          ledge scramble ≤ 150 px, fall-out)
   render/  renderer.ts    frame orchestration (read-only on game state)      camera.ts  follow, shake, zoom punch,
                           FRAMING (render-only zoom x1.14 so Slim is ~155 px at 1080p, lead 0.25), musicZoom/hitZoom
            music.ts       MusicFeed: song lanes (kick/snare/fills/hooks/shouts/energy...) + sections -> art BeatInfo

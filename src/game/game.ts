@@ -35,7 +35,7 @@ import { Controls, Input, type InputEdge } from '../engine/input';
 import { clamp, overlaps, type Rect } from '../engine/math';
 import { params } from '../engine/params';
 import { Ease, TweenManager } from '../engine/tween';
-import { BOUNCE, JABBER, type RuntimeLevel, buildLevel, cameraZoomAt, crowdCapAt, launchVelocity, slamState } from '../level/build';
+import { BOUNCE, JABBER, type RuntimeLevel, buildLevel, cameraGroundAt, cameraZoomAt, crowdCapAt, launchVelocity, slamState } from '../level/build';
 import { gameLevel } from '../level/index';
 import type { LevelDef } from '../level/types';
 import { Background } from '../render/background';
@@ -613,6 +613,7 @@ export class Game {
     const ix = p.px + (p.x - p.px) * this.alpha;
     const iy = p.py + (p.y - p.py) * this.alpha;
     if (this.scene === 'play') this.camera.zoom = cameraZoomAt(this.level, this.conductor.playing ? this.conductor.beat : this.spawnBeat, Tun.camera.zoom);
+    if (this.scene === 'play') this.camera.groundFrac = cameraGroundAt(this.level, this.conductor.playing ? this.conductor.beat : this.spawnBeat, Tun.camera.groundFraction);
     this.camera.beatZoom = this.scene === 'play' && this.conductor.playing ? Tun.camera.barZoomPulse * this.groove.pulse(4, 0.35) : 0;
     this.camera.update(presDt, ix, iy, p.h, p.groundY, p.vx / p.maxSpeed, p.mode === 'dead');
 

@@ -428,7 +428,7 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
         fx.push({ beat: it.beat, fx: it.fx, amount: it.amount ?? 1 });
         break;
       case 'camera':
-        cameraCues.push({ beat: it.beat, zoom: it.zoom, beats: it.beats ?? 4 });
+        cameraCues.push({ beat: it.beat, zoom: it.zoom, beats: it.beats ?? 4, ground: it.ground });
         break;
       case 'sky':
         skyCues.push({ beat: it.beat, preset: it.preset });
@@ -526,6 +526,19 @@ export function cameraZoomAt(L: RuntimeLevel, beat: number, base: number): numbe
     z = z + (c.zoom - z) * e;
   }
   return z;
+}
+
+/** The hero's ground line (screen-y fraction) the level asks for at `beat` (eased between `ground` cues; act 2's climb). */
+export function cameraGroundAt(L: RuntimeLevel, beat: number, base: number): number {
+  let g = base;
+  for (const c of L.cameraCues) {
+    if (beat < c.beat) break;
+    if (c.ground === undefined) continue;
+    const k = Math.min(1, (beat - c.beat) / Math.max(0.001, c.beats));
+    const e = k * k * (3 - 2 * k);
+    g = g + (c.ground - g) * e;
+  }
+  return g;
 }
 
 /** Ground look at world beat position `beat` (default street). */

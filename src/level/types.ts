@@ -115,7 +115,12 @@ export type LevelItem =
   /** presentation cue fired when the song reaches `beat` */
   | { type: 'fx'; beat: number; fx: FxKind; amount?: number }
   /** camera zoom change, eased over `beats` starting at `beat` */
-  | { type: 'camera'; beat: number; zoom: number; beats?: number }
+  /**
+   * `ground` (iteration 4, act 2's climb): the hero's ground line as a screen-y fraction from this cue on (default
+   * Tun.camera.groundFraction 0.66; eased like the zoom). Lower = the ground sits higher on screen and more of the
+   * world BELOW shows (the street dropping away on the climb, the zip's plunge); a cue without it keeps the last one
+   */
+  | { type: 'camera'; beat: number; zoom: number; beats?: number; ground?: number }
   /** lighting preset from `beat` (cross-fades over 2 bars) */
   | { type: 'sky'; beat: number; preset: SkyPreset }
   /** ground look from `beat` on (by world x) */
