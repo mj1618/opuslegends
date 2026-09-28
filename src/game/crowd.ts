@@ -1,7 +1,9 @@
 /**
  * The crowd (DESIGN §4 "choir"): the streak meter AND the music reward.
  *   +1 member per Good-or-better action, +3 for a complete on-grid Hup-Hup-HEY, cap 24, floor 3
- *   (the three members woken in the cold open). A stumble costs 25%.
+ *   (the three members woken in the cold open). A stumble costs 25%, a missed target 1.
+ *   The level caps it per section (`crowd` items → RuntimeLevel.crowdCaps; e.g. 10 intro, 16 verse,
+ *   19 pre-chorus, 24 chorus) so FULL HOUSE only happens in the chorus.
  * Music hook: `onChange` fires with the new count; Game maps it to stem gains
  * (shouts -6 dB at 0 -> full at >= 12; BIG CATCH bonus stem at >= 20).
  * Presentation: the theatre audience at the bottom of the frame — `count` of them are on their feet.
@@ -33,9 +35,21 @@ export class Crowd {
     this.set(Tun.crowd.start);
   }
 
+  /**
+   * Section cap (level `crowd` items): the meter can't pass it, so FULL HOUSE (bigCatchAt) is kept
+   * for the chorus. Lowering it below the count pulls the count down with it.
+   */
+  cap: number = Tun.crowd.max;
+
+  setCap(cap: number): void {
+    if (cap === this.cap) return;
+    this.cap = cap;
+    if (this.count > cap) this.set(cap);
+  }
+
   set(n: number): void {
     const C = Tun.crowd;
-    const v = Math.max(this.awake ? C.min : 0, Math.min(C.max, Math.round(n)));
+    const v = Math.max(this.awake ? C.min : 0, Math.min(C.max, this.cap, Math.round(n)));
     this.lastDelta = v - this.count;
     if (v !== this.count) {
       this.count = v;

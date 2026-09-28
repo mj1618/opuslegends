@@ -12,10 +12,25 @@
  *   slamRun(72,2)   hop from the ledge ON 71, then ON every beat; platforms slam on 72, 73;
  *                   far ledge at 74. Holds up with ~±90 ms of press jitter  (death if missed)
  *   hupHupHey(124)  hop 124 (spike), hop 125 (spike), STRIKE 126 (jabber/float) = Heave
+ *
+ * Iteration 2 (reward-first economy, docs/level/act1_plan.md):
+ *   bottle(9)       strike ON 9: a bottle/crate bursts into tokens      (reward, ~±210 ms)
+ *   bottleHigh(35)  same, hung high: only reachable mid-jump / mid-launch
+ *   launch(34, 2, 150)  bounce pad: reach it ON 34, land ON 36 on a 150 px roof (automatic)
+ *   slideUnder(70.66, 1)  hold ↓ from 70.66 for 1 beat under a low sign  (stumble if standing)
+ *   poolHop / poolJump    the safe gap: a shallow puddle (splash, no tokens) — teaches the pit
+ *   slamRunPool(73, 2)    lifts over a pool (safe) — teaches the lift rhythm
+ *   and(b)          the swung "and" after beat b (the record's swing ≈ 0.66)
  */
-import type { IntendedAction, LevelItem } from './types';
+import type { BreakableLook, IntendedAction, LevelItem } from './types';
 
 const TAP = 0.15;
+/** the swung "and" (the recording measures 0.659; the placeholder 0.67) */
+export const SWING_AND = 0.66;
+/** beat of the swung "and" after beat b */
+export const and = (b: number): number => b + SWING_AND;
+/** pools are shallow puddles you can walk out of (Tun.jump.ledgeAssist) — a miss is a splash, not a wall */
+const POOL_DEPTH = 24;
 /** spikes sit under the centre of the tap-hop arc (~0.93 beat airtime): ~±110 ms of timing slack */
 const SPIKE_AT = 0.45;
 
@@ -46,11 +61,11 @@ export function gapJump(beat: number): LevelItem[] {
 
 /** Safe version of a gap: a shallow rock pool (falling in costs time, not a life). */
 export function poolHop(beat: number): LevelItem[] {
-  return [{ type: 'floor', from: beat + 0.22, to: beat + 0.68, h: -70 }, { type: 'action', action: { type: 'jump', beat, hold: TAP, fail: 'none' } }, lumArcHop(beat)];
+  return [{ type: 'floor', from: beat + 0.22, to: beat + 0.68, h: -POOL_DEPTH }, { type: 'action', action: { type: 'jump', beat, hold: TAP, fail: 'none' } }, lumArcHop(beat)];
 }
 
 export function poolJump(beat: number): LevelItem[] {
-  return [{ type: 'floor', from: beat + 0.3, to: beat + 1.6, h: -70 }, { type: 'action', action: { type: 'jump', beat, hold: 1, fail: 'none' } }, lumArcJump(beat)];
+  return [{ type: 'floor', from: beat + 0.3, to: beat + 1.6, h: -POOL_DEPTH }, { type: 'action', action: { type: 'jump', beat, hold: 1, fail: 'none' } }, lumArcJump(beat)];
 }
 
 export function jabber(beat: number): LevelItem {
@@ -129,4 +144,71 @@ export function lumArcJump(beat: number): LevelItem {
 /** lums row on swung 8ths */
 export function lumRowSwung(from: number, to: number, h = 60): LevelItem {
   return { type: 'lumRow', from, to, every: 0.5, h };
+}
+
+/** a free hop through a token arc (reward) */
+export function tokenHop(beat: number): LevelItem[] {
+  return [hop(beat), lumArcHop(beat)];
+}
+
+/** a free held jump through a big token arc (reward) — the held-note verb */
+export function tokenJump(beat: number): LevelItem[] {
+  return [jump(beat), lumArcJump(beat)];
+}
+
+/** breakable on the ground-level surface: strike ON `beat` (reward) */
+export function bottle(beat: number, look?: BreakableLook, big = false): LevelItem {
+  return { type: 'breakable', beat, look, big, action: { type: 'strike', beat } };
+}
+
+/** a big crate / jug (6 tokens) — for HEYs and stabs */
+export function crate(beat: number, look: BreakableLook = 'crate'): LevelItem {
+  return bottle(beat, look, true);
+}
+
+/** a breakable hung high: only reachable in the air (mid-jump, mid-launch) */
+export function bottleHigh(beat: number, look?: BreakableLook): LevelItem {
+  return { type: 'breakable', beat, high: true, look, action: { type: 'strike', beat } };
+}
+
+/** held jump ON `beat` with a high bottle struck mid-air ON `beat + 1` (over safe ground) */
+export function jumpBottle(beat: number): LevelItem[] {
+  return [...tokenJump(beat), bottleHigh(beat + 1)];
+}
+
+/** bounce pad reached ON `beat`: automatic launch landing ON `beat + beats` on a surface `land` px high */
+export function launch(beat: number, beats = 2, land?: number, tokens = true): LevelItem {
+  return { type: 'bounce', beat, beats, land, tokens };
+}
+
+/** raised floor (rooftop, bar top, stage) `h` px above the street over [from, to] */
+export function raised(from: number, to: number, h: number): LevelItem {
+  return { type: 'floor', from, to, h };
+}
+
+/**
+ * Knee-slide: hold ↓ from `beat` for `beats` (a held note) under a low sign that hangs from
+ * beat + SIGN.lead to just before the release (stumble if you're standing).
+ */
+export function slideUnder(beat: number, beats: number): LevelItem[] {
+  const out: LevelItem[] = [{ type: 'lowSign', from: beat + 0.5, to: beat + beats - 0.12, action: { type: 'slide', beat, hold: beats } }];
+  // a low token line under the sign (the slide's pay; also grabbed when you run it standing and get hit)
+  for (let b = beat + 1 / 3; b < beat + beats - 0.1; b += 1 / 3) out.push({ type: 'lum', beat: b, h: 26 });
+  return out;
+}
+
+/** Slam lifts over a shallow POOL (safe: a miss is a splash) — same rhythm as slamRun. */
+export function slamRunPool(first: number, n: number): LevelItem[] {
+  const out: LevelItem[] = [{ type: 'floor', from: first - 0.72, to: first + n - 0.3, h: -POOL_DEPTH }];
+  for (let i = 0; i < n; i++) out.push({ type: 'slam', beat: first + i });
+  for (let b = first - 1; b <= first + n - 1; b++) {
+    out.push({ type: 'action', action: { type: 'jump', beat: b, hold: TAP, fail: 'none' } });
+    out.push(lumArcHop(b));
+  }
+  return out;
+}
+
+/** tokens tracing a vocal line: [beat, midi pitch] pairs, height follows the pitch */
+export function melodyTokens(notes: [number, number][], base = 62, perSemitone = 7, ref = 55): LevelItem[] {
+  return notes.map(([beat, pitch]) => ({ type: 'lum', beat, h: base + (pitch - ref) * perSemitone }) as LevelItem);
 }

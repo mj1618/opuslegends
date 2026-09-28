@@ -1,6 +1,6 @@
 /** Runtime entity records produced by the level builder (level/build.ts). Plain data. */
 import type { Rect } from '../engine/math';
-import type { BeatReactSpec, FailKind, FxKind, IntendedAction, SkyPreset } from '../level/types';
+import type { BeatReactSpec, BreakableLook, FailKind, FxKind, IntendedAction, SkyPreset } from '../level/types';
 import type { Solid } from './physics';
 
 /** jabber (the only enemy in the slice). */
@@ -164,4 +164,60 @@ export interface Hint {
   beat: number;
   beats: number;
   text: string;
+}
+
+/** Breakable target (bottle/crate/neon letter): strike it on its beat -> token burst. Plain data. */
+export interface Breakable {
+  id: number;
+  beat: number;
+  /** centre (world) */
+  x: number;
+  y: number;
+  /** hit radius */
+  r: number;
+  /** surface it stands on (world y) — `high` ones hang from above instead */
+  baseY: number;
+  high: boolean;
+  big: boolean;
+  look: BreakableLook;
+  /** tokens it bursts into (counted in lumsTotal) */
+  tokens: number;
+  broken: boolean;
+  /** seconds since it broke (presentation) */
+  brokenT: number;
+}
+
+/** Bounce pad (launch). Plain data; Game does the launch, the renderer squashes it. */
+export interface BouncePad {
+  id: number;
+  /** beat the hero reaches the pad centre */
+  beat: number;
+  /** beat he should land */
+  landBeat: number;
+  /** landing surface (world y) */
+  landY: number;
+  x: number;
+  /** pad top (world y) */
+  y: number;
+  w: number;
+  /** presentation: 1 on launch, decays */
+  kick: number;
+  /** already fired this attempt */
+  used: boolean;
+}
+
+/** A low hanging sign: knee-slide under it (stumble on contact). */
+export interface LowSign {
+  id: number;
+  beat: number;
+  /** hurt rect (world) */
+  rect: Rect;
+  /** knocked loose after it stumbled the hero */
+  hit: boolean;
+  swing: number;
+}
+
+export interface CrowdCap {
+  beat: number;
+  cap: number;
 }

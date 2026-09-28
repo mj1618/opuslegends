@@ -77,6 +77,11 @@ x = beat × pixelsPerBeat. Obstacles declare an *intended action* `{type:'jump'|
 which drives the autoplay bot, the timing judge, scansion marks, debug markers, timing stats and playtest
 validation; each resolves a `failKind` (death/stumble/none) so `--miss` knows what a skip should cost.
 `lumJump` places collectibles along the REAL simulated jump arc (`game/jumpProfile.ts`).
+**Reward-first economy (iteration 2):** most actions pay rather than threaten — `breakable` (bottle/crate: strike
+on its beat → token burst; `high` = only mid-air), `bounce` pads (automatic LAUNCH that lands on a given beat and
+height), raised `floor`s (rooftops, bar top), shallow pools (safe gaps, walk out), slam lifts over a pool (teach);
+`lowSign` = knee-slide (hold ↓) on held notes (stumble). Per-section crowd caps (`crowd` items) keep FULL HOUSE for
+the chorus; `mode` / `follows` items are design tags read by `npm run rubric` (defaults to the level's songId map).
 **Internal names are neutral mechanics** (the skin keeps changing): lum (token), pendulum (swinging
 target, strike at the bottom of its 1-bar swing), spike (stumble hazard), gap (lethal pit), slam
 platform (solid from the beat to the swung "and"), jabber (enemy: bows on the "and", jabs on the beat),
@@ -108,7 +113,8 @@ src/
   level/   types.ts       level schema               dsl.ts   authoring helpers (spikeHop, gapHop, gapJump, jabber,
                           pendulum, slamRun, jumpStrike, hupHupHey, awning, lumArc*…) with measured tolerances
            build.ts       LevelDef → RuntimeLevel (collision, entities, action markers, slamState, cues)
-           slice.ts       THE LEVEL: cold open + bars 0-32 (intro, verse 1a/1b, chorus 1)
+           slice.ts       THE LEVEL: act 1 on the edit's grid (bar n = beat 4(n-1)): cold open + bars 1-33
+                          (intro, verse 1 on the rooftops, honky-tonk, chorus 1, tag, turnaround). Plan: docs/level/act1_plan.md
   game/    game.ts        owns everything: frame loop, time model, run flow (cold open → count-in → run →
                           stumble / death → checkpoint rewind → finish), mechanics, interactions, report
            player.ts      controller: run+surge, hop (beats), strike, stumble (constants in tunables.ts)
@@ -165,7 +171,7 @@ Presentation cues on beats: `{type:'fx', beat, fx:'flash'|'shake'|'zoom'|'bgPuls
   starts the cold open), Esc pause, `[`/`]` latency offset, `` ` `` / F1 debug overlay.
   Gamepad: A hop, X/B/RT strike, stick/dpad.
 - URL params: `?debug=1` overlay (fps, song/beat, clock, hitboxes, beat grid, green dashed *music line*,
-  intended-action markers) · `?start=<beat>` start mid-level (checkpoints: 36, 68, 100) · `?coldopen=0` ·
+  intended-action markers) · `?start=<beat>` start mid-level (checkpoints: 32, 64, 80, 96, 120) · `?coldopen=0` ·
   `?autoplay=1` bot plays via the controller · `?jitter=<ms>` / `?late=<p>` / `?sloppy=1` sloppy bot ·
   `?judge=1` timing-grade popups · `?mute=1` · `?latency=<ms>` · `?song=edit|full|placeholder` · `?miss=37,28` bot deliberately skips those
   actions once (stumble/death/respawn test) · `?probe=1` live audio sync probe.

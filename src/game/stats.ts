@@ -74,6 +74,8 @@ export class RunStats {
   /** sim-vs-audio drift samples (ms) */
   maxDriftMs = 0;
   hitstops = 0;
+  /** breakables smashed */
+  breakables = 0;
 
   reset(): void {
     this.deaths = 0;
@@ -90,6 +92,7 @@ export class RunStats {
     this.recoveries = [];
     this.maxDriftMs = 0;
     this.hitstops = 0;
+    this.breakables = 0;
   }
 
   /**

@@ -34,7 +34,7 @@ import { Controls, Input, type InputEdge } from '../engine/input';
 import { clamp, overlaps, type Rect } from '../engine/math';
 import { params } from '../engine/params';
 import { Ease, TweenManager } from '../engine/tween';
-import { JABBER, type RuntimeLevel, buildLevel, cameraZoomAt, slamState } from '../level/build';
+import { BOUNCE, JABBER, type RuntimeLevel, buildLevel, cameraZoomAt, crowdCapAt, launchVelocity, slamState } from '../level/build';
 import { sliceLevel } from '../level/slice';
 import type { LevelDef } from '../level/types';
 import { Background } from '../render/background';
@@ -45,7 +45,7 @@ import { Renderer } from '../render/renderer';
 import { makeSprites } from '../render/sprites';
 import { AutoPlayer } from './autoplay';
 import { Crowd } from './crowd';
-import type { ActionMarker, Enemy, PendulumTarget, LooseLum } from './entities';
+import type { ActionMarker, BouncePad, Breakable, Enemy, PendulumTarget, LooseLum } from './entities';
 import { Judge, type JudgeResult } from './judge';
 import { jumpProfile } from './jumpProfile';
 import { Player } from './player';
@@ -132,6 +132,10 @@ export class Game {
   releaseTime = 0;
   checkpointIndex = -1;
   private snap = { lums: new Set<number>(), crowd: Tun.crowd.start, pendulums: new Set<number>() };
+  /** breakables already smashed at the last checkpoint (and the tokens they paid) */
+  private snapBroken = new Set<number>();
+  /** hero was standing in a pool last step (splash fx) */
+  private inPool = false;
   private lumStreak = { count: 0, lastBeat: -99 };
   /** phrases whose three actions all graded Good+ (their strike becomes a Heave) */
   private heaveReady = new Set<number>();
@@ -231,6 +235,7 @@ export class Game {
     this.judge.clearCounts();
     this.heaveReady.clear();
     this.snap = { lums: new Set(), crowd: Tun.crowd.start, pendulums: new Set() };
+    this.snapBroken = new Set();
     this.checkpointIndex = -1;
     for (const cp of this.level.checkpoints) cp.reached = false;
     const start = fromBeat ?? params.start ?? this.level.def.startBeat;
@@ -239,7 +244,7 @@ export class Game {
       l.collected = false;
       l.skipped = l.beat < start - 1e-6;
     }
-    this.stats.lumsTotal = this.level.lums.filter((l) => !l.skipped).length;
+    this.stats.lumsTotal = this.level.lums.filter((l) => !l.skipped).length + this.level.breakables.filter((b) => b.beat >= start - 1e-6).reduce((n, b) => n + b.tokens, 0);
     this.stats.pendulumsTotal = this.level.pendulums.filter((f) => f.beat >= start - 1e-6).length;
     this.level.checkpoints.forEach((cp, i) => {
       if (cp.beat <= start + 1e-6) {
@@ -310,6 +315,14 @@ export class Game {
       l.collected = this.snap.lums.has(l.id);
       l.collectT = l.collected ? 99 : 0;
     }
+    for (const b of L.breakables) {
+      if (b.beat < beat - 0.5) continue;
+      b.broken = this.snapBroken.has(b.id);
+      b.brokenT = b.broken ? 99 : 0;
+    }
+    for (const b of L.bouncePads) if (b.beat >= beat - 0.5) b.used = false;
+    for (const sg of L.signs) if (sg.beat >= beat - 0.5) sg.hit = false;
+    this.inPool = false;
     this.loose = [];
     this.popups = [];
     this.chaser = { active: false, x: -Infinity, riseBeat: 0 };
@@ -325,7 +338,7 @@ export class Game {
     this.lumStreak = { count: 0, lastBeat: -99 };
     this.recoverFrom = NaN;
     this.resetWorld(beat);
-    this.stats.lums = this.snap.lums.size;
+    this.stats.lums = this.snap.lums.size + this.level.breakables.filter((b) => this.snapBroken.has(b.id)).reduce((n, b) => n + b.tokens, 0);
     this.stats.pendulums = this.snap.pendulums.size;
     this.judge.reset(beat);
     for (const i of [...this.heaveReady]) if (this.level.phrases[i].beats[0] >= beat - 1e-6) this.heaveReady.delete(i);
@@ -415,6 +428,7 @@ export class Game {
       crowd: this.crowd.count,
       pendulums: new Set(this.level.pendulums.filter((f) => f.struck).map((f) => f.id)),
     };
+    this.snapBroken = new Set(this.level.breakables.filter((b) => b.broken).map((b) => b.id));
     this.sfx.checkpoint(this.song.key.root + 24);
     this.particles.emit({ x: cp.x, y: cp.y - 200, count: 30, speed: [150, 500], life: [0.5, 1], size: [6, 12], color: '#F8F1DC', gravity: 500, drag: 1.5, shape: PShape.Square });
     this.log('checkpoint', { beat: cp.beat });
@@ -469,6 +483,9 @@ export class Game {
     for (const cp of this.level.checkpoints) cp.flash = Math.max(0, cp.flash - presDt * 1.5);
     for (const l of this.level.lums) if (l.collected) l.collectT += presDt;
     for (const f of this.level.pendulums) if (f.struck) f.struckT += presDt;
+    for (const b of this.level.breakables) if (b.broken) b.brokenT += presDt;
+    for (const b of this.level.bouncePads) b.kick = Math.max(0, b.kick - presDt * 3);
+    for (const sg of this.level.signs) sg.swing = Math.max(0, sg.swing - presDt * 1.5);
     for (const pu of this.popups) pu.t += presDt;
     this.subtitle.t = Math.max(0, this.subtitle.t - presDt);
     this.freezeFx = Math.max(0, this.freezeFx - presDt);
@@ -749,7 +766,12 @@ export class Game {
         if (f.struck) continue;
         if (circleRect(f.x, f.y, f.r, cb)) this.hitPendulum(f);
       }
+      for (const b of L.breakables) {
+        if (b.broken || Math.abs(b.x - p.x) > 400) continue;
+        if (circleRect(b.x, b.y, b.r, cb)) this.hitBreakable(b);
+      }
     }
+    this.levelProps(beatW, hurt);
     // --- jabbers: truce-flag bounce on the offbeat, body/jab contact = stumble
     const off = beatW - Math.floor(beatW);
     const flagOut = Math.abs(off - L.swing) < 0.22;
@@ -856,6 +878,74 @@ export class Game {
 
   private onMissTarget(a: ActionMarker): void {
     if (params.judge) this.popup('miss', '#8F8A80', String(a.beat));
+    // a missed beat costs the streak a member (keeps the meter moving for real players)
+    if (this.phase === 'run') this.crowd.add(-Tun.crowd.perMiss);
+  }
+
+  // ====================================================================== level props (iteration 2)
+
+  /** bounce pads (launch), low signs (knee-slide), pools (splash), the crowd cap */
+  private levelProps(beatW: number, hurt: Rect): void {
+    const p = this.player;
+    const L = this.level;
+    this.crowd.setCap(crowdCapAt(L, beatW));
+    for (const b of L.bouncePads) {
+      if (b.used || Math.abs(p.x - b.x) > b.w / 2) continue;
+      if (p.y < b.y - BOUNCE.trigger || p.y > b.y + 4) continue;
+      // launch when he touches down on the pad — or, if he's hopping over it, before he leaves it
+      if (p.grounded || p.x > b.x + b.w / 2 - 30) this.launch(b, beatW);
+    }
+    for (const sg of L.signs) {
+      if (sg.hit || p.invulnerable || !overlaps(hurt, sg.rect)) continue;
+      sg.hit = true;
+      sg.swing = 1;
+      this.stumble(`lowSign@${sg.beat}`);
+    }
+    const pool = p.grounded && p.y > 10 && L.floorYAt(p.x) > 10;
+    if (pool && !this.inPool) {
+      this.sfx.land(0.6);
+      this.particles.emit({ x: p.x, y: p.y - 10, count: 22, speed: [200, 700], angle: -Math.PI / 2, spread: 1.6, life: [0.3, 0.6], size: [6, 14], color: '#7FB8C9', gravity: 2200, drag: 1, shrink: 1 });
+    }
+    this.inPool = pool;
+  }
+
+  /** LAUNCH: fling the hero so he lands on the pad's landing surface exactly on its landing beat */
+  private launch(b: BouncePad, beatW: number): void {
+    const p = this.player;
+    b.used = true;
+    b.kick = 1;
+    const sec = Math.max(0.25, this.tempo.beatToTime(b.landBeat) - this.tempo.beatToTime(beatW));
+    const v = launchVelocity(sec, p.y - b.landY, p.spb);
+    p.y = Math.min(p.y, b.y);
+    p.vy = -v;
+    p.grounded = false;
+    p.jumping = false;
+    p.coyote = 0;
+    p.jumpBuffer = 0;
+    p.kick(0.7, 1.45);
+    this.sfx.hop(undefined, true);
+    this.sfx.stomp();
+    this.zoomPunch(0.035);
+    this.camera.addTrauma(0.15);
+    this.particles.emit({ x: b.x, y: b.y - 6, count: 26, speed: [250, 800], angle: -Math.PI / 2, spread: 1.3, life: [0.3, 0.7], size: [8, 16], color: '#E0B64A', shape: PShape.Spark, drag: 3 });
+    this.log('launch', { beat: b.beat, at: this.stepTime, landBeat: b.landBeat });
+  }
+
+  /** a bottle / crate smashed on its beat: glass + a token burst (tokens go straight to the count) */
+  private hitBreakable(b: Breakable): void {
+    b.broken = true;
+    b.brokenT = 0;
+    this.stats.lums += b.tokens;
+    this.stats.breakables++;
+    this.player.strikeHitSomething = true;
+    const tones = chordAt(this.song, b.beat);
+    this.sfx.chime(this.song.key.root + 36 + tones[b.id % tones.length], b.big);
+    this.sfx.lum(collectibleNote(this.song, b.beat, 2 + (b.id % 3)));
+    this.camera.addTrauma(b.big ? 0.22 : 0.1);
+    if (b.big) this.zoomPunch(0.03);
+    this.particles.emit({ x: b.x, y: b.y, count: b.big ? 28 : 16, speed: [250, 900], life: [0.25, 0.6], size: [5, 12], color: '#CFE8E0', shape: PShape.Spark, gravity: 1800, drag: 2 });
+    this.particles.emit({ x: b.x, y: b.y, count: b.tokens * 2, speed: [250, 650], angle: -Math.PI / 2, spread: 1.8, life: [0.5, 0.9], size: [10, 16], color: '#E0B64A', gravity: 1400, drag: 1, shape: PShape.Square, shrink: 1 });
+    this.log('smash', { beat: b.beat, at: this.stepTime });
   }
 
   private popup(text: string, color: string, sub = ''): void {
@@ -1144,6 +1234,8 @@ export class Game {
       lumsTotal: this.stats.lumsTotal,
       pendulums: this.stats.pendulums,
       pendulumsTotal: this.stats.pendulumsTotal,
+      breakables: this.stats.breakables,
+      breakablesTotal: L.breakables.length,
       heaves: this.stats.heaves,
       phrases: L.phrases.length,
       grades: { ...this.judge.counts },

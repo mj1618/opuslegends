@@ -52,6 +52,8 @@ export type FxKind = 'flash' | 'shake' | 'zoom' | 'bgPulse';
 export type SkyPreset = 'golden' | 'neon' | 'honkytonk';
 /** walkable-surface look per reel */
 export type GroundStyle = 'street' | 'timber';
+/** skin hint for breakables (the renderer / art may ignore it) */
+export type BreakableLook = 'bottle' | 'glass' | 'crate' | 'neon' | 'jug';
 
 export type LevelItem =
   /** override the ground height over a beat range (later items win) */
@@ -96,6 +98,30 @@ export type LevelItem =
   | { type: 'marks'; beat: number; on: boolean }
   /** HUD hint shown from `beat` for `beats` (first-appearance tutorial text) */
   | { type: 'hint'; beat: number; text: string; beats?: number }
+  /**
+   * Breakable target (bottle / glass / crate / neon letter) standing `h` px above the ground-level
+   * surface, placed so a strike pressed ON `beat` smashes it (±~200 ms). Pure reward: it bursts into
+   * `tokens` tokens; a miss costs nothing but the tokens. `high` = hangs so high it can only be hit
+   * mid-jump / mid-launch. `beat` may sit on the swung "and" (x.66).
+   */
+  | { type: 'breakable'; beat: number; h?: number; high?: boolean; big?: boolean; look?: BreakableLook; tokens?: number; action?: IntendedAction }
+  /**
+   * Bounce pad (LAUNCH): when the hero reaches it (running over it or landing on it) he is flung up
+   * so that he lands on a surface `land` px above base ground (default: the pad's own surface)
+   * exactly on beat `beat + beats`. Automatic: no button, no failure. Tokens trace the arc.
+   */
+  | { type: 'bounce'; beat: number; beats: number; land?: number; tokens?: boolean }
+  /**
+   * Low sign hanging across [from, to]: its bottom edge is too low to run or hop under, and it's too
+   * tall to jump over — knee-slide (hold ↓) under it. Stumble if touched.
+   */
+  | { type: 'lowSign'; from: number; to: number; action?: IntendedAction }
+  /** crowd (streak meter) cap from `beat` on — keeps FULL HOUSE for the chorus */
+  | { type: 'crowd'; beat: number; cap: number }
+  /** design tag: traversal mode from `beat` (street, rooftops, launch, lifts, bar-top, …) — rubric B6 */
+  | { type: 'mode'; beat: number; mode: string }
+  /** design tag: the lane the level follows from `beat` (kick, vocal, fills, shouts, …) — rubric B7 */
+  | { type: 'follows'; beat: number; lane: string }
   /** free-standing intended action (e.g. a lums arc hop) */
   | { type: 'action'; action: IntendedAction }
   /** debug label drawn in the world (section names etc.) */

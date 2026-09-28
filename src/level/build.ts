@@ -7,7 +7,10 @@
  *   - jabber:    placed so a strike pressed ON its beat connects early in the strike's active window,
  *              and body contact happens only ~0.42 beat later (late strikes within Good still win)
  *   - float:   bottom of the swing (strike height) just ahead of the hero on its beat
- *   - slam:    a one-way press top spanning [beat - 0.34, beat + 0.33] (where a tap hop lands)
+ *   - slam:    a one-way press top spanning [beat - 0.42, beat + 0.36] (where a tap hop lands)
+ *   - breakable: `BREAK.ahead` px in front of its beat position (a strike ON the beat connects early)
+ *   - bounce:  pad centred on its beat; tokens follow the launch arc (solved like the game does)
+ *   - lowSign: hangs over [from, to], bottom edge SIGN.clear px above the ground
  *   - lumRow every 0.5 is SWUNG (k, k + song.swing), on the TOPMOST surface (so rows ride awnings);
  *     everything else sits on the ground-level surface (floors, dips, press tops), never on awnings
  *   - lumJump samples the real jump arc
@@ -17,7 +20,10 @@ import { swingBeat } from '../audio/song';
 import type { TempoMap } from '../audio/tempoMap';
 import type {
   ActionMarker,
+  BouncePad,
+  Breakable,
   CameraCue,
+  CrowdCap,
   Checkpoint,
   Enemy,
   FxCue,
@@ -25,6 +31,7 @@ import type {
   Hazard,
   Hint,
   Label,
+  LowSign,
   Lum,
   Phrase,
   SkyCue,
@@ -56,6 +63,11 @@ export interface RuntimeLevel {
   hazards: Hazard[];
   pendulums: PendulumTarget[];
   slams: SlamPlatform[];
+  breakables: Breakable[];
+  bouncePads: BouncePad[];
+  signs: LowSign[];
+  /** crowd cap by beat (sorted); default Tun.crowd.max */
+  crowdCaps: CrowdCap[];
   phrases: Phrase[];
   checkpoints: Checkpoint[];
   finishX: number;
@@ -94,9 +106,25 @@ export const PENDULUM = { strikeHeight: 150, highStrikeHeight: 390, ahead: 90, l
  * up to ~0.25 beat early lands at ~-0.32, so the press top spans [-0.34, +0.33] and is solid from
  * -0.42 until just after the swung "and" (+swing+0.08); the visual is "down" exactly while solid.
  */
-export const SLAM = { from: -0.34, to: 0.33, thickness: 34, solidEarly: 0.42, solidLateExtra: 0.08, riseBeats: 0.3, fallBeats: 0.35 } as const;
+/* iteration 2: wider (press top -0.42..+0.36, solid from -0.5 to the "and" + 0.12) — sloppy ±110 ms survives */
+export const SLAM = { from: -0.42, to: 0.36, thickness: 34, solidEarly: 0.5, solidLateExtra: 0.12, riseBeats: 0.28, fallBeats: 0.3 } as const;
 /** Spike geometry */
 export const SPIKE = { visW: 62, visH: 54, hurtW: 28, hurtH: 28 } as const;
+/**
+ * Breakable geometry. A strike pressed ON its beat reaches it early in the active window: the strike
+ * box spans [x - 24, x + 198] and travels ~178 px while active, so a target `ahead` px in front of the
+ * hero's beat position is hit by presses from ~-210 ms to ~+220 ms (neighbouring strikes ≥ 0.66 beat
+ * apart can't reach it). `h` = centre height above the ground surface; `highH` = only reachable in the air.
+ */
+export const BREAK = { ahead: 200, r: 30, rBig: 40, h: 110, highH: 330, tokens: 3, tokensBig: 6 } as const;
+/** Bounce pad geometry: pad half-width (beats), trigger band above the pad top (px) */
+export const BOUNCE = { halfBeats: 0.3, trigger: 130, padH: 18 } as const;
+/**
+ * Low sign: bottom edge `clear` px above the ground (sliding hero = 40 tall, standing = 100), top at
+ * `top` (a held jump can't clear it). The sign starts `lead` beats after the slide beat (dsl slideUnder)
+ * so a press up to ~160 ms late still gets the hero low in time.
+ */
+export const SIGN = { clear: 58, top: 440, lead: 0.5 } as const;
 
 export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): RuntimeLevel {
   const ppb = def.pixelsPerBeat;
@@ -184,8 +212,13 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
     const y = world.groundBelow(x, -1e5, 2e5);
     return Number.isNaN(y) ? floorYNear(x) : y;
   };
-  /** ground-level surface at x (floors, dips, press tops) — ignores raised awnings/platforms */
+  /**
+   * ground-level surface at x: floor spans (street, raised rooftops / bar tops, dips), else slam press
+   * tops over a shaft, else the nearest floor to the left — ignores one-way awnings/platforms
+   */
   const groundYNear = (x: number): number => {
+    const fy = floorYAt(x);
+    if (!Number.isNaN(fy)) return fy;
     const y = world.groundBelow(x, -60, 2e5);
     return Number.isNaN(y) ? floorYNear(x) : y;
   };
@@ -196,6 +229,10 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
   const hazards: Hazard[] = [];
   const pendulums: PendulumTarget[] = [];
   const phrases: Phrase[] = [];
+  const breakables: Breakable[] = [];
+  const bouncePads: BouncePad[] = [];
+  const signs: LowSign[] = [];
+  const crowdCaps: CrowdCap[] = [];
   const checkpoints: Checkpoint[] = [];
   const fx: FxCue[] = [];
   const cameraCues: CameraCue[] = [];
@@ -211,7 +248,7 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
   const addLum = (beat: number, y: number, note?: number, angle = 0) => {
     lums.push({ id: id++, beat, x: X(beat), y, note, collected: false, collectT: 0, skipped: false, angle });
   };
-  const DEFAULT_FAIL: Record<string, FailKind> = { gap: 'death', spike: 'stumble', jabber: 'stumble', float: 'none' };
+  const DEFAULT_FAIL: Record<string, FailKind> = { gap: 'death', spike: 'stumble', jabber: 'stumble', float: 'none', lowSign: 'stumble', breakable: 'none' };
 
   for (const it of def.items) {
     if ('action' in it && it.action) {
@@ -285,6 +322,51 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
         });
         break;
       }
+      case 'breakable': {
+        const bx = X(it.beat) + BREAK.ahead;
+        const base = groundYNear(X(it.beat));
+        const high = !!it.high;
+        const h = it.h ?? (high ? BREAK.highH : BREAK.h);
+        breakables.push({
+          id: id++,
+          beat: it.beat,
+          x: bx,
+          y: base - h,
+          r: it.big ? BREAK.rBig : BREAK.r,
+          baseY: base,
+          high,
+          big: !!it.big,
+          look: it.look ?? (it.big ? 'crate' : 'bottle'),
+          tokens: it.tokens ?? (it.big ? BREAK.tokensBig : BREAK.tokens),
+          broken: false,
+          brokenT: 0,
+        });
+        break;
+      }
+      case 'bounce': {
+        const x = X(it.beat);
+        const y = groundYNear(x);
+        const landY = it.land !== undefined ? -it.land : y;
+        const pad: BouncePad = { id: id++, beat: it.beat, landBeat: it.beat + it.beats, landY, x, y, w: 2 * BOUNCE.halfBeats * ppb, kick: 0, used: false };
+        bouncePads.push(pad);
+        if (it.tokens !== false) {
+          // tokens along the launch arc (same solver the game uses at launch time)
+          const dh = y - landY; // + = lands higher
+          const v = launchVelocity(it.beats * spb, dh, spb);
+          for (const [db, hgt] of launchArc(v, spb, dh, it.beats)) addLum(it.beat + db, y - hgt - Tun.player.height * 0.6);
+        }
+        break;
+      }
+      case 'lowSign': {
+        const x0 = X(it.from);
+        const x1 = X(it.to);
+        const gy = groundYNear((x0 + x1) / 2);
+        signs.push({ id: id++, beat: it.from, rect: { x: x0, y: gy - SIGN.top, w: x1 - x0, h: SIGN.top - SIGN.clear }, hit: false, swing: 0 });
+        break;
+      }
+      case 'crowd':
+        crowdCaps.push({ beat: it.beat, cap: it.cap });
+        break;
       case 'phrase':
         phrases.push({ beats: it.beats });
         break;
@@ -362,6 +444,10 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
   enemies.sort((a, b) => a.beat - b.beat);
   pendulums.sort((a, b) => a.beat - b.beat);
   slams.sort((a, b) => a.beat - b.beat);
+  breakables.sort((a, b) => a.beat - b.beat);
+  bouncePads.sort((a, b) => a.beat - b.beat);
+  signs.sort((a, b) => a.beat - b.beat);
+  crowdCaps.sort((a, b) => a.beat - b.beat);
   checkpoints.sort((a, b) => a.beat - b.beat);
   cameraCues.sort((a, b) => a.beat - b.beat);
   skyCues.sort((a, b) => a.beat - b.beat);
@@ -381,6 +467,10 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
     hazards,
     pendulums,
     slams,
+    breakables,
+    bouncePads,
+    signs,
+    crowdCaps,
     phrases,
     checkpoints,
     finishX: X(finishBeat),
@@ -451,4 +541,69 @@ export function slamState(f: SlamPlatform, now: number, swing: number): { solid:
   else if (s >= -SLAM.solidEarly - SLAM.fallBeats) lift = (-SLAM.solidEarly - s) / SLAM.fallBeats;
   else lift = 1;
   return { solid, lift: Math.max(0, Math.min(1, lift)), phase: s };
+}
+
+/** Crowd cap in effect at `beat` (level `crowd` items; default Tun.crowd.max). */
+export function crowdCapAt(L: RuntimeLevel, beat: number): number {
+  let cap: number = Tun.crowd.max;
+  for (const c of L.crowdCaps) {
+    if (beat < c.beat - 1e-6) break;
+    cap = c.cap;
+  }
+  return cap;
+}
+
+/**
+ * Free flight of a launched hero (no jump held: plain gravity rising, Tun.jump.fallGravityMul falling,
+ * capped at maxFallSpeed), simulated at the sim rate. Returns the time (s) until the hero comes down
+ * through `dh` px above the takeoff (dh > 0 = higher), or Infinity if the apex never reaches it.
+ */
+function flightTime(v: number, dh: number, spb: number): number {
+  const J = Tun.jump;
+  const tApex = J.timeToApexBeats * spb;
+  const g = (2 * J.height) / (tApex * tApex);
+  const dt = 1 / Tun.sim.hz;
+  let vy = -v;
+  let y = 0; // height above takeoff (positive up)
+  for (let t = 0; t < 10; t += dt) {
+    vy = Math.min(vy + g * (vy > 0 ? J.fallGravityMul : 1) * dt, J.maxFallSpeed);
+    y -= vy * dt;
+    if (vy > 0 && y <= dh) return t + dt;
+  }
+  return Infinity;
+}
+
+/** Launch speed (px/s, upward) so a free flight lasts `sec` and lands `dh` px above the takeoff. */
+export function launchVelocity(sec: number, dh: number, spb: number): number {
+  let lo = 100;
+  let hi = 6000;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (flightTime(mid, dh, spb) < sec) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+/** [beat offset, height above takeoff] samples along a launch arc, every 1/3 beat (skipping the pad). */
+function launchArc(v: number, spb: number, dh: number, beats: number): [number, number][] {
+  const J = Tun.jump;
+  const tApex = J.timeToApexBeats * spb;
+  const g = (2 * J.height) / (tApex * tApex);
+  const dt = 1 / Tun.sim.hz;
+  const out: [number, number][] = [];
+  let vy = -v;
+  let y = 0;
+  let next = 1 / 3;
+  for (let t = 0; t < beats * spb; t += dt) {
+    vy = Math.min(vy + g * (vy > 0 ? J.fallGravityMul : 1) * dt, J.maxFallSpeed);
+    y -= vy * dt;
+    const b = (t + dt) / spb;
+    if (b >= next && b < beats - 0.25) {
+      out.push([b, y]);
+      next += 1 / 3;
+    }
+    if (vy > 0 && y <= dh) break;
+  }
+  return out;
 }

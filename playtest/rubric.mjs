@@ -10,9 +10,10 @@
  *
  * Options:
  *   --level=<file>#<export>   level module (default src/level/slice.ts#sliceLevel)
- *   --song=<file>#<export>    SongDef the level is built against (default src/audio/placeholderSong.ts#placeholderSong)
- *                             or a beatmap.json path (loaded with songFromBeatmap)
- *   --beatmap=<json>          extra accent lanes + section energy (default assets/audio/jim.beatmap.json if present)
+ *   --song=<file>#<export>    SongDef the level is built against, or a beatmap.json path (loaded with songFromBeatmap).
+ *                             Default: assets/audio/<level.songId>.beatmap.json if it exists, else the placeholder song
+ *   --beatmap=<json>          extra accent lanes + section energy (default: the song's beatmap json, else
+ *                             assets/audio/jim.beatmap.json if present)
  *   --reports=<dir>[,<dir>]   playtest output dirs (searched recursively for report.json) → A5, A9, A10
  *   --block=<bars>            analysis block size in bars (default 8)
  *   --out=<dir>               output dir (default playtest/out/rubric; gitignored, wiped by the next playtest run)
@@ -34,6 +35,11 @@
  *   intensity(bar) = 3·lethal + 1.5·stumble + 0.5·reward + 2·[new element in the bar].
  *   isochronous run = ≥ 3 threat actions of one verb+kind at a 1-beat interval (slam lifts): for A2/A3/A6 the
  *              rubric counts such a run (≤ 8) as ONE threat. Both raw and adjusted numbers are reported.
+ *   blocks   = BLOCK-bar sections from the level's first bar; a trailing remainder shorter than BLOCK/2 bars
+ *              (e.g. the 33rd bar of a 33-bar act) is merged into the previous block instead of being judged
+ *              as a 1-bar "section".
+ *   design tags (level items, ignored by the game): `mode` (traversal mode from a beat → B6, novelty) and
+ *              `follows` (lead lane from a beat → B7). Without tags, modes are inferred (lifts / ground).
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -67,6 +73,7 @@ let level, song, L, tempo, Tun, cameraZoomAt, VIEW_W;
 try {
   level = await load(args.level, 'src/level/slice.ts#sliceLevel');
   const songMod = await server.ssrLoadModule('/src/audio/song.ts');
+  if (!args.song && level.songId && existsSync(join(root, `assets/audio/${level.songId}.beatmap.json`))) args.song = `assets/audio/${level.songId}.beatmap.json`;
   if (args.song && String(args.song).endsWith('.json')) {
     song = songMod.songFromBeatmap(JSON.parse(readFileSync(resolve(root, String(args.song)), 'utf8')), '');
   } else {
@@ -82,7 +89,7 @@ try {
   await server.close();
 }
 
-const beatmapPath = args.beatmap ? resolve(root, String(args.beatmap)) : join(root, 'assets/audio/jim.beatmap.json');
+const beatmapPath = args.beatmap ? resolve(root, String(args.beatmap)) : args.song && String(args.song).endsWith('.json') ? resolve(root, String(args.song)) : join(root, 'assets/audio/jim.beatmap.json');
 const beatmap = existsSync(beatmapPath) ? JSON.parse(readFileSync(beatmapPath, 'utf8')) : null;
 
 // ------------------------------------------------------------------ musical grid
@@ -147,6 +154,7 @@ const kindOf = (a) => {
   const t = it?.type ?? a.source;
   if (t === 'gap') return verbOf(a) === 'jump' ? 'gap-long' : 'gap';
   if (t === 'pendulum') return it?.high ? 'pendulum-high' : it?.big ? 'pendulum-big' : 'pendulum';
+  if (t === 'breakable') return it?.high ? 'breakable-high' : it?.big ? 'breakable-big' : 'breakable';
   if (t === 'action' && a.type === 'jump' && (slamBeats.has(a.beat) || slamBeats.has(a.beat + 1))) return a.failKind === 'death' ? 'slam' : 'slam-safe';
   if (t === 'action' && a.type === 'jump' && poolBeats.some((p) => Math.abs(p - (a.beat + 0.22)) < 0.05 || Math.abs(p - (a.beat + 0.3)) < 0.05)) return 'pool';
   if (t === 'action') return a.type === 'jump' ? 'lumArc' : 'free';
@@ -210,6 +218,14 @@ for (const it of level.items) {
   if (it.type === 'ground') note('ground:' + it.style, Math.max(it.beat, level.startBeat), 'context', `ground → ${it.style}`);
 }
 if (L.slams.length) note('mode:lifts', L.slams[0].beat, 'mode', 'slam lifts');
+const modeTags = level.items.filter((it) => it.type === 'mode').sort((a, b) => a.beat - b.beat);
+for (const m of modeTags) if (m.beat >= level.startBeat - 1e-6) note('mode:' + m.mode, m.beat, 'mode', `mode → ${m.mode}`);
+const followTags = level.items.filter((it) => it.type === 'follows').sort((a, b) => a.beat - b.beat);
+const followsAt = (beat) => {
+  let lane = null;
+  for (const f of followTags) if (f.beat <= beat + 1e-6) lane = f.lane;
+  return lane;
+};
 novelty.sort((a, b) => a.beat - b.beat);
 const BIG_NOVELTY = new Set(['mechanic', 'mode', 'set-piece']);
 const TWIST_NOVELTY = new Set(['mechanic', 'mode', 'set-piece', 'variation', 'verb']);
@@ -217,9 +233,17 @@ const TWIST_NOVELTY = new Set(['mechanic', 'mode', 'set-piece', 'variation', 've
 // ------------------------------------------------------------------ traversal mode per bar
 const modeOfBar = (bar) => {
   const b0 = bar * BPB;
+  if (modeTags.length) {
+    // explicit tags: the mode in effect at mid-bar (a mode that starts and ends inside the bar still counts)
+    let m = modeTags[0].mode;
+    for (const t of modeTags) if (t.beat <= b0 + BPB / 2 + 1e-6) m = t.mode;
+    const inside = modeTags.filter((t) => t.beat > b0 + 1e-6 && t.beat < b0 + BPB - 1e-6).map((t) => t.mode);
+    return inside.includes('launch') ? 'launch' : m;
+  }
   if (L.slams.some((s) => s.beat >= b0 - 0.5 && s.beat < b0 + BPB)) return 'lifts';
   return 'ground';
 };
+const VERTICAL_MODES = new Set(['rooftops', 'bar-top', 'launch', 'climb', 'vertical', 'drop']);
 
 // ------------------------------------------------------------------ per-bar table
 const runwayBeatsAt = (beat) => ((1 - Tun.camera.leadFraction) * VIEW_W) / cameraZoomAt(L, beat, Tun.camera.zoom) / L.ppb;
@@ -264,9 +288,18 @@ const barRow = (bar) => bars.find((b) => b.bar === bar);
 
 // ------------------------------------------------------------------ blocks (sections)
 const blocks = [];
-for (let b = firstBar; b <= lastBar; b += BLOCK) {
-  const bs = bars.filter((x) => x.bar >= b && x.bar < b + BLOCK);
-  const acts = actions.filter((a) => a.bar >= b && a.bar < b + BLOCK);
+const blockStarts = [];
+for (let b = firstBar; b <= lastBar; b += BLOCK) blockStarts.push(b);
+// a trailing remainder shorter than half a block joins the previous block
+if (blockStarts.length > 1 && lastBar + 1 - blockStarts[blockStarts.length - 1] < BLOCK / 2) blockStarts.pop();
+const blockLen = (b) => {
+  const i = blockStarts.indexOf(b);
+  return i < blockStarts.length - 1 ? blockStarts[i + 1] - b : lastBar + 1 - b;
+};
+for (const b of blockStarts) {
+  const BL = blockLen(b);
+  const bs = bars.filter((x) => x.bar >= b && x.bar < b + BL);
+  const acts = actions.filter((a) => a.bar >= b && a.bar < b + BL);
   const beats = bs.length * BPB;
   const name = sectionAt(b * BPB);
   const threats = acts.filter((a) => a.threat);
@@ -311,7 +344,7 @@ for (let b = firstBar; b <= lastBar; b += BLOCK) {
     const tb = new Set(acts.filter(pred).map((a) => Math.floor(a.beat + 1e-6)));
     let m = 0;
     let run = 0;
-    for (let beat = b * BPB; beat < (b + BLOCK) * BPB; beat++) {
+    for (let beat = b * BPB; beat < (b + BL) * BPB; beat++) {
       run = tb.has(beat) ? run + 1 : 0;
       m = Math.max(m, run);
     }
@@ -325,7 +358,7 @@ for (let b = firstBar; b <= lastBar; b += BLOCK) {
     clutter = Math.max(clutter, threats.filter((t) => t.beat >= a.beat - 1e-6 && t.beat <= a.beat + w).length);
   }
   // camera events
-  const inBlock = (beat) => beat >= b * BPB && beat < (b + BLOCK) * BPB;
+  const inBlock = (beat) => beat >= b * BPB && beat < (b + BL) * BPB;
   const camEvents = L.cameraCues.filter((c) => inBlock(c.beat)).length + L.fx.filter((f) => inBlock(f.beat) && (f.fx === 'zoom' || f.fx === 'shake')).length;
   // sawtooth
   const ints = bs.map((x) => x.intensity);
@@ -334,7 +367,7 @@ for (let b = firstBar; b <= lastBar; b += BLOCK) {
   const sawtooth = bs.length >= 4 && peakIdx >= bs.length - 3 && mean(ints.slice(0, 2)) < blockMean;
   // phrase payoff: 4th bar of each 4-bar phrase
   const payoffs = [];
-  for (let p = b; p < b + BLOCK; p += 4) {
+  for (let p = b; p < b + BL; p += 4) {
     const pb = p + 3;
     if (pb > lastBar) continue;
     const a4 = actions.filter((a) => a.bar === pb);
@@ -347,8 +380,9 @@ for (let b = firstBar; b <= lastBar; b += BLOCK) {
   blocks.push({
     name,
     cls: classOf(name),
-    bars: `${b}-${Math.min(b + BLOCK - 1, lastBar)}`,
+    bars: `${b}-${Math.min(b + BL - 1, lastBar)}`,
     firstBar: b,
+    follows: followsAt(b * BPB),
     nBars: bs.length,
     energy: energyOf(name) ?? null,
     actions: acts.length,
@@ -390,7 +424,7 @@ for (let b = firstBar; b <= lastBar; b += BLOCK) {
     runwayBeats: runway,
     runwaySec: runway * spb,
     clutterMax: clutter,
-    novelty: novelty.filter((n) => n.bar >= b && n.bar < b + BLOCK && n.type !== 'cell').map((n) => `${n.bar}: ${n.what}`),
+    novelty: novelty.filter((n) => n.bar >= b && n.bar < b + BL && n.type !== 'cell').map((n) => `${n.bar}: ${n.what}`),
   });
 }
 
@@ -405,7 +439,7 @@ const reentry = L.checkpoints
   .filter((c) => c.beat >= level.startBeat)
   .map((c) => {
     const early = all.filter((a) => a.threat && a.beat >= c.beat - 1e-6 && a.beat < c.beat + 2);
-    const blk = blocks.find((k) => barOf(c.beat) >= k.firstBar && barOf(c.beat) < k.firstBar + BLOCK);
+    const blk = blocks.find((k) => barOf(c.beat) >= k.firstBar && barOf(c.beat) < k.firstBar + k.nBars);
     const first = barRow(barOf(c.beat));
     return { checkpointBar: barOf(c.beat), threatsInFirst2Beats: early.map((a) => `${a.kind}@${a.beat}`), firstBarIntensity: first?.intensity, sectionMean: blk?.intensity };
   });
@@ -515,6 +549,7 @@ const bigGap = maxGap(bigNov);
 const modeSeq = bars.map((x) => x.mode);
 const modeChanges = modeSeq.filter((m, i) => i > 0 && m !== modeSeq[i - 1]).length;
 const distinctModes = [...new Set(modeSeq)];
+const verticalStretches = modeSeq.filter((m, i) => VERTICAL_MODES.has(m) && (i === 0 || !VERTICAL_MODES.has(modeSeq[i - 1]))).length;
 // B5 lead verb changes between adjacent blocks
 const leadChanges = blocks.filter((k, i) => i > 0 && k.leadVerb !== blocks[i - 1].leadVerb).length;
 // global max same-verb run
@@ -562,7 +597,7 @@ const blame = (deathBeat) => {
   const c = all.filter((a) => a.cls === 'lethal' && a.beat <= deathBeat + 0.05 && deathBeat - a.beat < 2.5);
   return c.length ? c[c.length - 1] : null;
 };
-const blockOf = (beat) => blocks.find((k) => barOf(beat) >= k.firstBar && barOf(beat) < k.firstBar + BLOCK)?.bars ?? '?';
+const blockOf = (beat) => blocks.find((k) => barOf(beat) >= k.firstBar && barOf(beat) < k.firstBar + k.nBars)?.bars ?? '?';
 const groups = {};
 for (const r of reports) {
   const key = `jitter ±${r.jitterMs ?? 0} ms, late ${Math.round((r.lateProb ?? 0) * 100)}%`;
@@ -685,8 +720,15 @@ add('B4h', 'Distinct HAND patterns (offset+verb, no hazard kind) — not in rubr
 add('B5', 'Verb balance', 'largest verb ≤60% per section; lead verb changes between adjacent sections',
   blocks.map((k) => `${k.bars} ${k.leadVerb} ${pct(k.leadVerbShare)}`).join(', ') + `; lead-verb changes ${leadChanges}/${blocks.length - 1}`, P(blocks.every((k) => k.leadVerbShare <= 0.6) && leadChanges === blocks.length - 1));
 add('B6', 'Traversal mode changes', 'a change ≤ every 16 bars; ≥6 distinct modes over the level; ≥2 vertical stretches',
-  `modes ${distinctModes.join(', ')}; ${modeChanges} changes in ${nBars} bars (${bars.filter((x) => x.mode !== 'ground').length} bars off the flat ground run); vertical stretches 0`, P(distinctModes.length >= Math.min(6, Math.ceil(nBars / 16)) && modeChanges >= Math.floor(nBars / 16)));
-add('B7', 'Lead instrument per section', 'adjacent sections differ; ≥5 lanes', 'no section declares `follows` (not authored)', 'FAIL');
+  `modes ${distinctModes.join(', ')}${modeTags.length ? ' (tagged)' : ' (inferred)'}; ${modeChanges} changes in ${nBars} bars (${bars.filter((x) => x.mode !== 'ground' && x.mode !== 'street').length} bars off the flat ground run); vertical stretches ${verticalStretches}`, P(distinctModes.length >= Math.min(6, Math.ceil(nBars / 16)) && modeChanges >= Math.floor(nBars / 16)));
+{
+  const lanesUsed = [...new Set(followTags.map((f) => f.lane))];
+  const leads = blocks.map((k) => k.follows);
+  const adjDiffer = leads.every((l, i) => l && (i === 0 || l !== leads[i - 1]));
+  add('B7', 'Lead instrument per section', 'adjacent sections differ; ≥5 lanes over the level (≥ #sections here)',
+    followTags.length ? `block leads ${blocks.map((k) => `${k.bars} ${k.follows ?? '—'}`).join(', ')}; lanes used ${lanesUsed.join(', ')}` : 'no section declares `follows` (not authored)',
+    followTags.length && adjDiffer && lanesUsed.length >= Math.min(5, blocks.length) ? 'PASS' : 'FAIL');
+}
 add('C1', 'Intensity follows the song (Spearman ρ vs energy)', '≥0.7',
   `ρ = ${r2(spearman)} over ${named.length} sections: ` + named.map((k) => `${k.name} int ${r1(k.intensity)} / energy ${k.energy}`).join(', '), Number.isFinite(spearman) ? P(spearman >= 0.7) : 'N/A');
 add('C2', 'Valleys (≥35% below previous peak)', `≥3 per 96 bars (≈${Math.max(1, Math.round((3 * nBars) / 96))} here)`, `${valleys}; section intensity ${blocks.map((k) => r1(k.intensity)).join(' → ')}`, P(valleys >= Math.max(1, Math.round((3 * nBars) / 96))));

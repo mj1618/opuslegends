@@ -106,3 +106,51 @@ Driven by the review's top fixes. Parallel: (a) engine: tempo-map run speed, ori
 stems wired to the crowd, limiter; (b) art integration of src/art into the game; (c) act-1 redesign of bars
 1-~33 of the edit: reward-majority actions, sparse lethal threats on accents, sawtooth 8-bar blocks, rhythmic
 variety from the original's figures, a twist every 8 bars, height changes, world reactions on every stab.
+
+## Iteration 2 — level notes (act 1 redesign)
+Plan: `docs/level/act1_plan.md` (bar-by-bar against the edit's lanes). Level: `src/level/slice.ts`, now on the
+edit's grid (beat 0 = song bar 1; bars 1–33, finish on the verse-3 downbeat, beat 132; `songId: 'jim_edit'`).
+- **Shape:** 42nd Street intro (teach hop / held jump / strike on bottles; pools before the first pit on bar 8) →
+  a springboard LAUNCH onto the neon rooftops (bar 9: step down, alley pit, drop back to the street on the bar-12
+  fill) → stop-time "big hits" (long pit on the held note, bar 14) → the honky-tonk (knee-slide on the held note,
+  lifts over a pool, fill runs, Hup-Hup-HEY on the walk-up's HUP HUP HEY) → LAUNCH onto the bar top on the chorus
+  downbeat → A7-climb cells (hop on D, strike the D#), goons on the record's HEYs, the walkdown smash (a crate on
+  every quarter + shakes), the tag breath, the lethal lift run on the turnaround stabs carrying HUP HUP → HEY Heave
+  → a last launch through the finish. Checkpoints 32, 64, 80, 96, 120.
+- **New mechanics (lean, data-driven):** `breakable` (strike on its beat → token burst, ~±210 ms; `high` variant),
+  `bounce` pad (auto-launch solved to land on a beat/height; tokens on the arc), raised floors, shallow pools
+  (24 px, walk out; `Tun.jump.ledgeAssist` 18 → 26), `lowSign` + knee-slide, lifts over a pool. Placeholder draws
+  in `render/propsDraw.ts`. Lifts: wider solid window (−0.5 … "and"+0.12) and `Tun.jump.bufferTime` 0.13 → 0.17
+  (a late hop then an early press no longer loses the press — iteration 1's #1 death cause).
+- **Crowd:** per-section caps (10 intro / 14 rooftops / 17 honky-tonk / 19 pre-chorus / 24 chorus) + a missed
+  target costs 1. Autoplay trace: 10 by bar 5, 14 by bar 11, 19 on the walk-up, FULL HOUSE only from beat 90.
+- **World reactions:** fx on every HEY, fill accent, section start, the walkdown quarters, the turnaround stabs;
+  camera zoom-out for the launches/chorus, punch-in on the walkdown.
+- **Rubric tool:** a trailing block < 4 bars merges into the previous one (bar 33 is not a section); `mode` /
+  `follows` tags feed B6/B7 and the novelty timeline; breakables split into -high/-big like pendulums; the song
+  and beat map default to the level's `songId` (`assets/audio/jim_edit.beatmap.json`).
+
+| Rubric (gate items bold) | Iter 1 (review, placeholder grid) | Iter 2 act 1 (edit grid) |
+|---|---|---|
+| **A1** reward share | 33% (23% in 9–16) | **75%** (86 / 77 / 71 / 69% per block) PASS |
+| **A2** lethal / bar | 0.5 / 1.38 / 2.25 / 0.88 | **0.13 / 0.38 / 0.25 / 0.44 adj**, max 2 in a bar, none in 1–6 PASS |
+| **A4** lethal on strong accent | 55% | **92%** (100% with lift-run heads) PASS |
+| **A9** sloppy ±85 + 10% late | 3.0 deaths / 32 bars, 4 in bars 1–16 | **0 deaths × 5 seeds**, ~1 stumble/run PASS |
+| **B1** longest stretch w/o twist | 13 bars | **6 bars** PASS |
+| **B2/B3** repeats | 1 / 1 | **1 / 1** PASS |
+| **B6** modes | ground+lifts | **street, launch, rooftops, bar-floor, lifts, bar-top; 10 changes** PASS |
+| **C1** ρ(intensity, energy) | 0.40 | **0.95** (3.7 → 4.2 → 4.4 → 4.8) PASS |
+| **C3** breather pairs | none after bar 4 | **9 pairs** PASS |
+| **D1** actions / beat | 0.72 / 0.97 / 1.09 / 0.94 | **0.69 / 0.81 / 0.88 / 1.00** PASS |
+| A5 ±130 ms | 29 / 1 / 8 deaths | 1 / 0 / 0 (the turnaround lifts) |
+| A10 hotspots | slam lifts 78% of deaths | no deaths |
+| B4r plain ♩♩♩♩ bars | 22 of 32, 0 off-beat actions | 7 of 33, 21 off-beat actions |
+| C4 sawtooth | 2/4 | 4/4 |
+| C7 camera events / 8 bars | 2 / 0 / 0 / 2 | 4 / 5 / 3 / 10 |
+| Gate | 3/11 | **11/11** |
+Still failing (non-gate): C2 (no valley — one rising act), B5 (strike leads 3 blocks), D3 (HUPs are hopped, not
+struck: 58% of shouts struck), E3 (the 4-hop lift run is 4–5 threats in the runway). Harder bots: ±110 + 20% late
+0 deaths × 3; autoplay 112/112 Perfect, 0 deaths, all 317 tokens.
+Weak spots: probably now *too forgiving* for a skilled player (the bot doesn't model reading, so real first-timers
+will stumble more); the bar top barely reads as a height change; the rooftops need art for walls/edges; the tag
+and turnaround breakables are placeholder skins; the lift run is the only real skill check.
