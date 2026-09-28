@@ -11,6 +11,7 @@ Stems sum exactly to the pre-master mix (master processing is not in the stems).
 from __future__ import annotations
 
 import math
+import zlib
 
 import numpy as np
 from scipy import ndimage, signal
@@ -51,6 +52,8 @@ def compress(x, sr, thresh=-18.0, ratio=4.0, attack_ms=5.0, release_ms=80.0, kne
         mk += 0.5 * float(np.mean(sm[sm > 0.05])) if np.any(sm > 0.05) else 0.0
     gain = dsp.db2lin(-gr_s + mk)
     if stats is not None:
+        if stats.get("want_gain"):
+            stats["gain"] = gain
         stats["gr_max_db"] = float(np.max(sm))
         active = sm[lv_db > -60]
         stats["gr_mean_db"] = float(np.mean(active)) if len(active) else 0.0
@@ -84,6 +87,8 @@ def limiter(x, sr, ceiling_db=-1.0, lookahead_ms=1.5, release_ms=70.0, os=4, sta
     r = np.interp(np.arange(n), (np.arange(nb) + 0.5) * blk, rb)
     gain = np.minimum(g, r)
     if stats is not None:
+        if stats.get("want_gain"):
+            stats["gain"] = gain
         grdb = -dsp.lin2db(gain)
         stats["limiter_gr_max_db"] = float(np.max(grdb))
         stats["limiter_gr_mean_db"] = float(np.mean(grdb))
@@ -165,7 +170,8 @@ class Mixer:
 
     def ir(self, name):
         if name not in self._irs:
-            self._irs[name] = make_ir(self.sr, seed=hash(name) % 1000, **REVERBS[name])
+            # deterministic seed (Python's str hash is salted per process, which made renders irreproducible)
+            self._irs[name] = make_ir(self.sr, seed=zlib.crc32(name.encode()) % 1000, **REVERBS[name])
         return self._irs[name]
 
     def gate_curve(self, track, n):
@@ -271,9 +277,29 @@ class Mixer:
                 else:
                     # reverb returns: keep lows out of the room (mud + stereo lows)
                     y = y + dsp.fftconv(dsp.filt(s, "hp", 180, sr, 0.7071, order=4), self.ir(fx))
-            stems[bus] = y
+            y = y * self.bus_gate_curve(bus, cfg.get("stem", bus), n)
+            stem = cfg.get("stem", bus)
+            if stem in stems:
+                stems[stem] = stems[stem] + y
+            else:
+                stems[stem] = y
             self.stats["buses"][bus] = st
         return stems
+
+    def bus_gate_curve(self, bus, stem, n):
+        """Post-return mutes (Score.mute_bus / stop(total=True)) for this bus."""
+        sc = self.score
+        g = np.ones(n)
+        for gt in sc.bus_gates:
+            if gt["target"] not in ("*", bus, stem) or bus in gt["keep"] or stem in gt["keep"]:
+                continue
+            s0 = sc.sample(gt["beat"])
+            s1 = sc.sample(gt["beat"] + gt["beats"])
+            f = int(gt["fade_ms"] * 1e-3 * self.sr)
+            a = max(0, s0 - f)
+            g[a:s0] = np.minimum(g[a:s0], np.linspace(1, 0, s0 - a) ** 2)
+            g[s0:s1] = 0.0
+        return g
 
     def master(self, stems, target_lufs=-14.0, ceiling_db=-1.0, glue=None, master_eq=None, clip_db=1.5,
                mono_below_hz=100.0):
@@ -289,8 +315,10 @@ class Mixer:
             y = eq(y, sr, master_eq)
         g = {"thresh": -17.0, "ratio": 2.0, "attack_ms": 12.0, "release_ms": 150.0, "knee": 6.0, "detector": "rms"}
         g.update(glue or {})
-        gst = {}
+        gst = {"want_gain": True}
         y = compress(y, sr, stats=gst, **g)
+        glue_gain = gst.pop("gain")
+        gst.pop("want_gain", None)
         st["glue_gr_mean_db"] = gst.get("gr_mean_db")
         st["glue_gr_max_db"] = gst.get("gr_max_db")
         gain_db = target_lufs - loudness.integrated_lufs(y, sr)
@@ -299,14 +327,29 @@ class Mixer:
             z = y * dsp.db2lin(gain_db)
             if clip_db:
                 z = soft_clip(z, sr, clip_db)
-            lst = {}
+            lst = {"want_gain": True}
             out = limiter(z, sr, ceiling_db=ceiling_db, stats=lst)
             got = loudness.integrated_lufs(out, sr)
             if abs(got - target_lufs) < 0.05:
                 break
             gain_db += target_lufs - got
+        lim_gain = lst.pop("gain")
+        lst.pop("want_gain", None)
         st.update(lst)
+        # the linear part of the master chain, so stems can be exported "at master level" (they then sum to the
+        # master, minus the soft clip): x -> *norm -> mono_below -> eq -> *glue -> *gain -> *limiter
+        self._master_lin = dict(norm=norm, mono=mono_below_hz, eq=master_eq,
+                                gain=glue_gain * dsp.db2lin(gain_db) * lim_gain)
         st["final_lufs"] = loudness.integrated_lufs(out, sr)
         st["true_peak_db"] = loudness.true_peak_db(out)
         st["master_gain_db"] = gain_db
         return out
+
+    def at_master_level(self, x):
+        """Apply the master chain's linear processing + gain curves (not the soft clip) to a stem."""
+        m = self._master_lin
+        y = x * m["norm"]
+        y = dsp.mono_below(y, self.sr, m["mono"]) if m["mono"] else y
+        if m["eq"]:
+            y = eq(y, self.sr, m["eq"])
+        return y * m["gain"]

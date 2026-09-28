@@ -1,4 +1,4 @@
-"""Gang shouts ("HEY!", "WHOA!", "HO!", "HA!", "YEAH!") and crowd cheer — pure formant synthesis.
+"""Gang shouts ("HEY!", "HUP!", "WHOA!", "HO!", "HA!", "YEAH!") and crowd cheer — pure formant synthesis.
 
 Each voice = band-limited glottal source (pitch contour + jitter/shimmer + aspiration noise)
 through a time-varying 5-formant *cascade* (Klatt-style: correct relative formant levels for
@@ -49,6 +49,14 @@ WORDS = {
     "WHOA": dict(on=0.07, frames=[(0.0, "U", 0.0, 0.3), (0.05, "U", 0.45, 0.15), (0.1, "O", 1.0, 0.08),
                                   (0.45, "O", 0.95, 0.08), (0.62, "U", 0.7, 0.1), (0.75, "U", 0.0, 0.2)],
                  pitch=[(0.0, 0.92), (0.1, 1.06), (0.3, 1.04), (0.75, 0.74)]),
+    # short, punchy "HUP!": /h/ -> open-mid vowel -> lip closure, with a light /p/ release burst
+    "HUP": dict(on=0.05, frames=[(0.0, "UH", 0.0, 1.0), (0.042, "UH", 0.35, 1.0), (0.062, "UH", 1.0, 0.1),
+                                 (0.125, "UH", 0.95, 0.1), (0.15, "U", 0.25, 0.1), (0.165, "U", 0.0, 0.2)],
+                pitch=[(0.0, 1.0), (0.07, 1.1), (0.165, 0.97)], burst=(0.19, 0.22)),
+    # disappointed audience "OOOH" (falls in pitch)
+    "OOH": dict(on=0.08, frames=[(0.0, "U", 0.0, 0.3), (0.08, "U", 0.6, 0.1), (0.3, "O", 1.0, 0.08),
+                                 (0.85, "O", 0.8, 0.1), (1.15, "U", 0.0, 0.25)],
+                pitch=[(0.0, 1.12), (0.3, 1.06), (1.15, 0.78)]),
     "YEAH": dict(on=0.05, frames=[(0.0, "I", 0.0, 0.2), (0.05, "I", 0.7, 0.1), (0.12, "E", 1.0, 0.08),
                                   (0.28, "AE", 1.0, 0.08), (0.45, "A", 0.8, 0.1), (0.58, "UH", 0.0, 0.2)],
                  pitch=[(0.0, 0.95), (0.12, 1.08), (0.35, 1.02), (0.58, 0.8)]),
@@ -86,7 +94,7 @@ def shout_voice(word, sr, rng, f0=200.0, tract=1.0, dur_scale=1.0, effort=1.0):
     """One voice saying `word`. Returns (signal, onset_samples) where onset = vowel onset."""
     w = WORDS[word]
     stretch = dur_scale
-    total = w["frames"][-1][0] * stretch + 0.03
+    total = max(w["frames"][-1][0], w.get("burst", (0, 0))[0] + 0.015) * stretch + 0.03
     n = int(total * sr)
     t = np.arange(n) / sr
     formants, amps, noise_r = _interp_frames(w["frames"], t, stretch)
@@ -115,12 +123,19 @@ def shout_voice(word, sr, rng, f0=200.0, tract=1.0, dur_scale=1.0, effort=1.0):
     y = _cascade(exc, formants, [b * (1.0 + 0.2 * effort) for b in BW], sr)
     y = filt(y, "hp", 120, sr)  # lip radiation-ish + rumble removal
     y *= dsp.onepole_lp(amps, 120, sr)
+    if w.get("burst"):
+        bt, ba = w["burst"]
+        k = int(bt * stretch * sr)
+        m = min(int(0.012 * sr), n - k)
+        if m > 0:
+            b = filt(rng.standard_normal(m), "bp", 1400, sr, 0.8) * np.exp(-np.arange(m) / (0.0025 * sr))
+            y[k:k + m] += ba * np.max(np.abs(y)) * b / (np.max(np.abs(b)) + 1e-9)
     y = np.tanh(1.8 * effort * y / (np.max(np.abs(y)) + 1e-9)) / math.tanh(1.8 * effort)
     return y, int(w["on"] * stretch * sr)
 
 
 class GangShouts(Instrument):
-    """event.piece = word ('HEY', 'WHOA', 'HO', 'HA', 'YEAH'). params: voices (int), dur (stretch)."""
+    """event.piece = word ('HEY', 'HUP', 'WHOA', 'HO', 'HA', 'YEAH'). params: voices (int), dur (stretch)."""
     mono = False
     variants = 3
 

@@ -39,17 +39,18 @@ def lane_events(sc: Score):
         kind = getattr(tr.instrument, "lane_kind", None) or type(tr.instrument).__name__   # sampled alternatives set lane_kind
         for ev in tr.resolve():
             p = ev.params
+            xtra = {k[2:]: (bool(v) if isinstance(v, np.bool_) else v) for k, v in p.items() if k.startswith("x_")}
             if ev.pitch is None and ev.piece is not None:
                 piece = ev.piece
                 if kind == "GangShouts":
-                    yield "shouts", name, ev, {"word": piece.upper(), "track": name}
+                    yield "shouts", name, ev, {"word": piece.upper(), "track": name, **xtra}
                 elif kind == "Crowd":
-                    yield "crowd", name, ev, {"kind": piece, "dur": _r(ev.dur_s, 4), "track": name}
+                    yield "crowd", name, ev, {"kind": piece, "dur": _r(ev.dur_s, 4), "track": name, **xtra}
                 elif piece in drum_map:
                     extra = {"piece": piece} if drum_map[piece] != piece else {}
                     if p.get("accent"):
                         extra["accent"] = True
-                    yield drum_map[piece], name, ev, extra
+                    yield drum_map[piece], name, ev, {**extra, **xtra}
                 continue
             if ev.pitch is None:
                 continue
@@ -61,6 +62,7 @@ def lane_events(sc: Score):
             for k in ("bend", "slide", "vib", "pm"):
                 if p.get(k):
                     info[k] = p[k] if not isinstance(p[k], (bool, np.bool_)) else True
+            info.update(xtra)
             if tr.lane:
                 yield tr.lane, name, ev, info
             if tr.accent_lane and p.get("accent"):
@@ -80,6 +82,8 @@ def build(score: Score, files: dict | None = None, loudness: dict | None = None,
         lanes.setdefault(lane, []).append(d)
 
     for lane, name, ev, extra in lane_events(sc):
+        if lane in sc.lane_ends and "durBeats" in extra:
+            extra = {**extra, "endBeat": _r(ev.beat + extra["durBeats"]), "endT": _r(ev.t + extra["dur"])}
         add(lane, ev, **extra)
 
     for st in sc.stops:
@@ -100,7 +104,7 @@ def build(score: Score, files: dict | None = None, loudness: dict | None = None,
         for d in lane:
             prev = merged[-1] if merged else None
             if prev is not None and prev["sample"] == d["sample"] and "pitch" not in d and "pitch" not in prev \
-                    and name not in ("stops",):
+                    and "vel" in d and "vel" in prev and name not in ("stops",):
                 prev["vel"] = max(prev["vel"], d["vel"])
                 pieces = prev.setdefault("pieces", [prev.pop("piece", name)])
                 pieces.append(d.get("piece", name))
@@ -149,7 +153,8 @@ def build(score: Score, files: dict | None = None, loudness: dict | None = None,
         "bars": bars,
         "beats": beats,
         "lanes": lanes,
-        "laneInfo": {k: {"description": LANE_INFO.get(k, "custom marker lane"), "count": len(v)} for k, v in lanes.items()},
+        "laneInfo": {k: {"description": sc.lane_desc.get(k, LANE_INFO.get(k, "custom marker lane")), "count": len(v)}
+                     for k, v in lanes.items()},
     }
 
 

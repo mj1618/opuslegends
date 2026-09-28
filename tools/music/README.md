@@ -32,6 +32,8 @@ and `ffmpeg` with libvorbis and libmp3lame. The system python already has these.
 
 ```
 render.py              CLI: score -> mix -> master -> encode -> beatmap -> analysis
+sfx.py                 one-shots for the game (same voices as the song, in its key) + assets/audio/sfx/manifest.json
+check_grid.py          verifies a render against its gameplay grid (stops, empty stem bars, stems sum, shout onsets)
 producer/score.py      the DSL (Score, Section, Track, swing, humanize, automation, stops, markers)
 producer/patterns.py   idiomatic figures: boogie_guitar, pump_bass, walking_boogie, piano_boogie_lh,
                        piano_tremolo, piano_gliss, triplet_run, power
@@ -46,13 +48,16 @@ instruments/drums.py   RockKit: kick snare rimshot floortom tom hat openhat cras
 instruments/guitar.py  RhythmGuitar (double-tracked, amp sim) and LeadGuitar (bends/slides/vibrato)
 instruments/bass.py    Bass (picked, DI + driven blend)
 instruments/keys.py    HonkyTonkPiano, Organ (tonewheel + Leslie)
-instruments/vocals.py  GangShouts (HEY/WHOA/HO/HA/YEAH), Crowd (cheer/roar)
+instruments/vocals.py  GangShouts (HEY/HUP/WHOA/HO/HA/YEAH/OOH), Crowd (cheer/roar)
+instruments/fx.py      Bell (temple/stalactite/glass/buoy), SfxKit (gongs, riser, roar, oil drum...) + one-shot
+                       recipes (wood, crowd loops, applause, projector/film, whooshes, pool balls, Big Jim)
 instruments/base.py    Instrument base (voice cache), Sampler, Layered
 instruments/palette.py Palette(use_samples=...): per-song synth <-> sampled switch
 instruments/sampled.py SampledKit, SampledPiano, IRRhythmGuitar, IRLeadGuitar, SampledGangShouts
 instruments/sample_cache.py  builds samples_cache/ from the raw libraries in samples/ (both gitignored)
 SAMPLES.md             sample sources, licences, required credits, setup commands
-songs/                 score files (palette_demo.py; jim_transcription.json comes from the transcriber)
+songs/                 score files (palette_demo.py, jim.py + jim_arrangement_notes.md;
+                       jim_transcription.json comes from the transcriber)
 ```
 
 ## The score DSL
@@ -131,7 +136,26 @@ Only gameplay tracks export lanes.
 |---|---|
 | `s.chord(beat, "A7")` | Harmony span. Exported as `song.harmony` in the engine's `ChordSpan` form (tones relative to the key root). |
 | `s.mark(lane, beat, **data)` | A free-form marker lane, e.g. `s.mark("cue", b, name="drop")`. |
-| `s.bus(name, parallel=..., comp=..., eq=..., gain_db=...)` | Bus processing. **Buses are the stems.** |
+| `s.bus(name, parallel=..., comp=..., eq=..., gain_db=..., stem=None)` | Bus processing. A bus is a stem unless `stem="base"` routes it (after its reverb returns) into a shared stem, so several processing buses can make one exported stem. |
+| `s.stop(beat, beats, keep=(), total=True)` | `total=True` also mutes the bus outputs **including reverb/delay returns** (a dead-silent hole, e.g. before a drop). The lane event gets `total: true`. |
+| `s.mute_bus(bus_or_stem, beat, beats, fade_ms=40)` | Hard-mute a bus or a whole stem, post returns (e.g. "lead stem empty in bars 42/44/46/48"). The fade happens before `beat`. No lane event. |
+| `s.describe(lane, text, ends=False)` | Lane description in `laneInfo`; `ends=True` adds `endBeat`/`endT` to each event (sustain lanes). |
+| `s.chord(...)` at an existing beat | replaces that span (use beat-level labels, e.g. power chords under unison slams). |
+
+**Extra lane fields.** Any event param named `x_<field>` is copied into the event's lane entry as `<field>` (and is
+ignored by the instruments): `bell.note(b, "A4", 1, 0.85, x_role="call", x_pair=41)`,
+`hey.hit(b, "HEY", 1.0, x_phrase="hup", x_hold=2)`. `pattern(..., params={"cowbell": {"tune": 0.906}})` passes params
+to every hit of a piece.
+
+**Song-module options** (read by `render.py` next to `build()` and `MASTER`):
+
+| Name | Meaning |
+|---|---|
+| `MASTER_STEMS = ("base", "lead", "shouts")` | which stems make the master (default all), e.g. leave out an optional `bonus` layer |
+| `STEMS_AT_MASTER_LEVEL = True` | stems get the master chain's linear processing and gain curves (normalisation, mono-below, EQ, glue, limiter; not the soft clip), so the master stems **sum to the master**. If any stem would peak above 0 dBFS, all stems get one common trim, recorded as `audio.files.stemsGainDb` |
+| `ENCODE = {"ogg": 5, "mp3": 4, "stems": 4}` | Vorbis q / LAME V (defaults 6 / 2 / 6) |
+| `END_FADE_S = 1.6` | identical fade on master and stems at the very end |
+| `MELODY_TRACKS = [...]` | tracks counted as "melody" by the salience analysis |
 
 **Mix kwargs on a track.**
 
@@ -156,8 +180,10 @@ Only gameplay tracks export lanes.
 | `Bass(drive, bright)` | Picked modal string (B = 1.2e-4), DI plus an oversampled driven upper band. | |
 | `HonkyTonkPiano(detune_cents=11, bright, width, soundboard)` | 1–3 detuned strings per key (the honky-tonk beating), stiff-string inharmonicity, hammer spectrum driven by velocity, two-stage decay, damper, hammer thump and "tack" click. A synthesized soundboard IR is applied at track level, with stereo spread by pitch. | |
 | `Organ(drawbars="888500000", perc, drive, leslie, click)` | 9-drawbar tonewheel with foldback and key click, tube drive, and a **two-rotor Leslie** (800 Hz crossover, doppler via modulated delay plus AM, separate horn/drum inertia, two mics). | automate `leslie` |
-| `GangShouts(voices=10)` | Glottal source (jitter, shimmer, subharmonic roughness, aspiration) into a **time-varying 5-formant cascade** with word keyframes. The gang is 8–14 voices with different pitches, tract lengths and pans. The onset is **self-calibrated**: the gang envelope reaches 50 % on the beat, and the /h/ is pre-rolled before it. | words: `HEY`, `WHOA`, `HO`, `HA`, `YEAH` |
+| `GangShouts(voices=10)` | Glottal source (jitter, shimmer, subharmonic roughness, aspiration) into a **time-varying 5-formant cascade** with word keyframes. The gang is 8–14 voices with different pitches, tract lengths and pans. The onset is **self-calibrated**: the gang envelope reaches 50 % on the beat, and the /h/ is pre-rolled before it. | words: `HEY`, `HUP` (short, lip-closure burst), `WHOA`, `HO`, `HA`, `YEAH`, `OOH` (falling) |
 | `Crowd()` | Pink-noise vocal-band roar, 26 synthetic cheering voices, whistles and scattered claps. | `cheer` / `roar`; `dur` = length |
+| `Bell(kind)` | Modal bells: `temple` (bowl partials in slowly beating pairs, strong fundamental), `stalactite` (glock bar + soft harmonic body + drip chirp), `glass`, `buoy` (big cast bell + clapper). | per-event `damp` (s after the note: hand-damp the ring) |
+| `SfxKit()` | Pieces `gong` (tam-tam with a low E hum and late-blooming highs), `gong_small` (opera gong rising into B4), `gong_boom`, `gong_swell` (rolled crescendo whose hit lands at `dur`), `riser`, `roar`, `oildrum`, `slam`, `krak`, `whale`, `gull`, `clack`, `rim`, `scrape`. | `dur` where it matters |
 
 ### Sampled instruments
 
@@ -276,7 +302,8 @@ const song: SongDef = { ...bm.song, source: { kind: 'file', url: oggUrl } };
     "sampleRate": 48000, "lengthSamples": N, "durationSec": s,
     "swing": 1.02, "swingRatio": 0.67,
     "files": {"ogg": {"path", "audioOffset", "decoderLagSamples", "bytes"}, "mp3": {...},
-              "stems": {"drums": "assets/audio/stems/<name>/drums.ogg", ...}},
+              "stems": {"drums": "assets/audio/stems/<name>/drums.ogg", ...},
+              "masterStems": [...], "stemsAtMasterLevel": true, "stemsGainDb": -1.9},   // when configured
     "loudness": {"integratedLufs": -14.0, "truePeakDb": -1.8}
   },
   "sections": [{"name", "label", "startBar", "bars", "startBeat", "endBeat", "t0", "t1", "energy"}],
@@ -313,6 +340,7 @@ const song: SongDef = { ...bm.song, source: { kind: 'file', url: oggUrl } };
 | `bass` | bass notes | as melody |
 | `stops` | silence starts at `t` and lasts `dur` s (`beats`) | `kind` = stop / break |
 | custom | anything added with `s.mark()` | whatever was passed |
+| any | `x_*` params of the event | the field without `x_` |
 
 **Encoder offsets.** Vorbis carries a pre-skip, and ffmpeg writes the LAME gapless header into the MP3.
 Decoders that honour them (ffmpeg, current Chrome/Firefox/Safari) decode both files with **0 lag**. The render
@@ -330,7 +358,26 @@ ignores the LAME header plays the MP3 about 1105 samples late. Prefer the OGG, a
 - **Lane alignment:** each lane re-rendered **one event at a time**, measuring where the envelope reaches 50 %
   of peak (the perceptual attack) against the beat map. There is also a port of the engine's
   `analyzeBeatAlignment` run on the master.
+- **Per section:** `section_stem_lufs` and `section_track_lufs` (gated LUFS of each stem/track inside each section)
+  and `melody_salience_db` (melody tracks vs. the rest of the master mix in 500 Hz–4 kHz; ≥ 0 dB = the tune sits on
+  top). Gated per-track numbers read "level while playing", so a sparse lick shows as loud; use the band shares for
+  masking questions.
 - **Other:** kick punch (transient rise before and after mastering), tail and pre-roll silence, and guitar
   aliasing above 12 kHz.
+
+`TRACK_DUMP=1 python3 tools/music/render.py ...` also writes `build/<name>/tracks.npz` (every track, float16) for
+offline digging. `python3 tools/music/check_grid.py <name>` checks the render against the gameplay grid: band (base
+stem) holes inside every stop, total-silence stops in the master, the lead stem empty in the response bars, stems
+summing to the master, and shout onsets.
+
+## One-shots (`sfx.py`)
+
+`python3 tools/music/sfx.py [--song songs/jim.py] [--out assets/audio/sfx]` renders the game's one-shots with the
+song's own voices (gang shouts, cowbell/woodblock, slide guitar, temple bell, piano, fx recipes) in the song's key, as
+mono (or stereo for crowd/gong/ambience) Vorbis q3, and writes `manifest.json` (schema `opuslegends.sfx/1`). Each
+entry: `id, file, category, desc, channels, loop?, durationSec, onsetSec, peakDb, loudnessLufs, mixGainDb` and, when
+pitched, `midi, note, degree` (index into the key's scale). **`onsetSec`** is the time from the file start to the
+perceptual attack (50 % envelope): start the file `onsetSec` early to land it on a beat (shouts pre-roll their /h/ by
+50 ms). **`mixGainDb`** is a suggested playback gain against the −14 LUFS master. Loops are exactly periodic.
 
 `flags` lists anything outside targets.

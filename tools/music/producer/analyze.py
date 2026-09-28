@@ -212,7 +212,49 @@ def spectrogram_png(x, sr, path, title_rows=None, height=260, width=1400, stems=
     canvas.save(path)
 
 
-def analyze(master, sr, stems, beatmap, master_wav_path=None, png_path=None, premaster=None, lane_align=None, tracks=None):
+def section_levels(sr, beatmap, sigs, min_s=0.5):
+    """Integrated LUFS of each signal inside each section (None where silent)."""
+    off = beatmap["song"]["audioOffset"]
+    out = {}
+    for sct in beatmap["sections"]:
+        a, b = int((sct["t0"] + off) * sr), int((sct["t1"] + off) * sr)
+        if b - a < min_s * sr:
+            continue
+        row = {}
+        for k, v in sigs.items():
+            seg = v[:, a:b] if v.ndim == 2 else np.stack([v[a:b], v[a:b]])
+            L = loudness.integrated_lufs(seg.astype(np.float64), sr)
+            row[k] = round(L, 1) if math.isfinite(L) and L > -70 else None
+        out[sct["name"]] = row
+    return out
+
+
+def melody_salience(sr, beatmap, tracks, melody_tracks, lo=500.0, hi=4000.0):
+    """Per section: dB of the melody tracks vs. everything else inside the melody band (lo..hi Hz).
+    > 0 dB means the tune sits on top; around -6 dB it is buried."""
+    off = beatmap["song"]["audioOffset"]
+    sos = signal.butter(4, [lo, hi], btype="band", fs=sr, output="sos")
+    res = {}
+    for sct in beatmap["sections"]:
+        a, b = int((sct["t0"] + off) * sr), int((sct["t1"] + off) * sr)
+        mel = 0.0
+        rest = 0.0
+        for k, v in tracks.items():
+            seg = v[..., a:b].astype(np.float64)
+            m = seg.mean(axis=0) if seg.ndim == 2 else seg
+            e = float(np.mean(signal.sosfilt(sos, m) ** 2))
+            if k in melody_tracks:
+                mel += e
+            else:
+                rest += e
+        if mel > 1e-12 and rest > 1e-12:
+            res[sct["name"]] = round(10 * math.log10(mel / rest), 1)
+    return res
+
+
+def analyze(master, sr, stems, beatmap, master_wav_path=None, png_path=None, premaster=None, lane_align=None, tracks=None,
+            master_stems=None, melody_tracks=None):
+    """master_stems: names of the TRACKS that feed the master (None = all)."""
     rep: dict = {}
     L = loudness.integrated_lufs(master, sr)
     tp = loudness.true_peak_db(master)
@@ -267,6 +309,13 @@ def analyze(master, sr, stems, beatmap, master_wav_path=None, png_path=None, pre
             tot = sum(10 ** (x[i] / 10) for x in tb.values())
             rep["track_band_share_pct"][f"{c:g}"] = {k: round(100 * 10 ** (x[i] / 10) / tot, 1) for k, x in tb.items()}
     rep["stem_lufs"] = {k: round(loudness.integrated_lufs(v, sr), 1) for k, v in stems.items()}
+    rep["section_stem_lufs"] = section_levels(sr, beatmap, stems)
+    if tracks:
+        rep["section_track_lufs"] = section_levels(sr, beatmap, tracks)
+        mt = melody_tracks or [k for k in ("lead", "piano") if k in tracks]
+        # judged inside the master mix only (tracks of optional stems excluded)
+        tracks_m = {k: v for k, v in tracks.items() if master_stems is None or k in master_stems}
+        rep["melody_salience_db"] = melody_salience(sr, beatmap, tracks_m, mt)
     # beat-map alignment per lane: each lane re-rendered in isolation (see isolated_lane_alignment)
     align = dict(lane_align or {})
     if "kick" in beatmap["lanes"]:
@@ -328,6 +377,12 @@ def print_report(rep):
     for c, d in rep.get("track_band_share_pct", rep["stem_band_share_pct"]).items():
         top = sorted(d.items(), key=lambda kv: -kv[1])[:3]
         print(f"    {c:>6} Hz: " + ", ".join(f"{k} {v:.0f}%" for k, v in top))
+    if "section_stem_lufs" in rep:
+        print("  section stem LUFS:")
+        for sn, row in rep["section_stem_lufs"].items():
+            print(f"    {sn:11s} " + "  ".join(f"{k}:{v}" for k, v in row.items()))
+    if "melody_salience_db" in rep:
+        print("  melody salience (dB, melody vs rest, 500-4k): " + "  ".join(f"{k}:{v}" for k, v in rep["melody_salience_db"].items()))
     print(f"  alignment {json.dumps(rep['beat_alignment'])}")
     print(f"  punch     {rep.get('kick_punch_db')}  tail={rep['tail_rms_dbfs']} dBFS  preroll={rep['preroll_peak_dbfs']}  gtr>12k={rep.get('guitars_energy_above_12k_db')}")
     print("  FLAGS: " + ("; ".join(rep["flags"]) if rep["flags"] else "none"))

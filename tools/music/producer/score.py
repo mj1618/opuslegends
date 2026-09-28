@@ -208,10 +208,12 @@ class Track:
         return self
 
     def pattern(self, start: float, bars: float = 1, steps: int = 16, vel: dict | None = None,
-                accent: float = 1.0, normal: float = 0.8, ghost: float = 0.4, **rows: str) -> "Track":
+                accent: float = 1.0, normal: float = 0.8, ghost: float = 0.4, params: dict | None = None,
+                **rows: str) -> "Track":
         """Step-sequencer rows per piece. One pattern string covers ONE bar and is repeated for
         `bars` bars (or give a longer string covering several bars).
-        'X' accent, 'x' normal, 'o' ghost, '.'/'-' rest, digits 1-9 = vel 0.1..0.9; spaces/'|' ignored."""
+        'X' accent, 'x' normal, 'o' ghost, '.'/'-' rest, digits 1-9 = vel 0.1..0.9; spaces/'|' ignored.
+        params: {piece: {param: value}} passed to every hit of that piece (e.g. tune, gang, straight)."""
         bpb = self.score.beats_per_bar
         for piece, pat in rows.items():
             pat = pat.replace(" ", "").replace("|", "")
@@ -228,7 +230,8 @@ class Track:
                     raise ValueError(f"bad pattern char {c!r} in {piece}")
                 if vel and piece in vel:
                     v *= vel[piece]
-                self.hit(start + i * step_beats, piece, v, dur=step_beats, accent=(c == "X"))
+                self.hit(start + i * step_beats, piece, v, dur=step_beats, accent=(c == "X"),
+                         **((params or {}).get(piece, {})))
         return self
 
     def seq(self, start: float, spec: str, vel: float = 0.8, dur: float = 0.5, **params) -> float:
@@ -320,6 +323,9 @@ class Score:
         self.markers: dict[str, list[dict]] = {}
         self.stops: list[dict] = []
         self.buses: dict[str, dict] = {}
+        self.bus_gates: list[dict] = []          # post-return (reverb included) mutes per bus or stem
+        self.lane_desc: dict[str, str] = {}      # beat-map descriptions for custom lanes
+        self.lane_ends: set[str] = set()         # lanes whose events get endBeat/endT fields
 
     # ----------------------------------------------------------------- time
     @property
@@ -378,6 +384,7 @@ class Score:
             name = name or chord
         else:
             tones = list(chord)
+        self.harmony = [h for h in self.harmony if abs(h[0] - float(beat)) > 1e-9]   # same beat: replace
         self.harmony.append((float(beat), tones, name or ""))
         self.harmony.sort(key=lambda h: h[0])
 
@@ -385,11 +392,30 @@ class Score:
         """Arbitrary beat-map marker (e.g. 'shouts' cue with no audio, 'riff' phrase starts, 'cue')."""
         self.markers.setdefault(lane, []).append({"beat": float(beat), **data})
 
-    def stop(self, beat: float, beats: float, kind: str = "stop", keep: tuple = (), fade_ms: float = 12.0, **data) -> None:
-        """Band stop / break: every track except `keep` is gated silent from `beat` for `beats`
-        (reverb tails ring). Emits a 'stops' lane event."""
+    def stop(self, beat: float, beats: float, kind: str = "stop", keep: tuple = (), fade_ms: float = 12.0,
+             total: bool = False, **data) -> None:
+        """Band stop / break: every track except `keep` (track or bus names) is gated silent from `beat`
+        for `beats` (reverb tails ring). Emits a 'stops' lane event. `total=True` also mutes the bus
+        outputs *including reverb/delay returns* (a dead-silent hole; buses in `keep` are spared)."""
         self.stops.append({"beat": float(beat), "beats": float(beats), "kind": kind, "keep": tuple(keep),
-                           "fade_ms": fade_ms, **data})
+                           "fade_ms": fade_ms, **({"total": True} if total else {}), **data})
+        if total:
+            self.bus_gates.append({"target": "*", "beat": float(beat), "beats": float(beats),
+                                   "fade_ms": max(fade_ms, 30.0), "keep": tuple(keep)})
+
+    def mute_bus(self, target: str, beat: float, beats: float, fade_ms: float = 40.0) -> None:
+        """Hard-mute a bus or a whole stem (post reverb returns) for a range, e.g. an 'empty' stem bar.
+        The fade happens *before* `beat`; audio starting at `beat + beats` is untouched. No lane event."""
+        self.bus_gates.append({"target": target, "beat": float(beat), "beats": float(beats), "fade_ms": fade_ms,
+                               "keep": ()})
+
+    def describe(self, lane: str, text: str, ends: bool = False) -> None:
+        """Beat-map description for a lane; ends=True adds endBeat/endT to each event (from durBeats)."""
+        self.lane_desc[lane] = text
+        if ends:
+            self.lane_ends.add(lane)
 
     def bus(self, name: str, **settings) -> None:
+        """Bus processing (see Mixer). `stem="base"` routes the processed bus (with its returns) into that
+        stem, so several processing buses can share one exported stem. Default stem = bus name."""
         self.buses[name] = settings
