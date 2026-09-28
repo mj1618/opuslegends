@@ -3,7 +3,7 @@
  * reads only a Controls snapshot — human input and the autoplay bot drive it identically.
  *
  * Verbs (DESIGN §2): Scuttle (hold right; top speed = tempo, +15% catch-up surge when behind the
- * grid), Hop (variable jump defined in BEATS: every tap <= minHoldBeats is the same 1-beat hop,
+ * grid; Game calls setTempo() every step so top speed follows the song's TEMPO MAP), Hop (variable jump defined in BEATS: every tap <= minHoldBeats is the same 1-beat hop,
  * hold ~1 beat = 2-beat jump), Strike (up-forward strike; hits ahead AND above; buffered; hitbox +
  * hitstop handled by Game). Stumble = knockback + control lock + i-frames (never death).
  * Feel: accel/decel, coyote time, jump buffer, apex hang, fall gravity, fast fall, corner
@@ -109,6 +109,17 @@ export class Player implements Body {
     this.svx = this.svy = 0;
     this.runPhase = 0;
     this.airTime = 0;
+  }
+
+  /**
+   * Follow the tempo map (called by Game every sim step with the seconds-per-beat at the world
+   * beat): top run speed = pixelsPerBeat / spb, and the jump physics (defined in beats) rescale.
+   * Positions stay x = beat * pixelsPerBeat, so holding right keeps the hero on the music line
+   * however the band pushes or drags (the original drifts 161.5 -> 166.6 BPM).
+   */
+  setTempo(secondsPerBeat: number): void {
+    this.spb = secondsPerBeat;
+    this.runSpeed = this.pixelsPerBeat / secondsPerBeat;
   }
 
   /** Release from the count-in hold. */

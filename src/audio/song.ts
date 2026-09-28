@@ -257,11 +257,30 @@ export function collectibleNote(song: SongDef, beat: number, index: number): num
 /** MIDI -> Hz */
 export const mtof = (m: number): number => 440 * Math.pow(2, (m - 69) / 12);
 
+/** Result of analyzeBeatAlignment (ms; + = the audio is late vs the beat map). */
+export interface BeatAlignment {
+  beats: number;
+  /** median error over all beats: the robust offset of the map vs the audio (the pass criterion) */
+  medianMs: number;
+  meanMs: number;
+  meanAbsMs: number;
+  maxAbsMs: number;
+  /** medians on beats 1 & 3 vs 2 & 4 (a live drummer's laid-back backbeat shows up as 2/4 > 1/3) */
+  beats13Ms: number;
+  beats24Ms: number;
+  /** largest |median| over 8-bar blocks: catches a tempo map that drifts off the recording */
+  blockMedianMaxMs: number;
+}
+
 /**
  * Offline check of a beat map against audio content: for each beat, finds the strongest
- * transient onset within ±`windowSec` and reports its deviation (+ = audio is late vs the map).
- * Useful when authoring beat maps for real songs; on the synthesized track it is ~0-1 ms.
- * Heuristic: assumes the loudest transient near each beat is on the beat.
+ * transient within ±`windowSec` and measures where its attack STARTS (10 % of its energy peak;
+ * later points on the rise are biased late on a full mix, whose peak includes the bass/guitar
+ * swell) — + = audio is late vs the map. A live recording scatters around its smoothed grid
+ * (laid-back backbeat, pushed fills, strums that speak early), so judge it by the ROBUST numbers:
+ * `medianMs` (offset) and `blockMedianMaxMs` (drift), not the per-beat mean |error|.
+ * The edit of the original: median ~0 ms, 8-bar medians within ±5 ms, mean |err| ~11 ms.
+ * On the synthesized placeholder everything is ~0-1 ms.
  */
 export function analyzeBeatAlignment(
   buffer: AudioBuffer,
@@ -270,55 +289,89 @@ export function analyzeBeatAlignment(
   fromBeat: number,
   toBeat: number,
   windowSec = 0.06,
-): { beats: number; meanAbsMs: number; maxAbsMs: number; meanMs: number } {
+  skip?: (beat: number) => boolean,
+): BeatAlignment {
   const sr = buffer.sampleRate;
-  const data = buffer.getChannelData(0);
+  // mono sum: a 1972 stereo mix pans the kit (the left channel alone is 60 ms off in the outro)
+  const data = new Float32Array(buffer.length);
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const ch = buffer.getChannelData(c);
+    for (let i = 0; i < ch.length; i++) data[i] += ch[i];
+  }
   // Transient detector: first difference (a crude high-pass that emphasizes attacks: kick
-  // beaters, snares, hats) -> energy in ~1.5 ms windows.
+  // beaters, snares, hats) -> energy in ~1.5 ms windows (prefix sums).
   const hop = 8;
   const win = Math.max(8, Math.round(sr * 0.0015));
-  const lp = new Float32Array(data.length);
+  const THR = 0.1;
+  const P = new Float64Array(data.length + 1);
   for (let i = 1; i < data.length; i++) {
     const d = data[i] - data[i - 1];
-    lp[i] = d * d;
+    P[i + 1] = P[i] + d * d;
   }
-  const errs: number[] = [];
-  const energyAt = (s: number) => {
-    let e = 0;
-    for (let i = s; i < s + win; i++) e += lp[i];
-    return e;
-  };
+  const found: { b: number; err: number; peak: number }[] = [];
   for (let b = Math.ceil(fromBeat); b <= toBeat; b++) {
+    if (skip?.(b)) continue;
     const t = tempo.beatToTime(b) + audioOffset;
     const s0 = Math.floor((t - windowSec) * sr);
     const s1 = Math.floor((t + windowSec) * sr);
     if (s0 < 0 || s1 + win >= data.length) continue;
-    // find the energy peak in the window, then walk back to where energy first rose above 30%
-    // (the loudest transient near the beat is assumed to be the beat)
     let peak = 0;
     let peakS = s0;
     const env: number[] = [];
     for (let s = s0; s <= s1; s += hop) {
-      const e = energyAt(s);
+      const e = P[s + win] - P[s];
       env.push(e);
       if (e > peak) {
         peak = e;
         peakS = s;
       }
     }
+    if (peak <= 0) continue;
     let k = (peakS - s0) / hop;
-    while (k > 0 && env[k - 1] > peak * 0.3) k--;
-    // window [s, s+win) crosses 30% when ~30% of it overlaps the onset
-    const onset = (s0 + k * hop + win * 0.7) / sr;
-    errs.push((onset - t) * 1000);
+    while (k > 0 && env[k - 1] > peak * THR) k--;
+    // window [s, s+win) crosses THR of a step onset when (1-THR) of it precedes the onset
+    const onset = (s0 + k * hop + win * (1 - THR)) / sr;
+    found.push({ b, err: (onset - t) * 1000, peak });
   }
-  if (errs.length === 0) return { beats: 0, meanAbsMs: NaN, maxAbsMs: NaN, meanMs: NaN };
-  const abs = errs.map(Math.abs);
+  // beats without a real transient (ring-outs, fades, silence) aren't measurements
+  const peaks = found.map((f) => f.peak).sort((x, y) => x - y);
+  const floor = 0.05 * (peaks[Math.floor(peaks.length / 2)] ?? 0);
+  const kept = found.filter((f) => f.peak >= floor);
+  const errs = kept.map((f) => f.err);
+  const beatsOf = kept.map((f) => f.b);
+  const nan = NaN;
+  if (errs.length === 0) return { beats: 0, medianMs: nan, meanMs: nan, meanAbsMs: nan, maxAbsMs: nan, beats13Ms: nan, beats24Ms: nan, blockMedianMaxMs: nan };
   const r = (x: number) => Math.round(x * 100) / 100;
+  const median = (a: number[]) => {
+    if (a.length === 0) return NaN;
+    const s = [...a].sort((x, y) => x - y);
+    return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+  };
+  const bpb = tempo.beatsPerBar;
+  const inBar = (b: number) => ((b % bpb) + bpb) % bpb;
+  let blockMax = 0;
+  const block = 8 * bpb;
+  for (let i = 0; i < errs.length; i += block) blockMax = Math.max(blockMax, Math.abs(median(errs.slice(i, i + block))));
+  const abs = errs.map(Math.abs);
   return {
     beats: errs.length,
+    medianMs: r(median(errs)),
+    meanMs: r(errs.reduce((s, v) => s + v, 0) / errs.length),
     meanAbsMs: r(abs.reduce((s, v) => s + v, 0) / abs.length),
     maxAbsMs: r(Math.max(...abs)),
-    meanMs: r(errs.reduce((s, v) => s + v, 0) / errs.length),
+    beats13Ms: r(median(errs.filter((_, i) => inBar(beatsOf[i]) % 2 === 0))),
+    beats24Ms: r(median(errs.filter((_, i) => inBar(beatsOf[i]) % 2 === 1))),
+    blockMedianMaxMs: r(blockMax),
   };
+}
+
+/** Is `beat` inside a whole-band stop (the `stops` lane: no band onsets there)? */
+export function inStop(song: SongDef, beat: number): boolean {
+  for (const e of song.map?.lanes.stops ?? []) if (beat >= e.beat - 1e-6 && beat < e.beat + (e.beats ?? 1) - 1e-6) return true;
+  return false;
+}
+
+/** analyzeBeatAlignment over the whole song, skipping the band's stops (e.g. the edit's ending). */
+export function beatAlignmentForSong(buffer: AudioBuffer, song: SongDef, tempo: TempoMap): BeatAlignment {
+  return analyzeBeatAlignment(buffer, tempo, song.audioOffset, 1, song.lengthBeats - 1, 0.06, (b) => inStop(song, b));
 }

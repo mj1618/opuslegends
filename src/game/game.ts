@@ -24,7 +24,7 @@
 import { AudioSystem } from '../audio/audioSystem';
 import { Conductor } from '../audio/conductor';
 import { placeholderSong } from '../audio/placeholderSong';
-import { analyzeBeatAlignment, chordAt, collectibleNote, laneBeats, loadSongBuffer, loadSongStems, makeTempoMap, type SongDef } from '../audio/song';
+import { analyzeBeatAlignment, beatAlignmentForSong, chordAt, collectibleNote, laneBeats, loadSongBuffer, loadSongStems, makeTempoMap, type SongDef } from '../audio/song';
 import { Sfx } from '../audio/sfx';
 import { SyncProbe } from '../audio/syncProbe';
 import type { TempoMap } from '../audio/tempoMap';
@@ -201,8 +201,8 @@ export class Game {
       console.info(`song loaded in ${Math.round(performance.now() - t0)} ms`);
       this.conductor.buffer = buf;
       this.conductor.stems = stems;
-      if (params.autoplay || params.probe) this.probe = await SyncProbe.create(this.audio.ctx, this.audio.music, this.conductor);
-      this.beatAlignment = analyzeBeatAlignment(buf, this.tempo, this.song.audioOffset, 1, Math.min(this.song.lengthBeats, 67));
+      if (params.autoplay || params.probe) this.probe = await SyncProbe.forSong(this.audio.ctx, this.audio.music, this.conductor);
+      this.beatAlignment = beatAlignmentForSong(buf, this.song, this.tempo);
       this.scene = 'title';
       if (params.skipTitle) {
         await this.audio.unlock();
@@ -265,7 +265,7 @@ export class Game {
     this.resetWorld(beat);
     const x = beat * this.level.ppb;
     const y = this.level.floorYAt(x);
-    this.player.spawn(x, Number.isNaN(y) ? 0 : y, this.level.runSpeed, this.level.ppb);
+    this.player.spawn(x, Number.isNaN(y) ? 0 : y, this.tempo.runSpeedAt(beat, this.level.ppb), this.level.ppb);
     this.controls.reset();
     if (this.bot) this.bot.reset(beat, this.controls);
     this.pendingEdges = [];
@@ -328,7 +328,7 @@ export class Game {
     for (const i of [...this.heaveReady]) if (this.level.phrases[i].beats[0] >= beat - 1e-6) this.heaveReady.delete(i);
     const x = beat * this.level.ppb;
     const y = this.level.floorYAt(x);
-    this.player.spawn(x, Number.isNaN(y) ? 0 : y, this.level.runSpeed, this.level.ppb);
+    this.player.spawn(x, Number.isNaN(y) ? 0 : y, this.tempo.runSpeedAt(beat, this.level.ppb), this.level.ppb);
     this.controls.reset();
     // keep currently held directions so a player holding right launches immediately
     if (this.input.isHeld('right')) this.controls.apply('right', true, 0);
@@ -595,6 +595,8 @@ export class Game {
     const beatW = this.tempo.timeToBeat(w0);
     this.worldBeat = beatW;
     p.musicX = this.conductor.playing && this.phase === 'run' ? beatW * this.level.ppb : NaN;
+    // top run speed + jump physics follow the TEMPO MAP (x = beat * ppb, so speed = ppb / spb(beat))
+    p.setTempo(this.tempo.secondsPerBeatAt(beatW));
     // grade presses (score/feedback/crowd only — the controller never sees this)
     if (this.phase === 'run') {
       if (this.controls.jumpPressed) this.gradePress('jump', this.controls.jumpPressTime);
@@ -716,7 +718,7 @@ export class Game {
       this.chaser.x = Math.min(target, p.x - (B.behindBeats + 0.5) * L.ppb);
       this.chaser.riseBeat = Math.max(L.chaserBeat, beatW);
     } else {
-      this.chaser.x = Math.min(target, this.chaser.x + L.runSpeed * B.catchUpMul * dt);
+      this.chaser.x = Math.min(target, this.chaser.x + p.runSpeed * B.catchUpMul * dt);
     }
     if (p.x - p.w / 2 + Tun.player.hurtInset < this.chaser.x) this.die('chaser');
   }
@@ -1119,6 +1121,7 @@ export class Game {
       swing: this.song.swing,
       pixelsPerBeat: L.ppb,
       runSpeed: L.runSpeed,
+      tempoMap: { points: this.tempo.points.length, bpmRange: this.tempo.bpmRange().map(round3), runSpeedRange: this.tempo.bpmRange().map((b) => Math.round((L.ppb * b) / 60)) },
       autoplay: params.autoplay,
       jitterMs: params.jitter,
       lateProb: params.late,
@@ -1170,7 +1173,7 @@ export class Game {
       beatMapAlignment: this.beatAlignment,
       liveAudioProbe: this.probe
         ? {
-            note: 'music-bus transients (AudioWorklet, graph clock) vs nearest (swung) 8th note per the Conductor mapping',
+            note: `transients (AudioWorklet, graph clock) of the ${this.probe.target}, via the Conductor mapping`,
             onsets: this.probe.onsets,
             ...summarize(this.probe.errorsMs),
           }

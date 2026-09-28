@@ -7,6 +7,10 @@
  * that the music actually plays where the Conductor says it is (scheduling + offsets + tempo map).
  * (The remaining link — graph time -> speaker — is the device output latency, which only a
  * microphone could measure; that's what the user latency offset is for.)
+ *
+ * On a live recording the band itself scatters around the grid, so the probe listens to one of OUR
+ * overlay stems instead (stomps+claps: sample-exact, conductor.tap()) and compares each onset with
+ * that stem's own lane events (`refBeats`). Without refs: nearest (swung) eighth note.
  */
 import type { Conductor } from './conductor';
 
@@ -39,6 +43,12 @@ class OnsetProbe extends AudioWorkletProcessor {
 registerProcessor('onset-probe', OnsetProbe);
 `;
 
+/** overlay stems the probe can listen to, with the lanes holding their onsets */
+const PROBE_STEMS: [string, string[]][] = [
+  ['stomps', ['stomps', 'claps']],
+  ['cowbell', ['cowbell']],
+];
+
 export class SyncProbe {
   /** song-time errors (ms) of detected onsets vs the nearest eighth note */
   errorsMs: number[] = [];
@@ -46,7 +56,12 @@ export class SyncProbe {
   beats: number[] = [];
   onsets = 0;
 
-  static async create(ctx: AudioContext, source: AudioNode, conductor: Conductor): Promise<SyncProbe | null> {
+  /** reference onsets (song seconds, sorted) — when set, errors are measured against these */
+  private refs: number[] | null = null;
+  /** what the probe listens to (report) */
+  target = 'music bus vs swung 8ths';
+
+  static async create(ctx: AudioContext, source: AudioNode, conductor: Conductor, refBeats?: number[], target?: string): Promise<SyncProbe | null> {
     if (!ctx.audioWorklet) return null;
     try {
       const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
@@ -56,6 +71,8 @@ export class SyncProbe {
       sink.gain.value = 0;
       source.connect(node).connect(sink).connect(ctx.destination);
       const probe = new SyncProbe();
+      if (refBeats && refBeats.length) probe.refs = refBeats.map((b) => conductor.tempo.beatToTime(b)).sort((a, b) => a - b);
+      if (target) probe.target = target;
       node.port.onmessage = (ev: MessageEvent<number>) => probe.onOnset(ev.data / ctx.sampleRate, conductor);
       return probe;
     } catch (e) {
@@ -64,16 +81,35 @@ export class SyncProbe {
     }
   }
 
+  /**
+   * The best probe for the conductor's song: an overlay stem with its own lanes (stomps + claps,
+   * else cowbell) when the song has one, else the whole music bus against the swung 8th grid.
+   */
+  static forSong(ctx: AudioContext, musicBus: AudioNode, c: Conductor): Promise<SyncProbe | null> {
+    const lanes = c.song.map?.lanes ?? {};
+    for (const [stem, refLanes] of PROBE_STEMS) {
+      if (!c.stems[stem]) continue;
+      const beats = refLanes.flatMap((l) => (lanes[l] ?? []).map((e) => e.beat));
+      if (beats.length > 20) return SyncProbe.create(ctx, c.tap(stem), c, beats, `'${stem}' stem vs its lanes (${refLanes.join('+')})`);
+    }
+    return SyncProbe.create(ctx, musicBus, c);
+  }
+
   private onOnset(ctxTime: number, c: Conductor): void {
     const song = c.songTimeAtGraphTime(ctxTime);
     if (song === null) return;
     const beat = c.tempo.timeToBeat(song);
-    // nearest point of the (swung) eighth grid: k, k + swing, k + 1
-    const k = Math.floor(beat);
-    const cands = [k, k + c.song.swing, k + 1];
-    let grid = k;
-    for (const g of cands) if (Math.abs(g - beat) < Math.abs(grid - beat)) grid = g;
-    const err = (song - c.tempo.beatToTime(grid)) * 1000;
+    let err: number;
+    if (this.refs) {
+      err = (song - nearest(this.refs, song)) * 1000;
+    } else {
+      // nearest point of the (swung) eighth grid: k, k + swing, k + 1
+      const k = Math.floor(beat);
+      const cands = [k, k + c.song.swing, k + 1];
+      let grid = k;
+      for (const g of cands) if (Math.abs(g - beat) < Math.abs(grid - beat)) grid = g;
+      err = (song - c.tempo.beatToTime(grid)) * 1000;
+    }
     this.onsets++;
     // ignore onsets far off the eighth grid (reverb tails, tape-stop) — they aren't beat events
     if (Math.abs(err) < 40) {
@@ -81,4 +117,16 @@ export class SyncProbe {
       this.beats.push(Math.round(beat * 100) / 100);
     }
   }
+}
+
+/** nearest value in a sorted array */
+function nearest(a: number[], v: number): number {
+  let lo = 0;
+  let hi = a.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (a[mid] <= v) lo = mid;
+    else hi = mid;
+  }
+  return Math.abs(a[lo] - v) <= Math.abs(a[hi] - v) ? a[lo] : a[hi];
 }

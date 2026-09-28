@@ -1,7 +1,8 @@
 /**
  * Tempo map: converts between song time (seconds, 0 = beat 0) and beats.
- * Piecewise-constant tempo: a list of { beat, bpm } change points. Negative beats/times
- * (count-ins before the downbeat) extrapolate using the first segment's tempo.
+ * Piecewise-constant tempo: a list of { beat, bpm } change points (the original recording has one
+ * per beat, so time is linear inside each beat = exactly the producer's per-beat grid). Negative
+ * beats/times (count-ins before the downbeat) extrapolate using the first segment's tempo.
  */
 export interface TempoPoint {
   /** beat at which this tempo starts */
@@ -42,18 +43,26 @@ export class TempoMap {
     return new TempoMap([{ beat: 0, bpm }], beatsPerBar);
   }
 
-  private segForBeat(beat: number): Segment {
+  /** last segment whose `key` <= v (binary search; the original recording has one point per beat) */
+  private find(key: 'beat' | 'time', v: number): Segment {
     const s = this.segs;
-    let i = s.length - 1;
-    while (i > 0 && s[i].beat > beat) i--;
-    return s[i];
+    let lo = 0;
+    let hi = s.length - 1;
+    if (v >= s[hi][key]) return s[hi];
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (s[mid][key] <= v) lo = mid;
+      else hi = mid - 1;
+    }
+    return s[lo];
+  }
+
+  private segForBeat(beat: number): Segment {
+    return this.find('beat', beat);
   }
 
   private segForTime(time: number): Segment {
-    const s = this.segs;
-    let i = s.length - 1;
-    while (i > 0 && s[i].time > time) i--;
-    return s[i];
+    return this.find('time', time);
   }
 
   beatToTime(beat: number): number {
@@ -76,6 +85,25 @@ export class TempoMap {
 
   secondsPerBeatAt(beat: number): number {
     return this.segForBeat(beat).spb;
+  }
+
+  /**
+   * Hero top run speed (px/s) at `beat` for a level laid out at x = beat * pixelsPerBeat:
+   * pixelsPerBeat * BPM(beat) / 60. Follows the tempo map (the original drifts 161.5 -> 166.6 BPM).
+   */
+  runSpeedAt(beat: number, pixelsPerBeat: number): number {
+    return pixelsPerBeat / this.segForBeat(beat).spb;
+  }
+
+  /** [min, max] BPM over the map */
+  bpmRange(): [number, number] {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const s of this.segs) {
+      lo = Math.min(lo, 60 / s.spb);
+      hi = Math.max(hi, 60 / s.spb);
+    }
+    return [lo, hi];
   }
 
   get points(): TempoPoint[] {

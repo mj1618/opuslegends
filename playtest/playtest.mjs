@@ -166,7 +166,10 @@ async function main() {
   if (report.clock.maxSimDriftMs > MAX_SIM_DRIFT_MS) failures.push(`sim drift ${report.clock.maxSimDriftMs}ms`);
   const lp = report.liveAudioProbe;
   if (lp && lp.n > 20 && (lp.meanAbsMs > 5 || Math.abs(lp.meanMs) > 5)) failures.push(`live audio probe: music is off the conductor clock (mean |err| ${lp.meanAbsMs}ms, median ${lp.p50AbsMs}ms, mean ${lp.meanMs}ms)`);
-  if (report.beatMapAlignment && report.beatMapAlignment.meanAbsMs > 5) failures.push(`beat map vs audio onsets off by ${report.beatMapAlignment.meanMs}ms`);
+  // robust: a live recording scatters around its smoothed grid (laid-back backbeat, fills), so judge the
+  // median offset and the worst 8-bar median (drift), not the per-beat mean |error|
+  const bma = report.beatMapAlignment;
+  if (bma && (Math.abs(bma.medianMs) > 5 || bma.blockMedianMaxMs > 8)) failures.push(`beat map vs audio onsets: median ${bma.medianMs}ms, worst 8-bar median ${bma.blockMedianMaxMs}ms`);
   if (state.scene !== 'end') failures.push(`timed out in scene ${state.scene}`);
 
   const full = { ok: failures.length === 0, failures, url, wallSec, video: videoFile, screenshots: shots, consoleErrors, pageErrors, ...report };

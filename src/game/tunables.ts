@@ -3,10 +3,13 @@
  * World y grows DOWNWARD (canvas convention); ground top is y = 0 and heights above it are negative y.
  *
  * Tempo coupling: the level is authored in beats (x = beat * pixelsPerBeat) and the player's
- * max run speed is DERIVED from the song (runSpeed = pixelsPerBeat * BPM / 60) so that holding
- * right keeps the hero exactly on the music. The jump constants were tuned so that at 150 BPM
- * a full jump (held) lasts ~2 beats and a tap-hop ~1 beat — check the debug overlay's
- * "jump airtime" readout after changing them.
+ * max run speed is DERIVED from the song's TEMPO MAP every sim step (runSpeed = pixelsPerBeat *
+ * BPM(beat) / 60; Player.setTempo) so that holding right keeps the hero exactly on the music even
+ * on a live recording whose tempo drifts. Everything musical is in BEATS (jump airtime, i-frames,
+ * lum hover, chaser distance, slam/jabber phases, count-in) and converted through the tempo map;
+ * the judge windows are in ms. Per-second values below (accel, coyote, buffers) are feel constants.
+ * The jump constants give a full (held) jump of ~2 beats and a tap-hop of ~0.93 beat at any tempo —
+ * check the debug overlay's "jump airtime" readout after changing them.
  */
 export const Tun = {
   sim: {
@@ -72,8 +75,12 @@ export const Tun = {
     minHoldBeats: 0.22,
     /** grace period after running off a ledge during which a jump still works */
     coyoteTime: 0.1,
-    /** a jump pressed this long before landing still fires on landing (DESIGN tune range 80-130 ms) */
-    bufferTime: 0.13,
+    /**
+     * a jump pressed this long before landing still fires on landing. 0.17 (iteration 2, was 0.13): on
+     * slam lifts a late hop lands late, and an early next press used to fall outside the buffer
+     * (the #1 cause of sloppy-bot deaths in iteration 1)
+     */
+    bufferTime: 0.17,
     /** |vy| below this counts as "apex" (px/s) */
     apexThreshold: 170,
     /** gravity multiplier near the apex while jump is held (hang time) */
@@ -86,8 +93,8 @@ export const Tun = {
     fastFallMaxSpeed: 2700,
     /** max upward correction when a jump clips a ceiling corner (px) */
     cornerCorrection: 14,
-    /** step up small ledges when running into them (px) */
-    ledgeAssist: 18,
+    /** step up small ledges when running into them (px) — 26 lets the hero walk out of a 24 px pool */
+    ledgeAssist: 26,
   },
 
   /** wall slide / wall jump: OFF for this level (DESIGN §2) */
@@ -165,6 +172,8 @@ export const Tun = {
     perGood: 1,
     perPhrase: 3,
     stumbleLoss: 0.25,
+    /** members lost per missed target (judge expiry) — the meter moves for real players */
+    perMiss: 1,
     /** shouts stem: -6 dB at 0 members -> 0 dB at `fullAt` */
     fullAt: 12,
     /** BIG CATCH mode (bonus stem) at >= this */

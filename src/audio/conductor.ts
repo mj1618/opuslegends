@@ -36,6 +36,8 @@ export class Conductor {
   /** extra stems, played sample-aligned with `buffer` through per-stem gain buses */
   stems: Record<string, AudioBuffer> = {};
   private stemBus: Record<string, GainNode> = {};
+  /** unity taps of individual stems BEFORE their (crowd-driven) bus gain — for the sync probe */
+  private taps: Record<string, GainNode> = {};
 
   /** user latency offset, seconds */
   latency = 0;
@@ -151,12 +153,13 @@ export class Conductor {
     // tells us when that is heard.
     const when = ctx.currentTime + lead;
     const bufOffset = from + this.song.audioOffset;
-    const start = (buffer: AudioBuffer, dest: AudioNode) => {
+    const start = (buffer: AudioBuffer, dest: AudioNode, tap?: AudioNode) => {
       const src = ctx.createBufferSource();
       src.buffer = buffer;
       const g = ctx.createGain();
       g.gain.value = 1;
       src.connect(g).connect(dest);
+      if (tap) g.connect(tap);
       if (bufOffset >= 0) {
         if (bufOffset < buffer.duration) src.start(when, bufOffset);
       } else {
@@ -165,7 +168,7 @@ export class Conductor {
       this.sources.push({ src, gain: g });
     };
     if (this.buffer) start(this.buffer, this.out);
-    for (const [name, buf] of Object.entries(this.stems)) start(buf, this.bus(name));
+    for (const [name, buf] of Object.entries(this.stems)) start(buf, this.bus(name), this.taps[name]);
     // Song time `from` is at scheduled ctx time `when`; in the audible timeline that is the
     // same ctx time (getOutputTimestamp contextTime is on the same timeline).
     this.startCtx = when;
@@ -229,7 +232,16 @@ export class Conductor {
     return b;
   }
 
-  /** Set a stem's gain (linear), ramped over `rampSec` (the crowd drives 'shouts' / 'bonus'). */
+  /**
+   * A unity-gain node carrying stem `name` before its bus gain (connected on every play()). Not
+   * routed to the output — for analysis (the sync probe listens to an overlay stem this way, so the
+   * crowd-driven gain doesn't matter).
+   */
+  tap(name: string): AudioNode {
+    return (this.taps[name] ??= this.ctx.createGain());
+  }
+
+  /** Set a stem's gain (linear), ramped over `rampSec` (the crowd drives the overlay stems). */
   setStemGain(name: string, gain: number, rampSec = 0.25): void {
     const b = this.bus(name);
     const t = this.ctx.currentTime;
