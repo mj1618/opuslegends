@@ -49,11 +49,22 @@ export interface BeatReactSpec {
 
 export type FxKind = 'flash' | 'shake' | 'zoom' | 'bgPulse';
 /** lighting presets (act 1: 42nd Street golden hour -> neon dusk/night -> the honky-tonk bar's lamplight) */
-export type SkyPreset = 'golden' | 'neon' | 'honkytonk';
+export type SkyPreset = 'golden' | 'neon' | 'honkytonk' | 'facade' | 'lanes';
 /** walkable-surface look per reel */
-export type GroundStyle = 'street' | 'timber';
+export type GroundStyle = 'street' | 'timber' | 'facade' | 'lanes';
 /** skin hint for breakables (the renderer / art may ignore it) */
-export type BreakableLook = 'bottle' | 'glass' | 'crate' | 'neon' | 'jug';
+export type BreakableLook = 'bottle' | 'glass' | 'crate' | 'neon' | 'jug' | 'window' | 'pin';
+/**
+ * Act 2 (iteration 3, docs/level/act2_plan.md). Presentation-only set-piece cues read by the renderer from
+ * `level.def.items` / `game.mech.setPieces` (the builder ignores them):
+ *   climb        the Jimperial's facade starts (fire escapes, lit windows, the street dropping away)
+ *   bigJimGlint  Big Jim's aviators flash in a high window (`h` px above the hero's floor, `ahead` beats ahead)
+ *   windowCrash  Slim's Heave smashes THROUGH a window into the building (the pre-chorus HEY)
+ *   lanes        inside: the Blacklight Lanes (bowling alley)
+ */
+export type SetPieceName = 'climb' | 'bigJimGlint' | 'windowCrash' | 'lanes';
+/** thrown-bottle styles: 'bottle' = strike it ON the beat (bat it back), 'firebomb' = hop its flames ON the beat */
+export type ThrowStyle = 'bottle' | 'firebomb';
 
 export type LevelItem =
   /** override the ground height over a beat range (later items win) */
@@ -72,8 +83,11 @@ export type LevelItem =
   /** Pendulum target (1-bar period); bottom of the swing (strike height) on `beat` */
   /** `high`: hangs so high it can only be struck mid-jump (full jump on beat-1, strike on `beat`) */
   | { type: 'pendulum'; beat: number; big?: boolean; high?: boolean; action?: IntendedAction }
-  /** slam platform that SLAMS (solid) on `beat` (and every 2 beats), lifts on the swung offbeat; set by parity */
-  | { type: 'slam'; beat: number }
+  /**
+   * slam platform that SLAMS (solid) on `beat` (and every 2 beats), lifts on the swung offbeat; set by parity.
+   * `h` = press-top height above the street when down (default 0; act 2's lifts run high up the building)
+   */
+  | { type: 'slam'; beat: number; h?: number }
   /** a Hup-Hup-HEY phrase: the three action beats (hop, hop, STRIKE) — the strike becomes a Heave */
   | { type: 'phrase'; beats: [number, number, number] }
   /** collectible lums ("lum") at beat, `h` px above the floor. `note` = explicit chord-tone index */
@@ -125,7 +139,24 @@ export type LevelItem =
   /** free-standing intended action (e.g. a lums arc hop) */
   | { type: 'action'; action: IntendedAction }
   /** debug label drawn in the world (section names etc.) */
-  | { type: 'label'; beat: number; text: string };
+  | { type: 'label'; beat: number; text: string }
+  /**
+   * THROWN BOTTLE (act 2's moving threat, src/game/mech/thrownBottle.ts): tossed from a window at `from`
+   * (default beat - 2), arriving ON `beat`. 'bottle': at the bat point just ahead of the hero -> strike ON
+   * `beat` (bats it back through the window: reward; a miss = it hits you, stumble). 'firebomb': shatters on the
+   * floor ON `beat` a hop ahead of the hero -> hop ON `beat` over the flames (stumble). `dx`/`h` = the window
+   * relative to the arrival point (px right / px above the floor).
+   */
+  | { type: 'thrown'; beat: number; style: ThrowStyle; from?: number; dx?: number; h?: number; action?: IntendedAction }
+  /**
+   * ROLLING BALL (the Lanes, src/game/mech/rollingBall.ts): rolls in from the right along the floor from `from`
+   * (default beat - 3) and passes under the hero's hop pressed ON `beat` (stumble if it hits you). `speed` px/beat.
+   */
+  | { type: 'ball'; beat: number; from?: number; speed?: number; action?: IntendedAction }
+  /** a hop UP onto a higher ledge (the climb) — design tag carrying the hop action; geometry = `floor` items */
+  | { type: 'ledge'; beat: number; action?: IntendedAction }
+  /** presentation-only set-piece cue (see SetPieceName) */
+  | { type: 'setPiece'; beat: number; name: SetPieceName; beats?: number; h?: number; ahead?: number };
 
 export interface LevelDef {
   id: string;

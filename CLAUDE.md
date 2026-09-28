@@ -139,12 +139,18 @@ src/
            build.ts       LevelDef → RuntimeLevel (collision, entities, action markers, slamState, cues)
            slice.ts       THE LEVEL: act 1 on the edit's grid (bar n = beat 4(n-1)): cold open + bars 1-33
                           (intro, verse 1 on the rooftops, honky-tonk, chorus 1, tag, turnaround). Plan: docs/level/act1_plan.md
+           act2.ts        act 2, bars 34-60 (beats 132-240): the climb up the Jimperial's facade on the boogie bass (ledge
+                          hops UP, gaps jumped UP, thrown bottles/firebombs), stop-time + Big Jim's glint, the Heave through
+                          the window, the Blacklight Lanes chorus (balls, pins, pinsetters). Plan: docs/level/act2_plan.md
+           index.ts       gameLevel = act 1 + act 2 on one world x (THE level Game plays; the act seam lives here)
   game/    game.ts        owns everything: frame loop, time model, run flow (cold open → count-in → run →
                           stumble / death → checkpoint rewind → finish), mechanics, interactions, report
            player.ts      controller: run+surge, hop (beats), strike, stumble (constants in tunables.ts)
            physics.ts     AABB world (+ switchable dynamic solids)    judge.ts  timing grades
            crowd.ts       streak meter + stem gains  autoplay.ts  bot (+ jitter / late / spatial catch-up)
            stats.ts       timing/frame stats         entities.ts  runtime records   jumpProfile.ts  jump arcs
+           mech/          act-2 mechanics from level items the builder doesn't know: thrownBottle.ts, rollingBall.ts,
+                          index.ts (Mechanics: step/reset/beat telegraphs, set-piece cues, ledge scramble, fall-out)
   render/  renderer.ts    frame orchestration (read-only on game state)      camera.ts  follow, shake, zoom punch,
                           FRAMING (render-only zoom x1.14 so Slim is ~155 px at 1080p, lead 0.25), musicZoom/hitZoom
            music.ts       MusicFeed: song lanes (kick/snare/fills/hooks/shouts/energy...) + sections -> art BeatInfo
@@ -195,7 +201,7 @@ Presentation cues on beats: `{type:'fx', beat, fx:'flash'|'shake'|'zoom'|'bgPuls
   starts the cold open), Esc pause, `[`/`]` latency offset, `` ` `` / F1 debug overlay.
   Gamepad: A hop, X/B/RT strike, stick/dpad.
 - URL params: `?debug=1` overlay (fps, song/beat, clock, hitboxes, beat grid, green dashed *music line*,
-  intended-action markers) · `?start=<beat>` start mid-level (checkpoints: 32, 64, 80, 96, 120) · `?coldopen=0` ·
+  intended-action markers) · `?start=<beat>` start mid-level (checkpoints: 32, 64, 80, 96, 120; act 2: 132, 164, 196, 220, 236) · `?coldopen=0` ·
   `?autoplay=1` bot plays via the controller · `?jitter=<ms>` / `?late=<p>` / `?sloppy=1` sloppy bot ·
   `?judge=1` timing-grade popups · `?mute=1` · `?latency=<ms>` · `?song=edit|full|placeholder` · `?miss=37,28` bot deliberately skips those
   actions once (stumble/death/respawn test) · `?probe=1` live audio sync probe.

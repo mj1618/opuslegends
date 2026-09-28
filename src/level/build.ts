@@ -198,7 +198,7 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
         break;
       }
       case 'slam': {
-        const s: Solid = { kind: 'oneway', x: X(it.beat + SLAM.from), y: 0, w: X(SLAM.to - SLAM.from), h: SLAM.thickness, active: true };
+        const s: Solid = { kind: 'oneway', x: X(it.beat + SLAM.from), y: -(it.h ?? 0), w: X(SLAM.to - SLAM.from), h: SLAM.thickness, active: true };
         world.add(s);
         slams.push({ id: id++, beat: it.beat, set: ((Math.round(it.beat) % 2) + 2) % 2 === 0 ? 'A' : 'B', solid: s, lift: 0, wasDown: true });
         break;

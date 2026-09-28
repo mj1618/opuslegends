@@ -16,6 +16,8 @@
  *                             assets/audio/jim.beatmap.json if present)
  *   --reports=<dir>[,<dir>]   playtest output dirs (searched recursively for report.json) → A5, A9, A10, A11 (teeth)
  *   --block=<bars>            analysis block size in bars (default 8)
+ *   --bars=<A>-<B>            judge only edit bars A..B (1-based) of the level, e.g. --level=src/level/index.ts#gameLevel
+ *                             --bars=34-60 for act 2 (novelty still sees the earlier bars; opening rules only for bar 1)
  *   --out=<dir>               output dir (default playtest/out/rubric; gitignored, wiped by the next playtest run)
  *   --quiet                   don't print the markdown
  *
@@ -102,9 +104,18 @@ const beatmap = existsSync(beatmapPath) ? JSON.parse(readFileSync(beatmapPath, '
 const BPB = song.beatsPerBar ?? 4;
 const bpm = tempo.bpmAtBeat(level.startBeat);
 const spb = 60 / bpm;
-const firstBar = Math.floor(level.startBeat / BPB);
-const lastBar = Math.ceil(L.finishBeat / BPB) - 1; // bar containing the last playable beat
+// --bars=A-B (1-based, the edit's bar numbers): judge only that range of the level (e.g. one act) while novelty
+// ("is this new?") still sees everything before it
+const barRange = args.bars ? String(args.bars).split('-').map(Number) : null;
+const levelFirstBar = Math.floor(level.startBeat / BPB);
+const firstBar = barRange ? Math.max(levelFirstBar, barRange[0] - 1) : levelFirstBar;
+const lastBar = Math.min(Math.ceil(L.finishBeat / BPB) - 1, barRange ? barRange[1] - 1 : Infinity); // bar containing the last playable beat
 const nBars = lastBar - firstBar + 1;
+const rangeStart = firstBar * BPB;
+const rangeEnd = Math.min(L.finishBeat, (lastBar + 1) * BPB);
+/** the level-OPENING rules (reward-heavy first 16 bars, no lethal in bars 1–6) only apply to a range that starts the song;
+ *  a mid-song act (--bars, or a standalone act like src/level/act2.ts#act2Level) is judged like the middle of the level */
+const opensSong = firstBar === 0;
 const barOf = (beat) => Math.floor(beat / BPB + 1e-9);
 
 // lanes: the level's song lanes + the beatmap's (same bar grid)
@@ -159,6 +170,7 @@ const kindOf = (a) => {
   const it = itemByAction.get(`${a.type}@${a.beat}`);
   const t = it?.type ?? a.source;
   if (t === 'gap') return verbOf(a) === 'jump' ? 'gap-long' : 'gap';
+  if (t === 'thrown') return it?.style === 'firebomb' ? 'firebomb' : 'thrown'; // two shapes: a bottle to bat, flames to hop
   if (t === 'pendulum') return it?.high ? 'pendulum-high' : it?.big ? 'pendulum-big' : 'pendulum';
   if (t === 'breakable') return it?.high ? 'breakable-high' : it?.big ? 'breakable-big' : 'breakable';
   if (t === 'action' && a.type === 'jump' && (slamBeats.has(a.beat) || slamBeats.has(a.beat + 1))) return a.failKind === 'death' ? 'slam' : 'slam-safe';
@@ -166,7 +178,7 @@ const kindOf = (a) => {
   if (t === 'action') return a.type === 'jump' ? 'lumArc' : 'free';
   return t;
 };
-const actions = L.actions
+const allActions = L.actions
   .filter((a) => a.beat >= level.startBeat - 1e-6 && a.beat < L.finishBeat - 1e-6)
   .map((a) => {
     const verb = verbOf(a);
@@ -175,6 +187,7 @@ const actions = L.actions
     return { beat: a.beat, bar: barOf(a.beat), off: inBar(a.beat), verb, kind, cls, threat: cls !== 'reward', phrase: a.phrase >= 0, hold: a.hold };
   });
 
+const actions = allActions.filter((a) => a.beat >= rangeStart - 1e-6 && a.beat < rangeEnd - 1e-6);
 // isochronous threat runs (slam lifts etc.): ≥3 same verb+kind threats at exactly 1-beat spacing
 const isoRunId = new Map();
 {
@@ -204,16 +217,16 @@ const note = (key, beat, type, what) => {
   seen.add(key);
   novelty.push({ bar: barOf(beat), beat, type, what });
 };
-for (const a of actions) {
+for (const a of allActions) {
   note('verb:' + a.verb, a.beat, 'verb', a.verb);
   note('kind:' + a.kind, a.beat, 'mechanic', a.kind + (a.threat ? ` (${a.cls})` : ' (reward)'));
   note(`combo:${a.kind}:${a.cls}`, a.beat, 'variation', `${a.kind} as ${a.cls}`);
   if (a.phrase) note('phrase', a.beat, 'mechanic', 'Hup-Hup-HEY phrase');
 }
 // cell-level variations: a new 2-action cell (verb+kind pair on consecutive beats) is a (weak) twist
-for (let i = 1; i < actions.length; i++) {
-  const p = actions[i - 1];
-  const a = actions[i];
+for (let i = 1; i < allActions.length; i++) {
+  const p = allActions[i - 1];
+  const a = allActions[i];
   if (a.beat - p.beat > 1.01) continue;
   note(`cell:${p.verb}${p.kind}>${a.verb}${a.kind}`, a.beat, 'cell', `${GLYPH[p.verb]}${p.kind} → ${GLYPH[a.verb]}${a.kind}`);
 }
@@ -311,7 +324,10 @@ for (const b of blockStarts) {
   const bs = bars.filter((x) => x.bar >= b && x.bar < b + BL);
   const acts = actions.filter((a) => a.bar >= b && a.bar < b + BL);
   const beats = bs.length * BPB;
-  const name = sectionAt(b * BPB);
+  // the section covering most of the block's bars (ties: the first bar's) — an 11-bar pre-chorus+chorus block is a chorus
+  const secCount = {};
+  for (let x = b; x < b + BL; x++) secCount[sectionAt(x * BPB)] = (secCount[sectionAt(x * BPB)] ?? 0) + 1;
+  const name = Object.entries(secCount).reduce((best, e) => (e[1] > best[1] ? e : best), [sectionAt(b * BPB), secCount[sectionAt(b * BPB)]])[0];
   const threats = acts.filter((a) => a.threat);
   const lethals = acts.filter((a) => a.cls === 'lethal');
   // signatures
@@ -446,7 +462,7 @@ const rewardShareAll = all.filter((a) => a.cls === 'reward').length / all.length
 
 // A7 safe re-entry
 const reentry = L.checkpoints
-  .filter((c) => c.beat >= level.startBeat)
+  .filter((c) => c.beat >= rangeStart && c.beat < rangeEnd)
   .map((c) => {
     const early = all.filter((a) => a.threat && a.beat >= c.beat - 1e-6 && a.beat < c.beat + 2);
     const blk = blocks.find((k) => barOf(c.beat) >= k.firstBar && barOf(c.beat) < k.firstBar + k.nBars);
@@ -478,7 +494,7 @@ const e2Bad = Object.entries(shapeVerbs).filter(([, v]) => v.size > 1).map(([k, 
 // D2 on the music
 const onMusic = all.filter((a) => near(allLaneBeats, a.beat)).length / all.length;
 // D3 emphasis matches the sound
-const shoutBeats = (lanes.shouts ?? []).map((e) => e.beat).filter((b) => b >= level.startBeat && b < L.finishBeat);
+const shoutBeats = (lanes.shouts ?? []).map((e) => e.beat).filter((b) => b >= rangeStart && b < rangeEnd);
 const uniqShouts = [...new Set(shoutBeats.map((b) => Math.round(b * 12) / 12))];
 const shoutsStruck = uniqShouts.filter((b) => all.some((a) => a.verb === 'strike' && Math.abs(a.beat - b) <= TOL)).length;
 const hops = all.filter((a) => a.verb === 'hop' || a.verb === 'jump');
@@ -530,7 +546,7 @@ const breatherPairs = bars.filter((x, i) => i > 0 && x.breather && bars[i - 1].b
 const windows16 = [];
 for (let b = firstBar + 4; b + 15 <= lastBar; b += 16) windows16.push({ from: b, to: b + 15, pairs: breatherPairs.filter((p) => p >= b && p < b + 15).length });
 // C6 hit/shift points
-const sectionStarts = songSections.filter((s) => s.startBeat > level.startBeat && s.startBeat < L.finishBeat).map((s) => s.startBeat);
+const sectionStarts = songSections.filter((s) => s.startBeat > rangeStart && s.startBeat < rangeEnd).map((s) => s.startBeat);
 const shiftAt = (beat) =>
   L.skyCues.some((c) => Math.abs(c.beat - beat) <= 1) ||
   L.cameraCues.some((c) => Math.abs(c.beat - beat) <= 1) ||
@@ -538,13 +554,13 @@ const shiftAt = (beat) =>
   L.groundCues.some((c) => Math.abs(c.beat - beat) <= 1) ||
   Math.abs(L.chaserBeat - beat) <= 1;
 const shiftsHit = sectionStarts.filter(shiftAt);
-const crashes = [...new Set((lanes.crash ?? []).map((e) => e.beat).filter((b) => b >= level.startBeat && b < L.finishBeat + 0.5))];
+const crashes = [...new Set((lanes.crash ?? []).map((e) => e.beat).filter((b) => b >= rangeStart && b < rangeEnd + 0.5))];
 const crashesReacted = crashes.filter((b) => L.fx.some((f) => Math.abs(f.beat - b) <= 0.25));
 // B1 novelty cadence
 const bigNov = novelty.filter((n) => BIG_NOVELTY.has(n.type));
 const twistNov = novelty.filter((n) => TWIST_NOVELTY.has(n.type));
 const maxGap = (list) => {
-  const pts = [...new Set(list.map((n) => n.bar))].sort((a, b) => a - b);
+  const pts = [...new Set(list.map((n) => n.bar))].filter((b) => b >= firstBar && b <= lastBar).sort((a, b) => a - b);
   let m = 0;
   let prev = firstBar;
   for (const p of pts) {
@@ -669,13 +685,13 @@ const playtests = Object.entries(groups).map(([key, rs]) => {
 const crit = [];
 const add = (id, name, target, measured, status, how = 'L') => crit.push({ id, name, target, measured, status, how });
 const P = (ok) => (ok ? 'PASS' : 'FAIL');
-const early = blocks.filter((k) => k.firstBar < firstBar + 16);
+const early = opensSong ? blocks.filter((k) => k.firstBar < firstBar + 16) : [];
 const isClimax = (k) => ['chorus', 'build', 'climax'].includes(k.cls);
 const inFinal = (k) => k.firstBar >= 73 && k.firstBar <= 92;
 add('A1', 'Reward share', '≥60% level; ≥75% bars 1–16 & valleys; ≥45% climaxes', `level ${pct(rewardShareAll)}; ` + blocks.map((k) => `${k.bars} ${pct(k.rewardShare)}`).join(', '),
   P(rewardShareAll >= 0.6 && early.every((k) => k.rewardShare >= 0.75) && blocks.every((k) => k.rewardShare >= (isClimax(k) ? 0.45 : k.cls === 'valley' ? 0.75 : 0.6))));
 const lethalCap = (k) => (inFinal(k) ? 1.5 : isClimax(k) ? 1 : 0.5);
-const zeroLethalBars = bars.filter((x) => x.bar <= firstBar + 5 && x.lethal > 0).map((x) => x.bar);
+const zeroLethalBars = opensSong ? bars.filter((x) => x.bar <= firstBar + 5 && x.lethal > 0).map((x) => x.bar) : [];
 add('A2', 'Lethal per bar (section avg)', '≤0.5 intro/verse, ≤1 chorus/build, ≤1.5 in 73–92; never >3 in a bar; 0 in bars 1–6',
   blocks.map((k) => `${k.bars} ${r2(k.lethalPerBar)} (adj ${r2(k.lethalPerBarAdj)}, cap ${lethalCap(k)})`).join(', ') + `; max in one bar ${Math.max(...bars.map((x) => x.lethal))}; lethal in bars 1–6: ${zeroLethalBars.length ? zeroLethalBars.join(',') : 'none'}`,
   P(blocks.every((k) => k.lethalPerBarAdj <= lethalCap(k)) && bars.every((x) => x.lethal <= 3) && !zeroLethalBars.length));
@@ -700,7 +716,7 @@ add('A8', 'Teach before threat', 'first appearance non-lethal; first lethal ≥2
 const sloppy = playtests.find((p) => p.jitterMs === 85 && Math.abs(p.lateProb - 0.1) < 1e-6);
 if (sloppy) {
   const perBlockOk = Object.entries(sloppy.perBlock).every(([, v]) => v.maxDeathsOneRun <= 1);
-  const early16 = Object.entries(sloppy.perBlock).filter(([k]) => Number(k.split('-')[0]) < firstBar + 16).reduce((s, [, v]) => s + v.deaths, 0);
+  const early16 = opensSong ? Object.entries(sloppy.perBlock).filter(([k]) => Number(k.split('-')[0]) < firstBar + 16).reduce((s, [, v]) => s + v.deaths, 0) : 0;
   add('A9', 'Sloppy human clears (jitter 85 + 10% late)', 'mean ≤6 deaths/level (≈≤2 for a 32-bar slice); 0 in bars 1–16; ≤1 per 8-bar block', `${sloppy.runs} runs, deaths/run ${sloppy.deathsPerRun.join(',')} (mean ${r2(sloppy.meanDeaths)}), stumbles/run ${r2(sloppy.meanStumbles)}; bars 1–16 deaths ${early16}; per block ${JSON.stringify(sloppy.perBlock)}`,
     P(sloppy.meanDeaths <= (6 * nBars) / 96 + 0.5 && early16 === 0 && perBlockOk), 'S');
   const top = sloppy.hotspots[0];

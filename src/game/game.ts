@@ -35,7 +35,7 @@ import { clamp, overlaps, type Rect } from '../engine/math';
 import { params } from '../engine/params';
 import { Ease, TweenManager } from '../engine/tween';
 import { BOUNCE, JABBER, type RuntimeLevel, buildLevel, cameraZoomAt, crowdCapAt, launchVelocity, slamState } from '../level/build';
-import { sliceLevel } from '../level/slice';
+import { gameLevel } from '../level/index';
 import type { LevelDef } from '../level/types';
 import { Background } from '../render/background';
 import { Camera } from '../render/camera';
@@ -47,6 +47,7 @@ import { AutoPlayer } from './autoplay';
 import { Crowd } from './crowd';
 import type { ActionMarker, BouncePad, Breakable, Enemy, PendulumTarget, LooseLum } from './entities';
 import { Judge, type JudgeResult } from './judge';
+import { type MechHost, Mechanics } from './mech';
 import { jumpProfile } from './jumpProfile';
 import { Player } from './player';
 import { FrameStats, RunStats, summarize } from './stats';
@@ -88,6 +89,8 @@ export class Game {
   player: Player;
   bot: AutoPlayer | null = null;
   readonly judge: Judge;
+  /** act-2 mechanics: thrown bottles, rolling balls, set-piece cues, ledge scramble, fall-out (src/game/mech) */
+  readonly mech: Mechanics;
   readonly crowd = new Crowd();
   /** lums dropped by stumbles */
   loose: LooseLum[] = [];
@@ -160,8 +163,9 @@ export class Game {
     this.tempo = makeTempoMap(this.song);
     this.conductor = new Conductor(this.audio.ctx, this.audio.music, this.song, this.tempo);
     this.sfx = new Sfx(this.audio.ctx, this.audio.sfx);
-    this.levelDef = sliceLevel;
+    this.levelDef = gameLevel;
     this.level = buildLevel(this.levelDef, this.tempo, this.song);
+    this.mech = new Mechanics(this.level, this.mechHost());
     this.judge = new Judge(this.level.actions, this.tempo);
     this.background = new Background(params.seed);
     this.renderer = new Renderer(this, makeSprites());
@@ -244,7 +248,7 @@ export class Game {
       l.collected = false;
       l.skipped = l.beat < start - 1e-6;
     }
-    this.stats.lumsTotal = this.level.lums.filter((l) => !l.skipped).length + this.level.breakables.filter((b) => b.beat >= start - 1e-6).reduce((n, b) => n + b.tokens, 0);
+    this.stats.lumsTotal = this.level.lums.filter((l) => !l.skipped).length + this.level.breakables.filter((b) => b.beat >= start - 1e-6).reduce((n, b) => n + b.tokens, 0) + this.mech.tokensFrom(start);
     this.stats.pendulumsTotal = this.level.pendulums.filter((f) => f.beat >= start - 1e-6).length;
     this.level.checkpoints.forEach((cp, i) => {
       if (cp.beat <= start + 1e-6) {
@@ -325,6 +329,7 @@ export class Game {
     this.inPool = false;
     this.loose = [];
     this.popups = [];
+    this.mech.reset(beat);
     this.chaser = { active: false, x: -Infinity, riseBeat: 0 };
   }
 
@@ -630,6 +635,7 @@ export class Game {
     p.step(dt, this.controls, this.level.world);
     this.controls.clearEdges();
     this.updateEntities(dt, beatW);
+    this.mech.step(dt, beatW, p, this.phase === 'run', this.controls.right);
     this.beatEvents(beatW);
 
     if (this.phase === 'finished') {
@@ -729,6 +735,46 @@ export class Game {
     if (L.slams.some((f) => f.solid.x > view0 && f.solid.x < view1 && f.beat >= k + 1)) this.sfx.clack(ctxAt(k + 1));
     // jabber squawk: rising wind-up 1 beat before its jab beat
     for (const e of L.enemies) if (e.alive && !e.retired && Math.abs(e.beat - (k + 2)) < 1e-6) this.sfx.windup(ctxAt(k + 1));
+    // act 2: bottle whistle / ball rumble 1 beat before each arrival
+    this.mech.beat(k);
+  }
+
+  /** act-2 mechanics (src/game/mech): what they need from the game — stumbles, deaths, rewards, juice, telegraphs */
+  private mechHost(): MechHost {
+    return {
+      stumble: (cause) => this.stumble(cause),
+      die: (cause) => this.die(cause),
+      batted: (b) => {
+        // a thrown bottle batted back ON its beat: tokens + the bottle chime, a bigger hit than a static bottle
+        this.stats.lums += b.tokens;
+        this.stats.breakables++;
+        this.player.strikeHitSomething = true;
+        const tones = chordAt(this.song, b.beat);
+        this.sfx.chime(this.song.key.root + 36 + tones[b.id % tones.length], true);
+        this.sfx.lum(collectibleNote(this.song, b.beat, 3));
+        this.camera.addTrauma(0.18);
+        this.zoomPunch(0.025);
+        this.particles.emit({ x: b.x, y: b.y, count: 18, speed: [250, 800], life: [0.25, 0.55], size: [5, 12], color: '#CFE8E0', shape: PShape.Spark, drag: 2 });
+        this.particles.emit({ x: b.x, y: b.y, count: b.tokens * 2, speed: [250, 650], angle: -Math.PI / 2, spread: 1.8, life: [0.5, 0.9], size: [10, 16], color: '#E0B64A', gravity: 1400, drag: 1, shape: PShape.Square, shrink: 1 });
+        this.log('bat', { beat: b.beat, at: this.stepTime });
+      },
+      fx: (kind, x, y) => {
+        if (kind === 'scramble') {
+          this.emitDust(x, y, 8, 0);
+          this.log('scramble', { beat: this.worldBeat });
+          return;
+        }
+        const fire = kind === 'ignite';
+        this.particles.emit({ x, y: y - 10, count: fire ? 26 : 14, speed: [150, fire ? 700 : 500], angle: -Math.PI / 2, spread: fire ? 1.2 : 2.4, life: [0.25, 0.6], size: [6, 14], color: fire ? '#FF4A3D' : kind === 'ballHit' ? '#3A302A' : '#CFE8E0', shape: PShape.Spark, gravity: fire ? -200 : 1600, drag: 2, shrink: 1 });
+        if (fire) this.sfx.stomp();
+        else this.sfx.hit();
+      },
+      telegraph: (kind, beat) => {
+        const t = this.conductor.ctxTimeAtSongTime(this.tempo.beatToTime(beat));
+        if (kind === 'whistle') this.sfx.windup(t);
+        else this.sfx.clack(t);
+      },
+    };
   }
 
   private updateChaser(dt: number, beatW: number): void {

@@ -169,3 +169,33 @@ cowbell/stomps up at FULL HOUSE), miss/grade sounds; (c) art: grade stamps + com
 giant walkdown smash, bigger launch, chorus shot), per-section breakables, dancing goons, act-2 environments
 (building exterior climb, bowling alley); (d) act 2 level (edit bars 34-60) per review plan.
 Difficulty targets per 33 bars: sloppy ±85 ms 0.5-1.5 deaths, ±130 ms 2-4, skilled ±40 ms 0.
+
+## Iteration 3 — act 2 notes (level design, edit bars 34-60)
+Plan: `docs/level/act2_plan.md` (bar by bar on the lanes). Code: `src/level/act2.ts` (act 2), `src/level/index.ts`
+(`gameLevel` = act 1 + act 2 on one world x; drops act 1's finish — its last launch lands ON 133 outside the honky-tonk,
+the ground flips timber → facade at the door), `src/game/mech/` (thrown bottles, firebombs, rolling balls, set-piece
+cues, ledge scramble, fall-out). Game now plays bars 1-60 and ends on the breakdown downbeat (240). Checkpoints 132,
+164, 196, 220, 236.
+- **The climb (34-41)** on the boogie bass: ledge hops UP on the climbing bass notes (G# A A# B), alley gaps jumped UP,
+  a counterweight-ladder launch two storeys up (0 → 790 px; the Lanes sit at 950), the first MOVING threat: bottles
+  thrown from lit windows on a dashed arc to a crosshair, arriving ON the beat (bat them back: −210/+70 ms) and
+  firebombs that burst a hop ahead ON the beat. Peak bar 41: two gaps hopped UP on the fill with a bat between.
+- **Stop-time (44-47)**: big pane smashes in the holes, a knee-slide on the held note, **Big Jim's first glint** on the
+  verse peak (180); safe window-washer cradles on the B pedal (48). **Pre-chorus**: HUP (gap) · HUP (firebomb) · HEY =
+  the Heave sends a goon through the big window. **Chorus 3 = the Blacklight Lanes**: launch in, rolling balls, pins,
+  a Bluffer pair on HEY HEY 209/210, pinsetter lifts over the gutter (lethal), slick run on the held note, four giant
+  pins on the walkdown, tag breath.
+- Measured (act 2 from the 132 checkpoint): autoplay cold open → bar 61 0 deaths, 218/218 actions on time; sloppy ±85
+  +10% late ×5: deaths 1,0,0,0,0 (0.2/run, pit@224), 0.8 stumbles/run (all thrown bottles); ±130 ×3: 0, 3, 1 (Burn
+  catches after firebomb stumbles, gaps 160/200); ±40: 0 deaths, 0 stumbles. `npm run rubric -- --level=src/level/index.ts#gameLevel
+  --bars=34-60 --reports=…`: **gate 11/11** (reward 68%, lethal 0.5/0/0.36 adj per bar, C1 ρ 0.87, D1 ≥1/beat in the
+  chorus). Non-gate fails: B5 (strike leads every block), E3 (4 threats in the chorus runway), C4 (chorus block not a
+  sawtooth: the walkdown + tag are the breath), A10 (1 death = 100% hotspot), A11 WARN (sloppy 0.24/32 bars).
+- Rubric tool: `--bars=A-B` judges one act inside the whole level (novelty sees act 1); blocks are named by the
+  section covering most of their bars; level-opening rules only apply from bar 1; thrown bottles vs firebombs are
+  two kinds.
+- Lessons: an air strike during a hop's descent zeroes the fall (airPop 0) → a gap hop on the next beat comes late
+  (killed autoplay at 207.66 → 208; now linted out). Strikes < 0.52 beat apart execute late (the active window).
+- Open: sloppy ±85 dies less than the 1-2 target (0.2/run) — the bot's uniform jitter only fails on its 10% extra-late
+  presses; more teeth should come from Burn tuning / combos, not tighter ms. Art/render: 'facade' / 'lanes' sky + ground
+  presets need their lighting keys; audio: dedicated whistle/rumble SFX (currently windup/clack).
