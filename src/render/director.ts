@@ -38,7 +38,7 @@ interface Speck {
   life: number;
 }
 
-const FLYER_COLS = ['#3E7A5A', '#7A5A3A', '#6A6E8A', '#8A7E70', '#4A4450'];
+const FLYER_COLS = ['#3E7A5A', '#7A5A3A', '#6A6E8A', '#8A7E70', '#B8B0C8'];
 
 export class Director {
   /** eased section framing (negative = zoom out) */
@@ -67,10 +67,11 @@ export class Director {
     return (this.seed & 0xffffff) / 0x1000000;
   }
 
-  update(dt: number, feed: MusicFeed, b: BeatInfo, cam: Camera, env: 'street' | 'bar'): void {
+  update(dt: number, feed: MusicFeed, b: BeatInfo, cam: Camera, env: string): void {
     const e = feed.energy;
     // --- section framing: the chorus zooms OUT (the stage opens up), dense bars a little
-    const want = this.active ? (feed.chorus ? -0.085 * (0.55 + 0.45 * e) : e > 0.85 ? -0.03 : 0) : 0;
+    // (iteration 3: the chorus is its own SHOT — a bigger pull-out than the old -7 %; moments.ts adds gel + spot)
+    const want = this.active ? (feed.chorus ? -0.13 * (0.6 + 0.4 * e) : e > 0.85 ? -0.03 : 0) : 0;
     this.sectionZoom += (want - this.sectionZoom) * Math.min(1, dt * 1.6);
     cam.musicZoom = this.sectionZoom;
     // --- edges
@@ -121,7 +122,7 @@ export class Director {
   }
 
   /** things fly across the upper screen (bottles / pool balls in the bar, hats / papers on the street) */
-  private burst(n: number, env: 'street' | 'bar'): void {
+  private burst(n: number, env: string): void {
     for (let k = 0; k < n; k++) {
       const f = this.flyers.find((x) => !x.on);
       if (!f) return;
@@ -134,7 +135,7 @@ export class Director {
       f.vy = -700 - this.rand() * 350;
       f.rot = this.rand() * TAU;
       f.vr = (this.rand() - 0.5) * 18;
-      f.kind = env === 'bar' ? (this.rand() < 0.55 ? 0 : 1) : this.rand() < 0.5 ? 2 : 3;
+      f.kind = env === 'bar' ? (this.rand() < 0.55 ? 0 : 1) : env === 'lanes' ? (this.rand() < 0.6 ? 4 : 1) : this.rand() < 0.5 ? 2 : 3;
     }
   }
 
@@ -173,6 +174,11 @@ export class Director {
       else if (f.kind === 2) {
         g.ellipse(0, 0, 22, 7, 0, 0, TAU);
         g.rect(-12, -16, 24, 12);
+      } else if (f.kind === 4) {
+        // bowling pin
+        g.ellipse(0, 6, 9, 17, 0, 0, TAU);
+        g.moveTo(5, -12);
+        g.ellipse(0, -14, 5, 9, 0, 0, TAU);
       } else g.rect(-18, -12, 36, 24);
       g.stroke();
       g.fill();

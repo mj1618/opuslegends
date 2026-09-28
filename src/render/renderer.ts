@@ -25,7 +25,12 @@ import { VIEW_H, VIEW_W } from '../engine/display';
 import type { Game } from '../game/game';
 import { Tun } from '../game/tunables';
 import { marksOnAt } from '../level/build';
+import { drawBreakable, pickLook } from './breakables';
+import { Burn } from './burn';
 import { Director } from './director';
+import { Feedback } from './feedback';
+import { drawJamLine } from './jamline';
+import { Moments } from './moments';
 import {
   type EnvKind,
   type SkinCtx,
@@ -33,8 +38,6 @@ import {
   drawBarLine,
   drawBlock,
   drawBouncePad,
-  drawBreakable,
-  drawChaser,
   drawCueDot,
   drawFinish,
   drawJabber,
@@ -50,6 +53,7 @@ import {
   drawToken,
 } from './entityDraw';
 import { applyBeatReact } from './groove';
+import { drawMech } from './mechDraw';
 import { MusicFeed } from './music';
 import { FONT, MARQUEE, drawCenterText, drawEndScreen, drawHud, drawRewind, drawTitleScreen, outlineText } from './screens';
 import { SlimDriver } from './slimDriver';
@@ -67,6 +71,13 @@ export class Renderer {
   readonly feed: MusicFeed;
   readonly slim = new SlimDriver();
   readonly director = new Director();
+  readonly feedback = new Feedback();
+  readonly burn = new Burn();
+  readonly moments: Moments;
+  /** level design tags ('mode' items: street, rooftops, launch, ...) sorted by beat — picks breakable families */
+  private modes: { beat: number; mode: string }[] = [];
+  private burnFlare = 0;
+  private lastStumbles = 0;
   private last = NaN;
   /** presentation clock (s): runs through pauses in the music (deaths, menus) */
   private clock = 0;
@@ -82,6 +93,22 @@ export class Renderer {
     this.stage = new Stage(game.display.scale);
     this.feed = new MusicFeed(game.song, game.tempo);
     this.sc = { b: this.feed.info, env: 'street', time: 0, wb: 0, swing: game.level.swing };
+    this.moments = new Moments(game);
+  }
+
+  private modeAt(beat: number): string {
+    const L = this.game.level;
+    if (this.modes.length === 0 || (this.modes as unknown as { src?: unknown }).src !== L) {
+      const m = L.def.items.filter((it) => it.type === 'mode') as { beat: number; mode: string }[];
+      this.modes = [...m].sort((a, b) => a.beat - b.beat);
+      (this.modes as unknown as { src?: unknown }).src = L;
+    }
+    let cur = '';
+    for (const m of this.modes) {
+      if (m.beat > beat) break;
+      cur = m.mode;
+    }
+    return cur;
   }
 
   /** JS render cost summary (avg / p95 / max ms) since the last call */
@@ -125,11 +152,19 @@ export class Renderer {
     const cold = g.phase === 'coldOpen';
     const lightBeat = cold ? L.def.startBeat : g.conductor.playing ? g.conductor.beat : g.spawnBeat;
     this.stage.coldOpen = cold;
+    this.stage.chorus = this.moments.shotK;
+    this.stage.climb = Math.max(0, -250 - cam.ry);
     this.stage.update(dt, L, lightBeat);
     this.director.active = g.scene === 'play' && g.conductor.playing && g.phase !== 'dying';
     this.director.extPulse = Math.max(this.director.extPulse, g.background.pulse > 0.9 ? g.background.pulse : 0);
     const envHere = this.stage.envAt(L, px);
     this.director.update(dt, this.feed, b, cam, envHere);
+    const wbNow = cold ? L.def.startBeat : g.worldBeat;
+    this.moments.update(g, dt, this.feed, cam, wbNow, this.director.active);
+    this.feedback.update(g, g.paused ? 0 : dt);
+    if (g.stats.stumbles > this.lastStumbles) this.burnFlare = 1;
+    this.lastStumbles = g.stats.stumbles;
+    this.burnFlare *= Math.exp(-dt / 0.6);
     if (g.freezeFx > this.lastFreeze + 1e-4) this.perfectAt = this.clock;
     this.lastFreeze = g.freezeFx;
 
@@ -145,6 +180,18 @@ export class Renderer {
       ctx.translate(-VIEW_W / 2, -VIEW_H / 2);
     }
     this.stage.drawBack(ctx, L, acam, b);
+    drawJamLine(
+      ctx,
+      acam,
+      b,
+      (e) => this.stage.light(e as EnvKind),
+      (x) => this.stage.envAt(L, x),
+      this.feed.energy,
+      this.feed.chorus,
+      (x) => Number.isNaN(L.floorYAt(x)),
+      (e) => this.stage.sceneCam(L, e as EnvKind, acam),
+    );
+    this.moments.drawBehind(ctx, b);
     ctx.restore();
 
     ctx.save();
@@ -173,6 +220,8 @@ export class Renderer {
       ctx.globalAlpha = 1;
     }
     g.particles.draw(ctx, v.x0, v.x1);
+    this.moments.drawWorld(ctx);
+    this.feedback.drawWorld(ctx);
     this.drawPopups(ctx);
     g.debug.drawWorld(ctx, v);
     ctx.restore();
@@ -185,15 +234,39 @@ export class Renderer {
     }
     this.stage.drawFront(ctx, L, acam, b);
     ctx.restore();
-    this.director.draw(ctx, b);
-    ctx.restore();
-
     // screen-space: hero position for the replay burst / audience ripple
     const hsx = VIEW_W / 2 + (px - cam.rx) * cam.rzoom;
+    const hsy = VIEW_H / 2 + (py - cam.ry) * cam.rzoom;
+    this.moments.heroSx = hsx;
+    this.moments.heroSy = hsy;
+    this.moments.drawScreen(ctx, b, (x, y) => [VIEW_W / 2 + (x - cam.rx) * cam.rzoom, VIEW_H / 2 + (y - cam.ry) * cam.rzoom]);
+    this.director.draw(ctx, b);
+    this.feedback.drawScratches(ctx, hsx, hsy, cam.rzoom);
+    ctx.restore();
+
     // (the Perfect replay burst is drawn by the Slim rig itself: s.perfect)
     const ppb = L.ppb;
     const damage = g.chaser.active ? Math.max(0, Math.min(1, 1 - (g.player.x - g.chaser.x) / (3.5 * ppb))) : 0;
     this.stage.film.draw(ctx, b, { amount: 1, damage });
+    // THE BURN: the print melting in from the left edge (always on screen once risen)
+    if (g.chaser.active) {
+      const riseK = Math.max(0, Math.min(1, (this.sc.wb - g.chaser.riseBeat) / Tun.chaser.riseBeats));
+      const last = g.stats.deathLog[g.stats.deathLog.length - 1];
+      const eat = g.phase === 'dying' && last?.cause === 'chaser' ? Math.min(1, g.deathProgress * 1.6) : 0;
+      this.burn.draw(
+        ctx,
+        {
+          realX: VIEW_W / 2 + (g.chaser.x - cam.rx) * cam.rzoom,
+          heroX: hsx,
+          rise: riseK,
+          lunge: this.director.active ? Math.max(g.chaser.lunge ?? 0, this.feed.fill * (0.6 + 0.4 * this.feed.fillStrength)) : 0,
+          flare: Math.max(this.burnFlare, g.chaser.flare ?? 0),
+          eat,
+          t: this.clock,
+        },
+        b,
+      );
+    }
     if (g.phase === 'dying') drawRewind(ctx, Math.min(1, g.deathProgress * 1.4), this.clock);
     // the theatre (outside the film): the audience strip is the streak meter
     const enforcers = L.enemies.filter((e) => !e.alive && !e.heaved).length;
@@ -208,6 +281,7 @@ export class Renderer {
     for (const cp of L.checkpoints) cue = Math.max(cue, cp.flash);
     drawCueDot(ctx, cue);
     drawHud(ctx, g, b);
+    if (g.scene === 'play' && g.phase !== 'coldOpen') this.feedback.drawCombo(ctx, g.groove.pulse(1, 0.25));
     if (g.scene === 'end') {
       if (this.endAt < 0) this.endAt = this.clock;
       drawEndScreen(ctx, g, b, slimState, this.clock, this.clock - this.endAt);
@@ -357,7 +431,8 @@ export class Renderer {
           baseY: bk.baseY,
           high: bk.high,
           big: bk.big,
-          look: bk.look,
+          giant: bk.giant,
+          look: pickLook(bk.look, sc.env, this.modeAt(bk.beat), bk.big, bk.id),
           glint: bk.broken ? 0 : Math.max(0, 1 - Math.abs(wb - bk.beat + 1) / 0.3),
           now: bk.broken ? 0 : Math.max(0, 1 - Math.abs(wb - bk.beat) / 0.35),
           brokenT: bk.broken ? bk.brokenT : NaN,
@@ -393,6 +468,9 @@ export class Renderer {
       const blink = h.t > 0 && h.expires - g.simTime < 0.6 ? (Math.floor(h.t * 12) % 2 ? 0.35 : 1) : 1;
       drawToken(ctx, h.x, h.y, Math.sin(h.t * 6) * 0.4, 1, 0.5, blink);
     }
+
+    // act-2 mechanics (thrown bottles, firebombs, rolling balls, Big Jim's glint): placeholder draws, render/mechDraw.ts
+    drawMech(ctx, g.mech, wb, x0, x1, this.clock, this.stage.light(this.env(g.player.x)), b);
 
     // Bluffers: flex on the swung "and", jab on the beat, WIND-UP TELL in the beat before their jab
     const off = gr.beat - Math.floor(gr.beat);
@@ -435,14 +513,6 @@ export class Renderer {
       }
     }
 
-    // the Burn: the film burning in from the left (lethal)
-    if (g.chaser.active && g.chaser.x > x0 - 800) {
-      const riseK = Math.min(1, (wb - g.chaser.riseBeat) / Tun.chaser.riseBeats);
-      const surge = Math.sin(Math.PI * Math.min(1, riseK)) * 0.8 * ppb;
-      const lagBeats = Number.isFinite(g.player.musicX) ? (g.player.musicX - g.player.x) / ppb : 0;
-      const showX = g.chaser.x + (riseK < 1 && lagBeats < 0.3 ? surge : 0);
-      drawChaser(ctx, showX, y0 - 100, this.clock, y1 + 100);
-    }
   }
 
   private drawPopups(ctx: CanvasRenderingContext2D): void {

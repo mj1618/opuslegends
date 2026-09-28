@@ -9,7 +9,6 @@ import {
   REWARD,
   drawBlock,
   drawBouncePad,
-  drawBreakable,
   drawChaser,
   drawGeneric,
   drawJabber,
@@ -22,6 +21,7 @@ import {
   drawSplice,
   drawToken,
 } from '../../render/entityDraw';
+import { BREAKABLE_LOOKS, drawBreakable } from '../../render/breakables';
 import { drawLethalPit } from '../../render/stage';
 import { fract } from '../core/math';
 import { CF } from '../palette';
@@ -117,9 +117,11 @@ export function drawSkinsView(l: LabCtx): void {
   label(g, 'pool lamp', 520, 1040, '#fff');
   pend(680, 'street', true);
   label(g, 'big 8-ball', 680, 1040, '#fff');
-  ['bottle', 'glass', 'jug', 'crate', 'neon'].forEach((look, i) => {
+  // every breakable family look, 5 at a time (rotates every 2 bars)
+  const lookOff = (Math.floor(b.beat / 8) * 5) % BREAKABLE_LOOKS.length;
+  [0, 1, 2, 3, 4].map((k) => BREAKABLE_LOOKS[(lookOff + k) % BREAKABLE_LOOKS.length]).forEach((look, i) => {
     const x = 820 + i * 110;
-    drawBreakable(g, { x, y: 890, r: look === 'crate' ? 36 : 30, baseY: 1000, high: false, big: false, look, glint: fract(b.beat) > 0.7 ? 1 : 0, now: 0, brokenT: NaN, seed: i, viewTop: 600 }, sc);
+    drawBreakable(g, { x, y: 890, r: look === 'crate' || look === 'keg' ? 36 : 30, baseY: 1000, high: false, big: false, look, glint: fract(b.beat) > 0.7 ? 1 : 0, now: 0, brokenT: NaN, seed: i, viewTop: 600 }, sc);
     label(g, look, x, 1040, '#fff');
   });
 

@@ -22,6 +22,7 @@ import { type ArtCamera, SEA_Y, VIEW_H, VIEW_W, layerView, pushLayer } from '../
 import { type Lighting, type LightingDirector, atmos, lit } from '../world/lighting';
 import { ParallaxScene, type SceneFrame, stripLayer } from '../world/parallax';
 import { BOTTLE, BRAWLERS, PATRON, POOL_BALL } from './actors';
+import { JAMMER } from './jammers';
 import './lights';
 
 const H = hex;
@@ -160,6 +161,10 @@ export function makeBar(light: LightingDirector): ParallaxScene {
         { kind: PATRON, x: 1900, y: SEA_Y - 236, s: 0.9, dir: 1 },
         { kind: PATRON, x: 2230, y: SEA_Y - 236, s: 0.9, dir: -1 },
         { kind: PATRON, x: 560, y: SEA_Y - 200, s: 0.95, dir: -1 },
+        // jamming goons by the jukebox, dancing on the backbeat
+        { kind: JAMMER, x: 1180, y: SEA_Y - 200, s: 0.85 },
+        { kind: JAMMER, x: 1260, y: SEA_Y - 200, s: 0.82, dir: -1 },
+        { kind: JAMMER, x: 1640, y: SEA_Y - 200, s: 0.84 },
       ],
       rules: [
         { kind: BOTTLE, on: 'snare', chance: 0.4, y: SEA_Y - 340, from: 'view', max: 3 },

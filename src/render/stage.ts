@@ -23,6 +23,8 @@ import { TAU, hash } from '../art/core/math';
 import { drawBarFloor, makeBar } from '../art/grindhouse/bar';
 import './../art/grindhouse/lights';
 import { type StreetScene, drawStreetGround, makeStreet } from '../art/grindhouse/street';
+import { drawFacadeLedge, makeFacade } from '../art/grindhouse/facade';
+import { drawLanesFloor, makeLanes } from '../art/grindhouse/lanes';
 import { FilmPass } from '../art/fx/film';
 import { CF } from '../art/palette';
 import type { ArtCamera } from '../art/world/camera';
@@ -33,11 +35,24 @@ import { Tun } from '../game/tunables';
 import { type RuntimeLevel, groundStyleAt } from '../level/build';
 import { DANGER } from './entityDraw';
 
-export type Env = 'street' | 'bar';
+export type Env = 'street' | 'bar' | 'facade' | 'lanes';
 
 /** level sky preset -> grindhouse light key */
-const SKY_TO_LIGHT: Record<string, string> = { golden: 'golden', neon: 'neon', honkytonk: 'bar', bar: 'bar' };
-const INTERIOR = new Set(['bar', 'poolroom', 'velvet', 'throne', 'houselights']);
+const SKY_TO_LIGHT: Record<string, string> = { golden: 'golden', neon: 'neon', honkytonk: 'bar', bar: 'bar', facade: 'facade', lanes: 'blacklight', blacklight: 'blacklight' };
+/** which scene's lighting director a light key drives (anything else = the street) */
+const KEY_ENV: Record<string, Env> = {
+  bar: 'bar',
+  poolroom: 'bar',
+  velvet: 'bar',
+  throne: 'bar',
+  houselights: 'bar',
+  facade: 'facade',
+  facadeHigh: 'facade',
+  blacklight: 'lanes',
+  blacklightHot: 'lanes',
+};
+/** level ground style -> environment */
+const GROUND_ENV: Record<string, Env> = { street: 'street', timber: 'bar', bar: 'bar', facade: 'facade', lanes: 'lanes' };
 
 const H = hex;
 
@@ -47,10 +62,19 @@ export class Stage {
   readonly street: StreetScene;
   readonly bar: ParallaxScene;
   readonly film = new FilmPass();
-  private lastBlend = { street: '', bar: '' };
+  private lights: Record<Env, LightingDirector>;
+  /** act-2 scenes are built lazily (their caches only exist once the act is reached) */
+  private scenes: Partial<Record<Env, ParallaxScene>> = {};
+  private lastBlend: Record<Env, string> = { street: '', bar: '', facade: '', lanes: '' };
   /** set by the renderer: the cold open keeps the street in the dark theatre light */
   coldOpen = false;
+  /** set by the renderer: chorus (the Lanes go 'blacklightHot') */
+  chorus = 0;
+  /** set by the renderer: camera height above the street (px, >0 = up) — the facade gets colder/starrier up high */
+  climb = 0;
   private resScale = 0;
+  private cuesKey: unknown = null;
+  private cues: Record<Env, { beat: number; key: string }[]> = { street: [], bar: [], facade: [], lanes: [] };
 
   /** @param resScale backing-store px per logical px (set BEFORE the scenes bake, so nothing re-bakes on frame 1) */
   constructor(resScale = 1) {
@@ -58,8 +82,11 @@ export class Stage {
     useLights('grindhouse');
     this.streetLight = new LightingDirector('golden');
     this.barLight = new LightingDirector('bar');
+    this.lights = { street: this.streetLight, bar: this.barLight, facade: new LightingDirector('facade'), lanes: new LightingDirector('blacklight') };
     this.street = makeStreet(this.streetLight);
     this.bar = makeBar(this.barLight);
+    this.scenes.street = this.street;
+    this.scenes.bar = this.bar;
   }
 
   /** keep art caches at the backing-store resolution */
@@ -70,11 +97,15 @@ export class Stage {
   }
 
   light(env: Env): Lighting {
-    return env === 'bar' ? this.barLight.current : this.streetLight.current;
+    return (this.lights[env] ?? this.streetLight).current;
+  }
+
+  lightVersion(env: Env): number {
+    return (this.lights[env] ?? this.streetLight).version;
   }
 
   envAt(L: RuntimeLevel, x: number): Env {
-    return groundStyleAt(L, x / L.ppb) === 'timber' ? 'bar' : 'street';
+    return GROUND_ENV[groundStyleAt(L, x / L.ppb) as string] ?? 'street';
   }
 
   /** world x of every environment change (sorted) */
@@ -82,7 +113,7 @@ export class Stage {
     const out: { x: number; to: Env }[] = [];
     let cur: Env = 'street';
     for (const c of L.groundCues) {
-      const e: Env = c.style === 'timber' ? 'bar' : 'street';
+      const e: Env = GROUND_ENV[c.style as string] ?? 'street';
       if (e !== cur) out.push({ x: c.beat * L.ppb, to: e });
       cur = e;
     }
@@ -91,12 +122,14 @@ export class Stage {
 
   /** lighting from the level's sky cues at `beat` (musical time: exact under rewinds) */
   update(dt: number, L: RuntimeLevel, beat: number): void {
-    const ext: { beat: number; key: string }[] = [];
-    const int: { beat: number; key: string }[] = [];
-    for (const c of L.skyCues) {
-      const key = SKY_TO_LIGHT[c.preset] ?? c.preset;
-      if (!LIGHTS[key]) continue;
-      (INTERIOR.has(key) ? int : ext).push({ beat: c.beat, key });
+    if (this.cuesKey !== L) {
+      this.cuesKey = L;
+      this.cues = { street: [], bar: [], facade: [], lanes: [] };
+      for (const c of L.skyCues) {
+        const key = SKY_TO_LIGHT[c.preset] ?? c.preset;
+        if (!LIGHTS[key]) continue;
+        this.cues[KEY_ENV[key] ?? 'street'].push({ beat: c.beat, key });
+      }
     }
     const pick = (cues: { beat: number; key: string }[], dflt: string): [string, string, number] => {
       let from = cues[0]?.key ?? dflt;
@@ -110,21 +143,22 @@ export class Stage {
       }
       return [from, to, k];
     };
-    let s = pick(ext, 'golden');
+    let s = pick(this.cues.street, 'golden');
     if (this.coldOpen) s = ['cold', 'cold', 1];
-    const b = pick(int, 'bar');
-    this.apply(this.streetLight, 'street', s);
-    this.apply(this.barLight, 'bar', b);
-    this.street.update(dt);
-    this.bar.update(dt);
+    this.apply('street', s);
+    this.apply('bar', pick(this.cues.bar, 'bar'));
+    // act 2: the facade chills as you climb; the Lanes run hot in the chorus
+    if (this.scenes.facade) this.apply('facade', ['facade', 'facadeHigh', Math.max(0, Math.min(1, (this.climb - 200) / 1400))]);
+    if (this.scenes.lanes) this.apply('lanes', ['blacklight', 'blacklightHot', Math.max(0, Math.min(1, this.chorus))]);
+    for (const e of Object.keys(this.scenes) as Env[]) this.scenes[e]?.update(dt);
   }
 
-  private apply(d: LightingDirector, id: 'street' | 'bar', [a, b, k]: [string, string, number]): void {
+  private apply(id: Env, [a, b, k]: [string, string, number]): void {
     const kq = Math.round(k * 60) / 60;
     const tag = `${a}|${b}|${kq}`;
     if (tag === this.lastBlend[id]) return;
     this.lastBlend[id] = tag;
-    d.setBlend(a, b, kq);
+    this.lights[id].setBlend(a, b, kq);
   }
 
   /** the scene(s) in view and where they split (screen x), for back/front passes */
@@ -140,12 +174,45 @@ export class Stage {
   }
 
   private scene(e: Env): ParallaxScene {
-    return e === 'bar' ? this.bar : this.street;
+    let sc = this.scenes[e];
+    if (!sc) {
+      sc = e === 'facade' ? makeFacade(this.lights.facade) : e === 'lanes' ? makeLanes(this.lights.lanes) : this.street;
+      this.scenes[e] = sc;
+    }
+    return sc;
   }
 
-  private pass(ctx: CanvasRenderingContext2D, L: RuntimeLevel, cam: ArtCamera, b: BeatInfo, which: 'back' | 'front'): void {
-    const sp = this.split(L, cam);
+  private bases = new Map<Env, number>();
+  private basesKey: unknown = null;
+
+  /**
+   * World y an environment's scene is authored around (its floor): 0 for the street / bar / facade (the facade's
+   * verticality is measured from the street), the Lanes' floor for the Lanes (they're on the Jimperial's 4th floor).
+   */
+  baseY(L: RuntimeLevel, env: Env): number {
+    if (this.basesKey !== L) {
+      this.basesKey = L;
+      this.bases.clear();
+      for (const bd of this.boundaries(L)) {
+        if (bd.to !== 'lanes' || this.bases.has('lanes')) continue;
+        let y = NaN;
+        for (let dx = 40; dx < 4000 && Number.isNaN(y); dx += 40) y = L.floorYAt(bd.x + dx);
+        this.bases.set('lanes', Number.isNaN(y) ? 0 : Math.min(0, y));
+      }
+    }
+    return this.bases.get(env) ?? 0;
+  }
+
+  /** the camera an environment's scene sees (shifted to its authored floor) */
+  sceneCam(L: RuntimeLevel, env: Env, cam: ArtCamera): ArtCamera {
+    const by = this.baseY(L, env);
+    return by === 0 ? cam : { x: cam.x, y: cam.y - by, zoom: cam.zoom };
+  }
+
+  private pass(ctx: CanvasRenderingContext2D, L: RuntimeLevel, cam0: ArtCamera, b: BeatInfo, which: 'back' | 'front'): void {
+    const sp = this.split(L, cam0);
     if (sp.left === sp.right) {
+      const cam = this.sceneCam(L, sp.left, cam0);
       this.scene(sp.left).drawPass(ctx, cam, b, which);
       if (which === 'back') this.wash(ctx, cam, sp.left, 0, VIEW_W);
       return;
@@ -159,6 +226,7 @@ export class Stage {
       ctx.beginPath();
       ctx.rect(a - 40, -200, z - a + 40, VIEW_H + 400);
       ctx.clip();
+      const cam = this.sceneCam(L, env, cam0);
       this.scene(env).drawPass(ctx, cam, b, which);
       if (which === 'back') this.wash(ctx, cam, env, a, z);
       ctx.restore();
@@ -181,8 +249,8 @@ export class Stage {
     const Lt = this.light(env);
     const groundSy = VIEW_H / 2 + (0 - cam.y) * cam.zoom;
     const top = groundSy - 620 * cam.zoom;
-    const rgb = lit(Lt, H(env === 'bar' ? '#1E140E' : '#2A1E24'), 0.35);
-    const bar = env === 'bar';
+    const rgb = lit(Lt, H(env === 'bar' ? '#1E140E' : env === 'lanes' ? '#120C1E' : env === 'facade' ? '#1A1020' : '#2A1E24'), 0.35);
+    const bar = env !== 'street';
     const g = ctx.createLinearGradient(0, top, 0, groundSy);
     g.addColorStop(0, css(rgb, 0));
     g.addColorStop(0.4, css(rgb, bar ? 0.4 : 0.34));
@@ -220,9 +288,11 @@ export class Stage {
         const rect = { x: sa, y: f.y, w: sz - sa, h: depth };
         const style = { light: this.light(env), capL: sa === f.x0, capR: sz === f.x1 };
         if (env === 'bar') drawBarFloor(ctx, rect, style);
+        else if (env === 'facade') drawFacadeLedge(ctx, rect, style);
+        else if (env === 'lanes') drawLanesFloor(ctx, rect, style, b);
         else drawStreetGround(ctx, rect, { ...style, version: this.streetLight.version });
       }
-      if (f.y > 20) drawPuddle(ctx, f.x0, f.x1, f.y, b);
+      if (f.y > 20 && this.envAt(L, (f.x0 + f.x1) / 2) !== 'facade') drawPuddle(ctx, f.x0, f.x1, f.y, b);
     }
   }
 
@@ -338,7 +408,7 @@ function drawDoorway(ctx: CanvasRenderingContext2D, x: number, y: number, to: En
   ctx.fillRect(x - 90, top - 30, 300, 5);
   // neon sign over the door: flickers with the hats, blazes on the kick
   const on = 0.7 + 0.3 * hit(b, 'kick', 0.12);
-  const word = to === 'bar' ? 'HONKY-TONK' : '42ND ST';
+  const word = to === 'bar' ? 'HONKY-TONK' : to === 'facade' ? 'FIRE EXIT' : to === 'lanes' ? 'LANES' : '42ND ST';
   ctx.save();
   ctx.font = 'italic 54px "Impact", "Haettenschweiler", "Arial Narrow Bold", sans-serif';
   ctx.textAlign = 'center';

@@ -28,6 +28,10 @@ export class Camera {
   musicZoom = 0;
   /** additive zoom from the music director: fast punches on big hits (not used for framing) */
   hitZoom = 0;
+  /** additive zoom from set-piece MOMENTS (big launch reveal, walkdown smash) — render-owned, framed like musicZoom */
+  momentZoom = 0;
+  /** render-only vertical offset (world px, negative = look up) for set-piece moments (the launch's city reveal) */
+  momentY = 0;
   trauma = 0;
   private lead = 1;
   private t = 0;
@@ -45,7 +49,7 @@ export class Camera {
 
   /** level zoom x framing (what the follow maths frames with) */
   get frameZoom(): number {
-    return this.zoom * FRAMING.zoomMul * (1 + this.musicZoom);
+    return this.zoom * FRAMING.zoomMul * (1 + this.musicZoom + this.momentZoom);
   }
 
   private targetX(px: number): number {
@@ -84,9 +88,9 @@ export class Camera {
     const s = this.trauma * this.trauma;
     const f = 18;
     this.rx = this.x + C.maxShakeOffset * s * noise1(this.t * f, 1);
-    this.ry = this.y + C.maxShakeOffset * s * noise1(this.t * f, 2);
+    this.ry = this.y + this.momentY + C.maxShakeOffset * s * noise1(this.t * f, 2);
     this.rangle = C.maxShakeAngle * s * noise1(this.t * f, 3);
-    this.rzoom = this.zoom * FRAMING.zoomMul * (1 + this.zoomPunch + this.beatZoom + this.musicZoom + this.hitZoom);
+    this.rzoom = this.zoom * FRAMING.zoomMul * (1 + this.zoomPunch + this.beatZoom + this.musicZoom + this.momentZoom + this.hitZoom);
   }
 
   addTrauma(a: number): void {

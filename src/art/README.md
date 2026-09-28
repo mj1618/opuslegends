@@ -39,6 +39,44 @@ Greyscale+blur check: `node src/art/lab/gameshot.mjs --gray ...` (in game) or `G
 runs the REAL game (Vite dev server, GPU, 1920x1080) and prints fps + `renderer.perf()`. Measured (M5 Pro): 60 fps at
 DPR 1 and 2 with everything on; renderer JS avg 0.9–1.7 ms, p95 ≤ 2.4 ms.
 
+## Iteration 3 (review iter2 fixes 5, 6, 8 visual halves + act 2)
+- **Feedback** (`render/feedback.ts`, on by default): PERFECT / GREAT / GOOD as cached 70s rubber-stamp sprites slammed
+  up-and-behind Slim's head (world space, drift out left: never over the lane); the combo as extruded film-title lettering
+  under the metronome that grows and heats cream → bulb → gold → neon rose → white-hot (uses `game.combo` when present);
+  misses / stumbles / deaths tear a film SCRATCH across the hero (+ a burn hole on stumbles). Grades are diffed from
+  `judge.targets` per frame, so rewinds are safe.
+- **The Burn** (`render/burn.ts`, screen space after the film pass): always on screen once risen — a glow-band proxy at the
+  left 3–5 % when the real Burn is farther back, else drawn where it is. Curling melt edge, blisters, char flakes, sparks;
+  pumps on the kick, LUNGES on drum fills (`game.chaser.lunge` / `MusicFeed.fill`), FLARES on stumbles, eats the frame on a
+  chaser death. Lethal language (lacquer + hot edge).
+- **Moments** (`render/moments.ts`): long launches pull the camera out −16 % and up (`Camera.momentZoom/momentY`) with
+  tapered speed lines and searchlights behind the city; GIANT breakables (`Breakable.giant`, walkdowns) get a projector flash,
+  radial lines, a KRAK!/SMASH! (STRIKE! for pins) comic stamp, punch, shake and world debris; choruses (and the
+  `chorusShot` set-piece, `fx:'shot'` cues) are their own SHOT: bigger pull-out (−13 %, director), a colour gel on the
+  background only (rose / violet per 2-bar line), crossing searchlights, a key follow-spot + dark iris on Slim.
+- **Breakable families** (`render/breakables.ts`, `pickLook`): street newspaper box / trash can / parking meter · rooftops
+  valve wheel / pigeon coop / TV + antenna · bar bottle / neon letter / jug / glass, keg + jukebox (big) · facade window pane
+  (`window`) / flower pot · lanes bowling pin. Neutral hints ('bottle', 'crate', 'glass', 'jug') are re-skinned by section;
+  explicit family looks win. Each family has its own stand.
+- **Jamming goons** (`art/grindhouse/jammers.ts`): `drawJammer` / `JAMMER` — five dances, big move on the backbeat (2 & 4),
+  never red/gold. Pinned in the street and bar scenes, in lit facade windows, and the render **jam line**
+  (`render/jamline.ts`, parallax 0.85 behind the play band; more join as the energy rises, all of them in a chorus).
+- **Act 2 scenes** (built lazily by `Stage`): `facade.ts` — the Jimperial climb (sky, distant skyline, midtown towers 0.18,
+  the rooftops + street far BELOW 0.45 that drop away as you climb, the procedural wall 0.92 with light-well gaps, storey
+  cornices, windows with silhouettes, fire escapes, drainpipes, vertical "BIG JIM'S" neon blades, laundry lines in front;
+  `drawFacadeLedge` floors; `drawThrowWindow` the thrower tell; `drawBigJimGlint`). `lanes.ts` — the Blacklight Lanes (UV
+  carpet print, posters, lane boards + monitors, BOWL-O-RAMA neon, disco-ball spots, pin decks + sweep bar on the kick,
+  ball returns, the mirror ball; `drawLanesFloor`, `drawRollingBall` with a UV rim so it reads on the dark lane). The Lanes
+  scene is authored around its own floor (`Stage.baseY/sceneCam`: the Lanes sit ~950 px up).
+- **Lighting keys** (`lights.ts`): `facade → facadeHigh` (blended by camera height: colder and starrier as you climb) and
+  `blacklight → blacklightHot` (the chorus). Level presets: sky `facade` / `lanes`, ground `facade` / `lanes`.
+- **Act-2 entity skins** (`render/mechDraw.ts`, from `game.mech`): thrown bottle = lacquer-red glass with a dashed red arc
+  and a crosshair tightening on the bat point, thrower leaning out of a lit window with the bottle cocked 1 beat before;
+  batted = gold with a gold trail; firebomb = burning rag, floor ring, ink + red flame points; bowling balls; the
+  pre-chorus window crash (a LANES window that bursts on the HEY); Big Jim's glint.
+- Measured (M5 Pro, GPU, 1920×1080): 60 fps (p50 16.7 ms, p95 ≤ 18.4 ms) at DPR 1 and 2 in the chorus, the facade and
+  the Lanes; renderer JS avg 0.9–1.7 ms, p95 ≤ 2.4 ms.
+
 ## Integration recipe (per frame)
 ```ts
 import { BeatInfo } from './core/beat';                    // fill from the conductor (tempo-map aware), see below
@@ -109,7 +147,8 @@ y, speed, from: 'edge'|'view', max, prefill }`; pinned actors on tiling anchors;
 - `theatre.ts` — `drawTheatre(ctx, beat, { standing 0..24, heroX, perfectT, enforcers, light, house })`: audience strip
   (streak meter, FULL HOUSE ≥ 20, kick stomp, popcorn on snare, HEY arms, Perfect ripple), projector haze, curtains.
 - `actors.ts` — PEDESTRIAN, TAXI, SEDAN, VAN, PIGEONS, LETTER, NEWSPAPER, BRAWLERS, BOTTLE, POOL_BALL, PATRON.
-- `lights.ts` — 'grindhouse' set: `cold golden neon bar poolroom velvet sunset dusk throne houselights`.
+- `lights.ts` — 'grindhouse' set: `cold golden neon bar facade facadeHigh blacklight blacklightHot poolroom velvet sunset dusk throne houselights`.
+- `jammers.ts`, `facade.ts`, `lanes.ts` — see "Iteration 3" above.
 
 `palette.ts` — `CF` (current theme; sacred: tangerine = hero, gold = reward, lacquer red = danger) and the legacy `PAL`.
 
@@ -127,6 +166,7 @@ lamp / giant 8-ball), breakables (bottle / glass / jug / crate / neon letter). T
 kind a generic silhouette in its class until bespoke art lands.
 
 ## Known weaknesses / next
-No Big Jim yet (title/poster use type + a tiny silhouette); the Bluffer is a single rigid puppet (no rig); the scene
+Big Jim exists only as the window glint (title/poster use type + a tiny silhouette); the facade's light-well gaps are fixed
+by layer x (not aligned to level beats); window-pane breakables stand on a glazier's A-frame; the Bluffer is a single rigid puppet (no rig); the scene
 split at the doorway is a hard clip (fine behind the door frame, visible if the camera lingers); flying debris is
 screen-space (does not parallax); later acts (lanes, pool room, casino, roof) need their scenes.

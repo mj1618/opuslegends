@@ -52,7 +52,7 @@ export const PAL = {
 } as const;
 
 export type DangerClass = 'lethal' | 'stumble' | 'reward' | 'neutral';
-export type EnvKind = 'street' | 'bar';
+export type EnvKind = 'street' | 'bar' | 'facade' | 'lanes';
 
 /** per-frame context every skin gets */
 export interface SkinCtx {
@@ -67,7 +67,7 @@ export interface SkinCtx {
 
 // ============================================================================ helpers
 
-function fillInk(g: Ctx, fill: string, w = 3): void {
+export function fillInk(g: Ctx, fill: string, w = 3): void {
   g.lineJoin = 'round';
   g.lineWidth = w * 2;
   g.strokeStyle = INK;
@@ -76,7 +76,7 @@ function fillInk(g: Ctx, fill: string, w = 3): void {
   g.fill();
 }
 
-function roundRectPath(g: Ctx, x: number, y: number, w: number, h: number, r: number): void {
+export function roundRectPath(g: Ctx, x: number, y: number, w: number, h: number, r: number): void {
   const rr = Math.max(0, Math.min(r, w / 2, h / 2));
   g.beginPath();
   g.moveTo(x + rr, y);
@@ -947,174 +947,7 @@ export function drawFinish(g: Ctx, x: number, y: number, b: BeatInfo, label = 'E
   g.restore();
 }
 
-// ============================================================================ REWARD: breakable targets
-
-export interface BreakableView {
-  x: number;
-  y: number;
-  r: number;
-  baseY: number;
-  high: boolean;
-  big: boolean;
-  look: string;
-  /** 0..1 glint the beat before its strike beat */
-  glint: number;
-  /** 0..1 on its strike beat */
-  now: number;
-  /** seconds since it broke (NaN = intact) */
-  brokenT: number;
-  seed: number;
-  viewTop: number;
-}
-
-const NEON_LETTERS = 'JIMBIG8';
-
-/** Breakable target (reward): bottle / beer glass / crate / neon letter / moonshine jug on a stool or hanging. Gold rim = pays. */
-export function drawBreakable(g: Ctx, p: BreakableView, c: SkinCtx): void {
-  const { x, y, r } = p;
-  if (!Number.isNaN(p.brokenT)) {
-    const k = clamp01(p.brokenT / 0.45);
-    if (k >= 1) return;
-    g.globalAlpha = 1 - k;
-    g.strokeStyle = REWARD.gold;
-    g.lineWidth = 6 * (1 - k);
-    g.beginPath();
-    g.arc(x, y, r + 80 * easeOut(k), 0, TAU);
-    g.stroke();
-    g.fillStyle = p.look === 'crate' ? '#8A6A48' : p.look === 'neon' ? CF.neonRose : '#5A8A6A';
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * TAU + p.seed;
-      g.fillRect(x + Math.cos(a) * 90 * k, y + Math.sin(a) * 70 * k + 120 * k * k, 7, 5);
-    }
-    g.globalAlpha = 1;
-    return;
-  }
-  // support: a hanging cable (high) or a bar stool / crate stand (low)
-  if (p.high) {
-    g.strokeStyle = 'rgba(26,20,16,0.85)';
-    g.lineWidth = 3;
-    g.beginPath();
-    g.moveTo(x, p.viewTop);
-    g.lineTo(x, y - r);
-    g.stroke();
-  } else if (p.baseY - (y + r) > 8) {
-    const top = y + r * (p.look === 'crate' ? 1 : 0.95);
-    g.strokeStyle = INK;
-    g.lineWidth = 9;
-    g.beginPath();
-    g.moveTo(x - 20, p.baseY);
-    g.lineTo(x - 12, top);
-    g.moveTo(x + 20, p.baseY);
-    g.lineTo(x + 12, top);
-    g.stroke();
-    g.strokeStyle = '#6A5A4A';
-    g.lineWidth = 4;
-    g.stroke();
-    g.beginPath();
-    g.ellipse(x, top, 26, 7, 0, 0, TAU);
-    fillInk(g, '#8A2E3E', 2.5);
-  }
-  const hot = Math.max(p.glint, p.now);
-  if (hot > 0.02) drawGlow(g, x, y, REWARD.glow, r * 2.8, 0.45 * hot);
-  const bob = p.high ? Math.sin(c.time * 2 + p.seed) * 0.08 : 0;
-  g.save();
-  g.translate(x, y);
-  g.rotate(bob);
-  const s = r / 30;
-  g.scale(s, s);
-  switch (p.look) {
-    case 'crate': {
-      g.beginPath();
-      g.rect(-32, -30, 64, 60);
-      fillInk(g, '#8A6A48', 3);
-      g.fillStyle = '#5A4230';
-      g.fillRect(-32, -6, 64, 6);
-      g.strokeStyle = '#5A4230';
-      g.lineWidth = 5;
-      g.beginPath();
-      g.moveTo(-28, -26);
-      g.lineTo(28, 26);
-      g.stroke();
-      g.fillStyle = INK;
-      g.font = 'bold 13px "Arial Black", Impact, sans-serif';
-      g.textAlign = 'center';
-      g.fillText('XXX', 0, 20);
-      break;
-    }
-    case 'neon': {
-      const ch = NEON_LETTERS[p.seed % NEON_LETTERS.length];
-      g.font = 'italic 76px "Impact", "Haettenschweiler", "Arial Narrow Bold", sans-serif';
-      g.textAlign = 'center';
-      g.textBaseline = 'middle';
-      g.lineWidth = 12;
-      g.strokeStyle = INK;
-      g.strokeText(ch, 0, 2);
-      g.fillStyle = CF.neonRose;
-      g.fillText(ch, 0, 2);
-      drawGlow(g, 0, 0, CF.neonRose, 60, 0.35 + 0.3 * hit(c.b, 'hat', 0.06));
-      break;
-    }
-    case 'glass': {
-      g.beginPath();
-      g.moveTo(-18, -26);
-      g.lineTo(18, -26);
-      g.lineTo(15, 28);
-      g.lineTo(-15, 28);
-      g.closePath();
-      fillInk(g, 'rgba(232,200,106,0.95)', 3);
-      g.fillStyle = CF.cream;
-      g.beginPath();
-      g.ellipse(0, -26, 20, 9, 0, 0, TAU);
-      g.fill();
-      g.strokeStyle = INK;
-      g.lineWidth = 5;
-      g.beginPath();
-      g.arc(20, 0, 11, -1.2, 1.2);
-      g.stroke();
-      break;
-    }
-    case 'jug': {
-      blobPath(g, 0, 6, 24, 24, 0.3);
-      fillInk(g, '#C8B89A', 3);
-      g.beginPath();
-      g.rect(-7, -30, 14, 14);
-      fillInk(g, '#8A7A60', 2.5);
-      g.fillStyle = INK;
-      g.font = 'bold 14px "Arial Black", Impact, sans-serif';
-      g.textAlign = 'center';
-      g.fillText('XXX', 0, 12);
-      break;
-    }
-    default: {
-      // bottle
-      g.beginPath();
-      g.moveTo(-6, -40);
-      g.lineTo(6, -40);
-      g.lineTo(7, -16);
-      g.quadraticCurveTo(16, -10, 16, 2);
-      g.lineTo(16, 32);
-      g.lineTo(-16, 32);
-      g.lineTo(-16, 2);
-      g.quadraticCurveTo(-16, -10, -7, -16);
-      g.closePath();
-      fillInk(g, '#3E7A5A', 3);
-      g.fillStyle = CF.cream;
-      g.fillRect(-13, 2, 26, 16);
-      g.fillStyle = 'rgba(255,255,255,0.3)';
-      g.fillRect(-11, -8, 4, 36);
-    }
-  }
-  // the gold rim: it PAYS (brightens into its beat)
-  g.strokeStyle = REWARD.gold;
-  g.lineWidth = 3;
-  g.globalAlpha = 0.45 + 0.55 * hot;
-  g.beginPath();
-  g.arc(0, 0, 44, -2.4, -0.7);
-  g.stroke();
-  g.globalAlpha = 1;
-  g.restore();
-  if (p.glint > 0.05) star4(g, x + r * 0.6, y - r * 0.9, r * (0.6 + p.glint * 0.8), 0, `rgba(255,232,150,${p.glint})`);
-}
+// REWARD: breakable targets live in ./breakables.ts (per-section families)
 
 // ============================================================================ TERRAIN: bounce pads (launch)
 
@@ -1297,6 +1130,12 @@ export const SKINS: Record<string, Skin> = {
   lowSign: { danger: 'stumble' },
   platform: { danger: 'neutral' },
   block: { danger: 'neutral' },
+  // act 2 (drawn by render/mechDraw.ts from game.mech): thrown bottle = lacquer red until batted (then gold),
+  // firebomb flames + rolling bowling balls = stumble, Big Jim's glint = scenery
+  thrown: { danger: 'stumble' },
+  firebomb: { danger: 'stumble' },
+  ball: { danger: 'stumble' },
+  bigJimGlint: { danger: 'neutral' },
 };
 
 /** the skin for a kind, or a generic one in the given danger class */

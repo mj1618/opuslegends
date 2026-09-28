@@ -84,6 +84,11 @@ export class MusicFeed {
   energy = 0.7;
   /** true when the lane came from the real song map */
   realLanes: Partial<Record<Instrument, boolean>> = {};
+  /** 0..1 envelope while a drum FILL plays (rises over its first 1/4 beat, falls 1/2 beat after it) */
+  fill = 0;
+  /** strength of the current / last fill */
+  fillStrength = 0;
+  private fillSpans: { beat: number; end: number; strength: number }[] = [];
 
   constructor(
     private song: SongDef,
@@ -126,6 +131,11 @@ export class MusicFeed {
       }
       return { beats: fallback[inst](), real: false };
     };
+    for (const e of lanes.fills ?? []) {
+      const end = typeof e.endBeat === 'number' ? (e.endBeat as number) : e.beat + 0.5;
+      this.fillSpans.push({ beat: e.beat, end: Math.max(end, e.beat + 0.25), strength: typeof e.strength === 'number' ? (e.strength as number) : 0.7 });
+    }
+    this.fillSpans.sort((a, b) => a.beat - b.beat);
     // big accents: stabs, fill ends, hook starts, crashes, section starts
     const acc: { beat: number; strength: number }[] = [];
     for (const e of lanes.stabs ?? []) acc.push({ beat: e.beat, strength: 0.9 });
@@ -238,6 +248,16 @@ export class MusicFeed {
       this.accentCount = ai + 1;
       this.section = this.sectionAt(beat);
       this.energy = this.energyAt(beat);
+      this.fill = 0;
+      for (let i = this.fillSpans.length - 1; i >= 0; i--) {
+        const f = this.fillSpans[i];
+        if (f.beat > beat) continue;
+        const up = Math.min(1, (beat - f.beat) / 0.25);
+        const down = beat <= f.end ? 1 : Math.max(0, 1 - (beat - f.end) / 0.5);
+        this.fill = up * down;
+        this.fillStrength = f.strength;
+        break;
+      }
     } else {
       // free-run (menus): a plain stomp-boogie grid
       const sw = this.song.swing > 0.5 && this.song.swing < 0.95 ? this.song.swing : 0.5;
@@ -264,6 +284,7 @@ export class MusicFeed {
       this.accentStrength = 0;
       this.section = undefined;
       this.energy = 0.6;
+      this.fill = 0;
     }
     b.energy = Math.max(0.35, this.energy);
     this.chorus = !!this.section && /chorus|drop|final|tag/i.test(this.section.name);

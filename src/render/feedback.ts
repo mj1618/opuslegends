@@ -1,0 +1,364 @@
+/**
+ * FEEDBACK (review iter2 fix 5, visual half): every press answers, on by default, cheap.
+ *
+ *   GRADE STAMPS  PERFECT / GREAT / GOOD as bold 70s-poster rubber stamps (cached sprites), slammed in
+ *                 up-and-BEHIND Slim's head where the action happened (world space: they drift left out
+ *                 of frame as he runs on, so they never cover the lane ahead). Perfect = gold (reward).
+ *   COMBO         film-title lettering under the metronome (screen space): extruded italic block letters
+ *                 that GROW and HEAT UP with the streak (cream -> bulb -> gold -> neon rose -> white-hot
+ *                 with a gold halo), a bump on every hit, and on a break the number drops off and greys out.
+ *   MISS          a film SCRATCH torn across the hero (screen space, 4-5 film frames): a jagged cream gash
+ *                 with a black gutter; bigger (+ a burn-hole) on stumbles and deaths. Never red: red = danger.
+ *
+ * Read-only on game state. Grades come from the judge's targets (diffed per frame, so rewinds that clear
+ * grades are ignored) — robust to whatever grade / combo events the game adds. If the game exposes
+ * its own combo count (`game.combo` number or `{ count }`), the counter shows that one.
+ */
+import { drawGlow } from '../art/core/draw';
+import { type Ctx, drawSprite, sprite } from '../art/core/canvas';
+import { TAU, hash } from '../art/core/math';
+import { CF } from '../art/palette';
+import { VIEW_W } from '../engine/display';
+import type { Game } from '../game/game';
+import type { Grade } from '../game/judge';
+import { REWARD } from './entityDraw';
+import { MARQUEE } from './screens';
+
+interface Stamp {
+  grade: Exclude<Grade, 'miss'>;
+  x: number;
+  y: number;
+  t: number;
+  rot: number;
+}
+
+interface Scratch {
+  t: number;
+  big: boolean;
+  seed: number;
+}
+
+const STAMP_LIFE = 0.62;
+const STAMP_STYLE: Record<Exclude<Grade, 'miss'>, { text: string; fill: string; ink: string; w: number }> = {
+  perfect: { text: 'PERFECT!', fill: REWARD.gold, ink: CF.filmBlack, w: 210 },
+  great: { text: 'GREAT', fill: CF.cream, ink: CF.filmBlack, w: 150 },
+  good: { text: 'GOOD', fill: '#B8AE9A', ink: CF.filmBlack, w: 124 },
+};
+
+/** a rubber-stamp poster block: ink slab, inner rule, chunky italic caps, worn (knocked-out specks) */
+function stampSprite(grade: Exclude<Grade, 'miss'>) {
+  const st = STAMP_STYLE[grade];
+  const w = st.w;
+  const h = grade === 'perfect' ? 64 : 54;
+  return sprite(`fb-stamp-${grade}`, w + 20, h + 20, (w + 20) / 2, (h + 20) / 2, (g) => {
+    const x = -w / 2;
+    const y = -h / 2;
+    // slab (slight trapezoid = hand-stamped)
+    g.beginPath();
+    g.moveTo(x + 4, y);
+    g.lineTo(x + w, y + 2);
+    g.lineTo(x + w - 4, y + h);
+    g.lineTo(x, y + h - 2);
+    g.closePath();
+    g.fillStyle = st.ink;
+    g.fill();
+    g.strokeStyle = st.fill;
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(x + 10, y + 7);
+    g.lineTo(x + w - 7, y + 8);
+    g.lineTo(x + w - 10, y + h - 7);
+    g.lineTo(x + 7, y + h - 8);
+    g.closePath();
+    g.stroke();
+    g.font = `italic ${Math.round(h * 0.66)}px ${MARQUEE}`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillStyle = st.fill;
+    g.fillText(st.text, 0, 2, w - 26);
+    if (grade === 'perfect') {
+      // two little stars flanking the word
+      for (const s of [-1, 1]) {
+        const sx = s * (w / 2 - 4);
+        g.beginPath();
+        for (let i = 0; i < 10; i++) {
+          const a = (i / 10) * TAU - Math.PI / 2;
+          const r = i % 2 ? 4 : 10;
+          g.lineTo(sx + Math.cos(a) * r, -h / 2 - 2 + Math.sin(a) * r);
+        }
+        g.closePath();
+        g.fillStyle = REWARD.shine;
+        g.fill();
+        g.strokeStyle = st.ink;
+        g.lineWidth = 2;
+        g.stroke();
+      }
+    }
+    // worn ink: knock out specks
+    g.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < 26; i++) {
+      const px = x + hash(i * 3 + w) * w;
+      const py = y + hash(i * 7 + h) * h;
+      g.beginPath();
+      g.arc(px, py, 0.8 + hash(i + 99) * 2.2, 0, TAU);
+      g.fill();
+    }
+    g.globalCompositeOperation = 'source-over';
+  });
+}
+
+/** combo heat ramp (never tangerine = hero, never lacquer red = danger) */
+const HEAT: [number, string][] = [
+  [0, CF.cream],
+  [8, CF.bulb],
+  [16, REWARD.gold],
+  [32, CF.neonRose],
+  [48, '#FFFFFF'],
+];
+
+function heatCol(n: number): string {
+  let c = HEAT[0][1];
+  for (const [k, col] of HEAT) if (n >= k) c = col;
+  return c;
+}
+
+export class Feedback {
+  private stamps: Stamp[] = [];
+  private scratches: Scratch[] = [];
+  private seen: (Grade | null)[] = [];
+  private combo = 0;
+  private best = 0;
+  private bump = 0;
+  /** the broken combo number falling away */
+  private broke = { n: 0, t: 9 };
+  private lastStumbles = 0;
+  private lastDeaths = 0;
+  private lastRun = -1;
+  private seed = 1;
+  /** seconds since the last miss / stumble (the Burn and others can read it) */
+  sinceMiss = 99;
+  /** seconds since the last stumble */
+  sinceStumble = 99;
+
+  get count(): number {
+    return this.combo;
+  }
+
+  private rand(): number {
+    this.seed = (this.seed * 16807) % 2147483647;
+    return (this.seed & 0xffffff) / 0x1000000;
+  }
+
+  /** the game's own combo, when it exposes one */
+  private gameCombo(g: Game): number | undefined {
+    const c = (g as unknown as { combo?: unknown }).combo;
+    if (typeof c === 'number') return c;
+    if (c && typeof c === 'object' && typeof (c as { count?: unknown }).count === 'number') return (c as { count: number }).count;
+    return undefined;
+  }
+
+  update(g: Game, dt: number): void {
+    const ts = g.judge.targets;
+    if (g.runId !== this.lastRun) {
+      this.lastRun = g.runId;
+      this.seen = ts.map((t) => t.grade);
+      this.combo = 0;
+      this.best = 0;
+      this.stamps.length = 0;
+      this.scratches.length = 0;
+      this.lastStumbles = g.stats.stumbles;
+      this.lastDeaths = g.stats.deaths;
+    }
+    if (this.seen.length !== ts.length) this.seen = ts.map((t) => t.grade);
+    const p = g.player;
+    for (let i = 0; i < ts.length; i++) {
+      const gr = ts[i].grade;
+      if (gr === this.seen[i]) continue;
+      this.seen[i] = gr;
+      if (!gr) continue; // re-armed by a rewind
+      if (gr === 'miss') {
+        this.breakCombo();
+        this.scratch(false);
+        continue;
+      }
+      this.combo++;
+      this.best = Math.max(this.best, this.combo);
+      this.bump = 1;
+      // up-and-behind the head: never over the lane ahead
+      this.stamps.push({ grade: gr, x: p.x - 70 + this.rand() * 30, y: p.y - 205 - this.rand() * 20, t: 0, rot: -0.14 + this.rand() * 0.12 });
+      if (this.stamps.length > 4) this.stamps.shift();
+    }
+    if (g.stats.stumbles > this.lastStumbles) {
+      this.breakCombo();
+      this.scratch(true);
+      this.sinceStumble = 0;
+    }
+    if (g.stats.deaths > this.lastDeaths) {
+      this.breakCombo();
+      this.scratch(true);
+    }
+    this.lastStumbles = g.stats.stumbles;
+    this.lastDeaths = g.stats.deaths;
+    const ext = this.gameCombo(g);
+    if (ext !== undefined) {
+      if (ext > this.combo) this.bump = 1;
+      if (ext < this.combo && this.combo >= 3) this.broke = { n: this.combo, t: 0 };
+      this.combo = ext;
+    }
+    for (const s of this.stamps) s.t += dt;
+    while (this.stamps.length && this.stamps[0].t > STAMP_LIFE) this.stamps.shift();
+    for (const s of this.scratches) s.t += dt;
+    while (this.scratches.length && this.scratches[0].t > 0.3) this.scratches.shift();
+    this.bump *= Math.exp(-dt / 0.12);
+    this.broke.t += dt;
+    this.sinceMiss += dt;
+    this.sinceStumble += dt;
+  }
+
+  private breakCombo(): void {
+    if (this.combo >= 3) this.broke = { n: this.combo, t: 0 };
+    this.combo = 0;
+    this.sinceMiss = 0;
+  }
+
+  private scratch(big: boolean): void {
+    this.scratches.push({ t: 0, big, seed: Math.floor(this.rand() * 1000) });
+    if (this.scratches.length > 3) this.scratches.shift();
+  }
+
+  /** WORLD space (camera transform active): the grade stamps */
+  drawWorld(ctx: Ctx): void {
+    for (const s of this.stamps) {
+      const k = s.t / STAMP_LIFE;
+      // slam in (1.7 -> 1 in 70 ms), hold, then lift + fade
+      const inK = Math.min(1, s.t / 0.07);
+      const sc = 1 + 0.7 * (1 - inK) * (1 - inK);
+      const a = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4;
+      ctx.globalAlpha = Math.max(0, a) * (0.4 + 0.6 * inK);
+      drawSprite(ctx, stampSprite(s.grade), s.x, s.y - 30 * Math.max(0, k - 0.5), s.rot, sc, sc);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** SCREEN space, inside the film (before the film pass): the miss scratch across the hero (feet hx, hy) */
+  drawScratches(ctx: Ctx, hx: number, hy: number, zoom: number): void {
+    for (const s of this.scratches) this.drawScratch(ctx, s, hx, hy, zoom);
+  }
+
+  private drawScratch(ctx: Ctx, s: Scratch, hx: number, hy: number, zoom: number): void {
+    // film frames: visible on 4-5 frames at 24 fps, flickering
+    const frame = Math.floor(s.t * 24);
+    if (frame > (s.big ? 6 : 4) || (frame === 2 && !s.big)) return;
+    const h = 175 * zoom;
+    const top = hy - h * 1.25;
+    const bot = hy + 30 * zoom;
+    const tilt = (hash(s.seed) - 0.5) * 0.5;
+    const x0 = hx + (hash(s.seed + 1) - 0.5) * 30 * zoom;
+    const n = 9;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'miter';
+    for (const [w, col] of [
+      [s.big ? 16 : 11, 'rgba(13,10,8,0.85)'],
+      [s.big ? 7 : 4.5, 'rgba(255,250,236,0.95)'],
+    ] as [number, string][]) {
+      ctx.strokeStyle = col;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      for (let i = 0; i <= n; i++) {
+        const u = i / n;
+        const y = top + (bot - top) * u;
+        const jag = (hash(s.seed * 13 + i + frame * 31) - 0.5) * 18;
+        const x = x0 + (u - 0.5) * (bot - top) * tilt + jag;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    if (s.big) {
+      // a second, thinner scratch + an emulsion burn-hole (cream ring) on stumbles / deaths
+      ctx.strokeStyle = 'rgba(255,250,236,0.7)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x0 + 34 * zoom, top + 20);
+      ctx.lineTo(x0 + 22 * zoom, bot);
+      ctx.stroke();
+      const r = (18 + 10 * frame) * zoom;
+      ctx.fillStyle = 'rgba(13,10,8,0.6)';
+      ctx.beginPath();
+      ctx.arc(x0 - 20 * zoom, hy - h * 0.6, r, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,236,190,0.8)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /** HUD: the combo title card (under the metronome) */
+  drawCombo(ctx: Ctx, beatPulse: number): void {
+    const n = this.combo;
+    const X = VIEW_W - 170;
+    const Y = 212;
+    if (n >= 3) {
+      const heat = Math.min(1, n / 48);
+      const size = Math.round(46 + 34 * Math.min(1, Math.log2(n / 2) / 4.6) + 14 * this.bump);
+      const col = heatCol(n);
+      ctx.save();
+      ctx.translate(X, Y);
+      ctx.rotate(-0.06);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      if (n >= 16) drawGlow(ctx, 0, -size * 0.35, n >= 32 ? CF.neonRose : REWARD.glow, size * 2.2, 0.18 + 0.2 * heat + 0.2 * beatPulse);
+      const txt = `x${n}`;
+      ctx.font = `italic ${size}px ${MARQUEE}`;
+      // extruded film-title block letters: a dark 3D side, then an ink outline, then the face
+      const depth = 4 + Math.round(6 * heat);
+      ctx.fillStyle = n >= 32 ? '#5E2B4E' : '#3A2418';
+      for (let d = depth; d > 0; d--) ctx.fillText(txt, d * 0.9, d);
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = CF.filmBlack;
+      ctx.strokeText(txt, 0, 0);
+      ctx.fillStyle = col;
+      ctx.fillText(txt, 0, 0);
+      // a hot highlight band across the top half of the letters when the streak is burning
+      if (n >= 16) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(-size * 2, -size * 0.8, size * 4, size * 0.28);
+        ctx.clip();
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.fillText(txt, 0, 0);
+        ctx.restore();
+      }
+      ctx.font = `italic ${Math.round(20 + 6 * heat)}px ${MARQUEE}`;
+      ctx.lineWidth = 5;
+      ctx.strokeText('COMBO', 0, 26 + 4 * heat);
+      ctx.fillStyle = CF.filmHi;
+      ctx.fillText('COMBO', 0, 26 + 4 * heat);
+      ctx.restore();
+    }
+    // the broken streak drops off the title card and greys out
+    if (this.broke.t < 0.7) {
+      const k = this.broke.t / 0.7;
+      ctx.save();
+      ctx.globalAlpha = 1 - k;
+      ctx.translate(X + 30 * k, Y + 160 * k * k);
+      ctx.rotate(-0.06 + 0.6 * k);
+      ctx.textAlign = 'center';
+      ctx.font = `italic 56px ${MARQUEE}`;
+      ctx.lineWidth = 7;
+      ctx.strokeStyle = CF.filmBlack;
+      ctx.strokeText(`x${this.broke.n}`, 0, 0);
+      ctx.fillStyle = '#8F8A80';
+      ctx.fillText(`x${this.broke.n}`, 0, 0);
+      ctx.restore();
+    }
+  }
+
+  /** best streak this run (poster) */
+  get bestCombo(): number {
+    return this.best;
+  }
+}

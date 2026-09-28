@@ -27,6 +27,7 @@ import { ParallaxScene, type SceneFrame, skyLayer, stripLayer } from '../world/p
 import './lights';
 import { LifeLayer } from '../life/life';
 import { BRAWLERS, LETTER, NEWSPAPER, PEDESTRIAN, PIGEONS, SEDAN, TAXI, VAN } from './actors';
+import { JAMMER } from './jammers';
 
 const H = hex;
 const MARQUEE_FONT = '"Impact", "Haettenschweiler", "Arial Narrow Bold", "Helvetica Neue", sans-serif';
@@ -276,6 +277,10 @@ export function makeStreet(light: LightingDirector): StreetScene {
       pinned: [
         { kind: BRAWLERS, x: 520, y: -30, s: 0.72 },
         { kind: BRAWLERS, x: 1650, y: -30, s: 0.68 },
+        // jamming goons dancing on the backbeat outside the grindhouses (Rayman's jamming band)
+        { kind: JAMMER, x: 1080, y: -30, s: 0.62 },
+        { kind: JAMMER, x: 1150, y: -30, s: 0.6, dir: -1 },
+        { kind: JAMMER, x: 2080, y: -30, s: 0.64 },
       ],
       rules: [],
     }),
