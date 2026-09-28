@@ -569,3 +569,13 @@ struck, WHEW/canister/rank stings; final hit connects on Big Jim's face (KNOCKOU
 gentler zoom-outs, background band of goons playing the record's lanes, 1.6x foreground speed layer, facade varies
 every 4 bars. Decision: keep early slack at −80 (no −70) — fairness over sloppy-player deaths; the sting for sloppy
 play is losing the music reward. Known gap: poster rank sting fires ~2.6 s after the hit, poster appears at 7.0 s.
+Review (docs/reviews/iter6.md): 7.5/10 (blocks 6,7,8,8,7,6,8,8,9,8,8). Remaining: chorus tokens echo 1/3 beat late and
+cover only 21-33% of sung notes; one stumble kills a chorus's FULL HOUSE; D rank + flop sting for finishers; gauntlet
+pits don't read lethal; intro and roof stop-time still 6.
+
+## Iteration 7 — Toward 8+ (in progress)
+(a) gameplay/level: forgiving FULL HOUSE refill, chorus tokens on the melody lane, gauntlet pit 310 hotspot, rank
+floor for finishers, roof stop-time redesign (strikes rewrite the neon sign), no failure hints after 304, findable
+canisters; (b) audio: split THE END flourish / rank sting timing, token echo fix; (c) art: lethal look for gauntlet
+pits, colour-burst intro on beat 15, SLIM neon rewrite, stronger speed layer + foreground instrument goons, chorus-1 /
+Lanes contrast, trimmed ending.
