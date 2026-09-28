@@ -8,7 +8,13 @@
  *   ?seed=<n>     cosmetic seed
  *   ?probe=1      live audio sync probe (AudioWorklet onset detector on the music bus)
  *   ?miss=<beats> comma-separated beats whose intended action the autoplay bot deliberately skips
- *                 on its FIRST attempt (tests death -> checkpoint respawn -> music rewind)
+ *                 on its FIRST attempt (tests stumble / death -> checkpoint respawn -> music rewind)
+ *   ?jitter=<ms>  autoplay presses each action at a random offset in [-ms, +ms] (seeded by ?seed):
+ *                 validates that the level is fair for human timing (Good window = 135 ms)
+ *   ?sloppy=1     = ?jitter=85&late=0.1 (a sloppy human: presses re-rolled every attempt)
+ *   ?late=<p>     autoplay: fraction of presses that are an extra 60-110 ms late
+ *   ?judge=1      show timing-grade popups (PERFECT / GREAT / GOOD) — off by default per DESIGN
+ *   ?coldopen=0   skip the cold open (start straight at the count-in)
  */
 export interface Params {
   debug: boolean;
@@ -23,6 +29,14 @@ export interface Params {
   probe: boolean;
   /** Skip the title screen (implied by autoplay). */
   skipTitle: boolean;
+  /** autoplay timing jitter (ms) */
+  jitter: number;
+  /** autoplay: probability of an extra late press */
+  late: number;
+  /** timing-grade text popups */
+  judge: boolean;
+  /** play the cold open (default true) */
+  coldOpen: boolean;
 }
 
 function readParams(): Params {
@@ -52,6 +66,10 @@ function readParams(): Params {
       .map(Number)
       .filter(Number.isFinite),
     skipTitle: autoplay || flag('skiptitle'),
+    jitter: num('jitter') ?? (flag('sloppy') ? 85 : 0),
+    late: num('late') ?? (flag('sloppy') ? 0.1 : 0),
+    judge: flag('judge'),
+    coldOpen: q.get('coldopen') !== '0',
   };
 }
 

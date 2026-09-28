@@ -32,6 +32,9 @@ export class Conductor {
   readonly song: SongDef;
   readonly tempo: TempoMap;
   buffer: AudioBuffer | null = null;
+  /** extra stems, played sample-aligned with `buffer` through per-stem gain buses */
+  stems: Record<string, AudioBuffer> = {};
+  private stemBus: Record<string, GainNode> = {};
 
   /** user latency offset, seconds */
   latency = 0;
@@ -42,8 +45,7 @@ export class Conductor {
   /** beat (float) for the current frame */
   beat = 0;
 
-  private source: AudioBufferSourceNode | null = null;
-  private sourceGain: GainNode | null = null;
+  private sources: { src: AudioBufferSourceNode; gain: GainNode }[] = [];
   private startCtx = 0;
   private startSong = 0;
   private offsetEst = NaN;
@@ -148,20 +150,21 @@ export class Conductor {
     // tells us when that is heard.
     const when = ctx.currentTime + lead;
     const bufOffset = from + this.song.audioOffset;
-    if (this.buffer) {
+    const start = (buffer: AudioBuffer, dest: AudioNode) => {
       const src = ctx.createBufferSource();
-      src.buffer = this.buffer;
+      src.buffer = buffer;
       const g = ctx.createGain();
       g.gain.value = 1;
-      src.connect(g).connect(this.out);
+      src.connect(g).connect(dest);
       if (bufOffset >= 0) {
-        if (bufOffset < this.buffer.duration) src.start(when, bufOffset);
+        if (bufOffset < buffer.duration) src.start(when, bufOffset);
       } else {
         src.start(when - bufOffset, 0);
       }
-      this.source = src;
-      this.sourceGain = g;
-    }
+      this.sources.push({ src, gain: g });
+    };
+    if (this.buffer) start(this.buffer, this.out);
+    for (const [name, buf] of Object.entries(this.stems)) start(buf, this.bus(name));
     // Song time `from` is at scheduled ctx time `when`; in the audible timeline that is the
     // same ctx time (getOutputTimestamp contextTime is on the same timeline).
     this.startCtx = when;
@@ -183,34 +186,69 @@ export class Conductor {
     const seg = this.segments[this.segments.length - 1];
     if (seg) seg.stopCtx = this.ctx.currentTime;
     const dur = mode === 'tape' ? 0.55 : mode === 'fade' ? 0.8 : 0.015;
-    if (mode === 'tape' && this.source) {
+    if (mode === 'tape') {
       const t = this.ctx.currentTime;
-      this.source.playbackRate.cancelScheduledValues(t);
-      this.source.playbackRate.setValueAtTime(1, t);
-      this.source.playbackRate.exponentialRampToValueAtTime(0.08, t + dur);
+      for (const { src } of this.sources) {
+        src.playbackRate.cancelScheduledValues(t);
+        src.playbackRate.setValueAtTime(1, t);
+        src.playbackRate.exponentialRampToValueAtTime(0.08, t + dur);
+      }
     }
     this.stopSource(dur);
   }
 
   private stopSource(fade: number): void {
-    const src = this.source;
-    const g = this.sourceGain;
-    this.source = null;
-    this.sourceGain = null;
-    if (!src || !g) return;
+    const list = this.sources;
+    this.sources = [];
     const t = this.ctx.currentTime;
-    g.gain.cancelScheduledValues(t);
-    g.gain.setValueAtTime(g.gain.value, t);
-    g.gain.linearRampToValueAtTime(0, t + fade);
-    try {
-      src.stop(t + fade + 0.02);
-    } catch {
-      /* not started */
+    for (const { src, gain: g } of list) {
+      g.gain.cancelScheduledValues(t);
+      g.gain.setValueAtTime(g.gain.value, t);
+      g.gain.linearRampToValueAtTime(0, t + fade);
+      try {
+        src.stop(t + fade + 0.02);
+      } catch {
+        /* not started */
+      }
+      src.onended = () => {
+        src.disconnect();
+        g.disconnect();
+      };
     }
-    src.onended = () => {
-      src.disconnect();
-      g.disconnect();
-    };
+  }
+
+  private bus(name: string): GainNode {
+    let b = this.stemBus[name];
+    if (!b) {
+      b = this.ctx.createGain();
+      b.gain.value = this.song.stemGains?.[name] ?? 1;
+      b.connect(this.out);
+      this.stemBus[name] = b;
+    }
+    return b;
+  }
+
+  /** Set a stem's gain (linear), ramped over `rampSec` (the crowd drives 'shouts' / 'bonus'). */
+  setStemGain(name: string, gain: number, rampSec = 0.25): void {
+    const b = this.bus(name);
+    const t = this.ctx.currentTime;
+    b.gain.cancelScheduledValues(t);
+    b.gain.setValueAtTime(b.gain.value, t);
+    b.gain.linearRampToValueAtTime(gain, t + Math.max(0.005, rampSec));
+  }
+
+  stemGain(name: string): number {
+    return this.stemBus[name]?.gain.value ?? 1;
+  }
+
+  /**
+   * AudioContext (graph) time at which song time `t` is played by the current segment — schedule
+   * SFX there to land exactly on the music (e.g. an early input's sound quantised to the beat).
+   * NaN when not playing.
+   */
+  ctxTimeAtSongTime(t: number): number {
+    if (!this.playing) return NaN;
+    return this.startCtx + (t - this.startSong);
   }
 
   // ---------------------------------------------------------------- events

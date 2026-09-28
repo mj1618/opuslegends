@@ -1,6 +1,7 @@
 /**
- * Song definition = audio source + BEAT MAP (tempo points, offset of beat 0 in the file,
- * key/harmony for musically-quantized SFX).
+ * Song definition = audio source (+ optional synced STEMS) + BEAT MAP (tempo points, offset of
+ * beat 0 in the file, swing, key/harmony for musically-quantized SFX, and event LANES such as
+ * shouts/stops/sections in the producer's `beatmap.json` shape — see songFromBeatmap()).
  *
  * Two source kinds:
  *   - 'synth': rendered in code (OfflineAudioContext) — the placeholder track.
@@ -31,6 +32,32 @@ export type SongSource =
   | { kind: 'file'; url: string }
   | { kind: 'synth'; render: (song: SongDef, tempo: TempoMap) => Promise<AudioBuffer> };
 
+/** One event in a beatmap lane (schema 'opuslegends.beatmap/1', tools/music). Extra fields pass through. */
+export interface LaneEvent {
+  beat: number;
+  /** shouts: HEY / HUP / ... */
+  word?: string;
+  /** stops: length in beats */
+  beats?: number;
+  pitch?: number;
+  durBeats?: number;
+  [k: string]: unknown;
+}
+
+export interface SongSection {
+  name: string;
+  label?: string;
+  startBeat: number;
+  endBeat: number;
+}
+
+/** Musical event map of the arrangement (the gameplay-relevant part of beatmap.json). */
+export interface SongMap {
+  sections: SongSection[];
+  /** lanes by name: shouts, stops, kick, snare, cowbell, riff, melody, ... */
+  lanes: Record<string, LaneEvent[]>;
+}
+
 export interface SongDef {
   id: string;
   title: string;
@@ -43,7 +70,19 @@ export interface SongDef {
   lengthBeats: number;
   key: MusicalKey;
   harmony?: ChordSpan[];
+  /**
+   * Swing: where the off-beat 8th ("and") lands within the beat. 0.5 = straight, 0.67 = shuffle
+   * (triplet swing). Everything that sits on an "and" (wave-slam lifts, jabber flag billows, 8th
+   * lums rows) reads THIS value, so the feel is adjustable in one place (beatmap `audio.swing`).
+   */
+  swing: number;
+  /** event lanes / sections (shouts, stops...) — levels can validate their action beats against it */
+  map?: SongMap;
   source: SongSource;
+  /** extra stems played sample-aligned with the main source; gains driven by gameplay (crowd) */
+  stems?: Record<string, SongSource>;
+  /** initial stem gains (linear), default 1 */
+  stemGains?: Record<string, number>;
 }
 
 export const SCALES = {
@@ -59,12 +98,102 @@ export function makeTempoMap(song: SongDef): TempoMap {
   return new TempoMap(song.tempo, song.beatsPerBar);
 }
 
-export async function loadSongBuffer(song: SongDef, ctx: BaseAudioContext, tempo: TempoMap): Promise<AudioBuffer> {
-  if (song.source.kind === 'synth') return song.source.render(song, tempo);
-  const res = await fetch(song.source.url);
-  if (!res.ok) throw new Error(`Failed to load song ${song.source.url}: ${res.status}`);
+async function loadSource(src: SongSource, song: SongDef, ctx: BaseAudioContext, tempo: TempoMap): Promise<AudioBuffer> {
+  if (src.kind === 'synth') return src.render(song, tempo);
+  const res = await fetch(src.url);
+  if (!res.ok) throw new Error(`Failed to load audio ${src.url}: ${res.status}`);
   const data = await res.arrayBuffer();
   return ctx.decodeAudioData(data);
+}
+
+export async function loadSongBuffer(song: SongDef, ctx: BaseAudioContext, tempo: TempoMap): Promise<AudioBuffer> {
+  return loadSource(song.source, song, ctx, tempo);
+}
+
+/** Load every stem (in parallel). Missing stems are skipped with a console warning. */
+export async function loadSongStems(song: SongDef, ctx: BaseAudioContext, tempo: TempoMap): Promise<Record<string, AudioBuffer>> {
+  const out: Record<string, AudioBuffer> = {};
+  const entries = Object.entries(song.stems ?? {});
+  await Promise.all(
+    entries.map(async ([name, src]) => {
+      try {
+        out[name] = await loadSource(src, song, ctx, tempo);
+      } catch (e) {
+        console.warn(`stem ${name} failed to load`, e);
+      }
+    }),
+  );
+  return out;
+}
+
+/** Beats of all events in a lane (optionally filtered by `word`). */
+export function laneBeats(song: SongDef, lane: string, word?: string): number[] {
+  const l = song.map?.lanes[lane] ?? [];
+  return l.filter((e) => word === undefined || e.word === word).map((e) => e.beat);
+}
+
+/**
+ * Build a SongDef from the producer's beatmap.json (schema 'opuslegends.beatmap/1', see
+ * tools/music/README.md). `baseUrl` = folder of the audio files (relative URL, e.g. 'audio/jim/').
+ * The main mix is `audio.files.mix` (or the first file); other files become stems (base/lead/
+ * shouts/bonus). Swapping the real song in = fetch the JSON, call this, point Game.song at it.
+ */
+export function songFromBeatmap(json: BeatmapJson, baseUrl: string): SongDef {
+  const files = json.audio?.files ?? {};
+  const fileUrl = (f: unknown): string => baseUrl + (typeof f === 'string' ? f : String((f as { path?: string; file?: string }).path ?? (f as { file?: string }).file ?? ''));
+  const names = Object.keys(files);
+  const mainName = names.includes('mix') ? 'mix' : names.includes('base') && names.length > 1 ? 'base' : names[0];
+  const stems: Record<string, SongSource> = {};
+  for (const n of names) if (n !== mainName && n !== 'mix') stems[n] = { kind: 'file', url: fileUrl(files[n]) };
+  // if a full mix exists and stems exist, play the stems instead of the mix (so gains work)
+  const useStems = mainName === 'mix' && Object.keys(stems).length > 0 && 'base' in stems;
+  const main: SongSource = useStems ? stems.base : { kind: 'file', url: fileUrl(files[mainName]) };
+  if (useStems) delete stems.base;
+  const sections: SongSection[] = (json.sections ?? []).map((x) => ({ name: x.name, label: x.label, startBeat: x.startBeat, endBeat: x.endBeat }));
+  return {
+    id: json.song.id,
+    title: json.song.title,
+    artist: json.song.artist,
+    tempo: json.song.tempo,
+    beatsPerBar: json.song.beatsPerBar,
+    audioOffset: json.song.audioOffset,
+    lengthBeats: json.song.lengthBeats,
+    key: json.song.key,
+    harmony: json.song.harmony,
+    swing: typeof json.audio?.swing === 'number' && json.audio.swing > 0.5 ? json.audio.swing : 0.5,
+    map: { sections, lanes: (json.lanes ?? {}) as Record<string, LaneEvent[]> },
+    source: main,
+    stems,
+  };
+}
+
+/** The subset of beatmap.json the game reads. */
+export interface BeatmapJson {
+  schema?: string;
+  song: {
+    id: string;
+    title: string;
+    artist?: string;
+    tempo: TempoPoint[];
+    beatsPerBar: number;
+    audioOffset: number;
+    lengthBeats: number;
+    key: MusicalKey;
+    harmony?: ChordSpan[];
+  };
+  audio?: { swing?: number; files?: Record<string, unknown> };
+  sections?: { name: string; label?: string; startBeat: number; endBeat: number }[];
+  lanes?: Record<string, LaneEvent[]>;
+}
+
+/**
+ * Map a straight-time beat position onto the swung grid: the straight "and" (x.5) lands on
+ * x + swing; positions in between are stretched piecewise-linearly.
+ */
+export function swingBeat(beat: number, swing: number): number {
+  const k = Math.floor(beat);
+  const f = beat - k;
+  return f < 0.5 ? k + f * 2 * swing : k + swing + (f - 0.5) * 2 * (1 - swing);
 }
 
 /** Chord tones active at `beat` (falls back to the tonic triad of the key). */

@@ -16,8 +16,18 @@
  *   --headed          show the browser
  *   --interval=<ms>   screenshot interval (default 2000)
  *   --latency=<ms>    pass a latency offset
- *   --miss=<b1,b2>    bot deliberately skips the action at these beats once -> expects exactly that
- *                     many deaths, then checkpoint respawn + music rewind, then completion
+ *   --miss=<b1,b2>    bot deliberately skips the action at these beats once. The expected cost of
+ *                     each miss comes from the level (action.failKind: death / stumble / none), so the
+ *                     run must show exactly those deaths (checkpoint respawn + music rewind) and
+ *                     stumbles (knockback, lums drop, surge back onto the grid), then completion.
+ *   --jitter=<ms>     bot presses every action at a random offset in [-ms, +ms] ("sloppy human"):
+ *                     must still complete with 0 deaths / 0 stumbles (fairness of the timing windows).
+ *                     Timing-accuracy thresholds are skipped in jitter and miss runs.
+ *   --sloppy          "sloppy human" (jitter 85 ms + 10% late presses, re-rolled every attempt): only
+ *                     requires completion; REPORTS deaths/stumbles (is it hard but fair?)
+ *   --late=<p>        fraction of presses that are an extra 60-110 ms late
+ *   --seed=<n>        jitter seed
+ *   --out=<dir>       output folder (default playtest/out) — lets several runs go in parallel
  */
 import { execSync } from 'node:child_process';
 import { mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
@@ -27,13 +37,13 @@ import { chromium } from 'playwright';
 import { preview } from 'vite';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const outDir = join(root, 'playtest', 'out');
 const args = Object.fromEntries(
   process.argv.slice(2).map((a) => {
     const [k, v] = a.replace(/^--/, '').split('=');
     return [k, v ?? true];
   }),
 );
+const outDir = args.out ? resolve(root, String(args.out)) : join(root, 'playtest', 'out');
 const interval = Number(args.interval ?? 2000);
 const video = !args['no-video'];
 
@@ -62,8 +72,13 @@ async function main() {
   if (args.debug) q.set('debug', '1');
   if (args.start) q.set('start', String(args.start));
   if (args.latency) q.set('latency', String(args.latency));
-  const expectedDeaths = args.miss ? String(args.miss).split(',').length : 0;
   if (args.miss) q.set('miss', String(args.miss));
+  if (args.jitter) q.set('jitter', String(args.jitter));
+  if (args.late) q.set('late', String(args.late));
+  if (args.sloppy) q.set('sloppy', '1');
+  if (args.seed) q.set('seed', String(args.seed));
+  const sloppy = !!(args.sloppy || args.late);
+  const strictTiming = !args.miss && !args.jitter && !sloppy;
   const url = `${base}?${q}`;
   log('url', url);
 
@@ -128,15 +143,23 @@ async function main() {
   }
 
   const failures = [];
+  const exp = report.expectedFromMisses ?? { deaths: 0, stumbles: 0, detail: [] };
+  const expectedDeaths = args['expect-deaths'] !== undefined ? Number(args['expect-deaths']) : exp.deaths;
+  const expectedStumbles = args['expect-stumbles'] !== undefined ? Number(args['expect-stumbles']) : exp.stumbles;
   if (!report.completed) failures.push('level not completed');
-  if (report.deaths !== expectedDeaths) failures.push(`${report.deaths} death(s) (expected ${expectedDeaths}): ${JSON.stringify(report.deathLog)}`);
-  if (report.missedActions.length) failures.push(`missed actions: ${report.missedActions.join(', ')}`);
+  if (!sloppy && report.deaths !== expectedDeaths) failures.push(`${report.deaths} death(s) (expected ${expectedDeaths}): ${JSON.stringify(report.deathLog)}`);
+  if (!sloppy && report.stumbles !== expectedStumbles) failures.push(`${report.stumbles} stumble(s) (expected ${expectedStumbles}): ${JSON.stringify(report.stumbleLog)}`);
+  const missBeats = new Set(String(args.miss ?? '').split(',').filter(Boolean).map(Number));
+  const unexpectedMissed = report.missedActions.filter((m) => !missBeats.has(Number(m.split('@')[1])));
+  if (strictTiming && unexpectedMissed.length) failures.push(`missed actions: ${unexpectedMissed.join(', ')}`);
+  if (report.shoutAlignment && report.shoutAlignment.offShout.length) failures.push(`chorus strikes off the shout grid: ${report.shoutAlignment.offShout.join(', ')}`);
   if (pageErrors.length) failures.push(`page errors: ${pageErrors.join(' | ')}`);
   if (consoleErrors.length) failures.push(`console errors: ${consoleErrors.join(' | ')}`);
-  if (report.timing.exec.maxAbsMs > MAX_EXEC_ERR_MS) failures.push(`exec timing error ${report.timing.exec.maxAbsMs}ms > ${MAX_EXEC_ERR_MS}`);
-  if (report.timing.position.maxAbsMs > MAX_POS_ERR_MS) failures.push(`position error ${report.timing.position.maxAbsMs}ms > ${MAX_POS_ERR_MS}`);
+  if (strictTiming && report.timing.exec.maxAbsMs > MAX_EXEC_ERR_MS) failures.push(`exec timing error ${report.timing.exec.maxAbsMs}ms > ${MAX_EXEC_ERR_MS}`);
+  if (strictTiming && report.timing.position.maxAbsMs > MAX_POS_ERR_MS) failures.push(`position error ${report.timing.position.maxAbsMs}ms > ${MAX_POS_ERR_MS}`);
   if (report.clock.maxSimDriftMs > MAX_SIM_DRIFT_MS) failures.push(`sim drift ${report.clock.maxSimDriftMs}ms`);
-  if (report.liveAudioProbe && report.liveAudioProbe.n > 20 && report.liveAudioProbe.meanAbsMs > 5) failures.push(`live audio probe: music is ${report.liveAudioProbe.meanMs}ms off the conductor clock`);
+  const lp = report.liveAudioProbe;
+  if (lp && lp.n > 20 && (lp.meanAbsMs > 5 || Math.abs(lp.meanMs) > 5)) failures.push(`live audio probe: music is off the conductor clock (mean |err| ${lp.meanAbsMs}ms, median ${lp.p50AbsMs}ms, mean ${lp.meanMs}ms)`);
   if (report.beatMapAlignment && report.beatMapAlignment.meanAbsMs > 5) failures.push(`beat map vs audio onsets off by ${report.beatMapAlignment.meanMs}ms`);
   if (state.scene !== 'end') failures.push(`timed out in scene ${state.scene}`);
 
@@ -144,7 +167,11 @@ async function main() {
   writeFileSync(join(outDir, 'report.json'), JSON.stringify(full, null, 2));
 
   log('------------------------------------------------------------');
-  log(`completed ${report.completed}  deaths ${report.deaths}  lums ${report.lums}/${report.lumsTotal}`);
+  if (sloppy || args.jitter) log(`sloppy human  deaths by section: ${JSON.stringify(report.deathLog.map((d) => d.beat < 36 ? 'intro' : d.beat < 68 ? 'verse1a' : d.beat < 100 ? 'verse1b' : 'chorus1').reduce((m, k) => ((m[k] = (m[k] ?? 0) + 1), m), {}))}`);
+  log(`completed ${report.completed}  deaths ${report.deaths}  stumbles ${report.stumbles}  lums ${report.lums}/${report.lumsTotal}  pendulums ${report.pendulums}/${report.pendulumsTotal}  heaves ${report.heaves}/${report.phrases}`);
+  log(`grades        ${JSON.stringify(report.grades)}  crowd ${JSON.stringify(report.crowd)}`);
+  if (args.miss) log(`misses        ${JSON.stringify(exp.detail)}  surge recovery (beats) ${JSON.stringify(report.surgeRecoveryBeats)}`);
+  log(`shouts        ${JSON.stringify({ ...report.shoutAlignment, note: undefined })}`);
   log(`actions matched ${report.matchedActions}/${report.intendedActions}`);
   log(`timing exec   ${JSON.stringify(report.timing.exec)}`);
   log(`timing pos    ${JSON.stringify(report.timing.position)}`);

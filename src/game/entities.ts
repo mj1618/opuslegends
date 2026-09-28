@@ -1,10 +1,13 @@
 /** Runtime entity records produced by the level builder (level/build.ts). Plain data. */
 import type { Rect } from '../engine/math';
-import type { BeatReactSpec, EnemyKind, FxKind, IntendedAction } from '../level/types';
+import type { BeatReactSpec, FailKind, FxKind, IntendedAction, SkyPreset } from '../level/types';
+import type { Solid } from './physics';
 
+/** jabber (the only enemy in the slice). */
 export interface Enemy {
   id: number;
-  kind: EnemyKind;
+  kind: 'jabber';
+  /** jab beat = the beat to strike on */
   beat: number;
   /** spawn/home position (feet center) */
   homeX: number;
@@ -14,6 +17,10 @@ export interface Enemy {
   w: number;
   h: number;
   alive: boolean;
+  /** landed a jab on the hero -> flies off laughing (never hits twice) */
+  retired: boolean;
+  /** flung by a Heave (bigger arc into the background) */
+  heaved: boolean;
   /** knockback flight after death */
   vx: number;
   vy: number;
@@ -21,6 +28,8 @@ export interface Enemy {
   vrot: number;
   deadTime: number;
   hitFlash: number;
+  /** presentation: >0 while the jab animation plays (s) */
+  jabT: number;
   react: BeatReactSpec;
 }
 
@@ -36,15 +45,70 @@ export interface Lum {
   collectT: number;
   /** skipped because the run started past it (?start=) */
   skipped: boolean;
+  /** heading of the arc at this lums (radians, presentation) */
+  angle: number;
+}
+
+/** Lums dropped by a stumble: hovers for a bar, re-collectable. */
+export interface LooseLum {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  /** song time it expires */
+  expires: number;
+  collected: boolean;
+  t: number;
 }
 
 export interface Hazard {
   id: number;
-  kind: 'spikes' | 'beam';
-  /** deadly rect (slightly smaller than the visual for fairness) */
+  kind: 'spike';
+  /** hurt rect (slightly smaller than the visual for fairness) */
   rect: Rect;
   /** visual rect */
   vis: Rect;
+  beat: number;
+  /** knocked away after it stumbled the hero */
+  alive: boolean;
+  vx: number;
+  vy: number;
+  rot: number;
+  offX: number;
+  offY: number;
+}
+
+export interface PendulumTarget {
+  id: number;
+  beat: number;
+  big: boolean;
+  /** pendulum pivot (world) */
+  pivotX: number;
+  pivotY: number;
+  /** rope length */
+  len: number;
+  /** amplitude (radians) */
+  amp: number;
+  /** current bob position (updated each step) */
+  x: number;
+  y: number;
+  r: number;
+  struck: boolean;
+  struckT: number;
+  /** presentation: glint pulse 1 beat before the bottom */
+  glint: number;
+}
+
+export interface SlamPlatform {
+  id: number;
+  /** slam beat this slam was authored for (parity = set A/B) */
+  beat: number;
+  set: 'A' | 'B';
+  solid: Solid;
+  /** 0 = down (slammed, solid), 1 = fully lifted — presentation */
+  lift: number;
+  /** was solid last step (for slam fx) */
+  wasDown: boolean;
 }
 
 export interface Checkpoint {
@@ -65,10 +129,39 @@ export interface ActionMarker extends IntendedAction {
   x: number;
   /** what declared it (for debug labels) */
   source: string;
+  /** resolved fail kind (what a deliberate miss costs) */
+  failKind: FailKind;
+  /** index into RuntimeLevel.phrases if this action is part of a Hup-Hup-HEY */
+  phrase: number;
+  /** scansion glyph */
+  glyph: 'short' | 'long' | 'none';
+  /** ground y under the action x (for scansion marks) */
+  groundY: number;
+}
+
+export interface Phrase {
+  beats: [number, number, number];
 }
 
 export interface Label {
   beat: number;
   x: number;
+  text: string;
+}
+
+export interface CameraCue {
+  beat: number;
+  zoom: number;
+  beats: number;
+}
+
+export interface SkyCue {
+  beat: number;
+  preset: SkyPreset;
+}
+
+export interface Hint {
+  beat: number;
+  beats: number;
   text: string;
 }

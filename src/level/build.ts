@@ -1,13 +1,39 @@
 /**
  * Level builder: LevelDef (musical time) -> RuntimeLevel (world pixels, collision, entities).
- * Pure function of (level, tempo, tunables) so it can be rebuilt at any time (e.g. hot reload).
+ * Pure function of (level, tempo, song, tunables) so it can be rebuilt at any time.
+ *
+ * Placement rules (all derived from "the hero is at x = beat * ppb on that beat"):
+ *   - spike:  centred at its beat (hop over it from beat - 0.5)
+ *   - jabber:    placed so a strike pressed ON its beat connects early in the strike's active window,
+ *              and body contact happens only ~0.42 beat later (late strikes within Good still win)
+ *   - float:   bottom of the swing (strike height) just ahead of the hero on its beat
+ *   - slam:    a one-way press top spanning [beat - 0.34, beat + 0.33] (where a tap hop lands)
+ *   - lumRow every 0.5 is SWUNG (k, k + song.swing), on the TOPMOST surface (so rows ride awnings);
+ *     everything else sits on the ground-level surface (floors, dips, press tops), never on awnings
+ *   - lumJump samples the real jump arc
  */
+import type { SongDef } from '../audio/song';
+import { swingBeat } from '../audio/song';
 import type { TempoMap } from '../audio/tempoMap';
-import type { ActionMarker, Checkpoint, Enemy, FxCue, Hazard, Label, Lum } from '../game/entities';
+import type {
+  ActionMarker,
+  CameraCue,
+  Checkpoint,
+  Enemy,
+  FxCue,
+  PendulumTarget,
+  Hazard,
+  Hint,
+  Label,
+  Lum,
+  Phrase,
+  SkyCue,
+  SlamPlatform,
+} from '../game/entities';
 import { heightAt, jumpProfile } from '../game/jumpProfile';
 import { CollisionWorld, type Solid } from '../game/physics';
 import { Tun } from '../game/tunables';
-import type { LevelDef } from './types';
+import type { FailKind, GroundStyle, LevelDef } from './types';
 
 export interface FloorSpan {
   x0: number;
@@ -20,6 +46,7 @@ export interface RuntimeLevel {
   def: LevelDef;
   ppb: number;
   runSpeed: number;
+  swing: number;
   world: CollisionWorld;
   floors: FloorSpan[];
   platforms: Solid[];
@@ -27,10 +54,22 @@ export interface RuntimeLevel {
   enemies: Enemy[];
   lums: Lum[];
   hazards: Hazard[];
+  pendulums: PendulumTarget[];
+  slams: SlamPlatform[];
+  phrases: Phrase[];
   checkpoints: Checkpoint[];
   finishX: number;
   finishBeat: number;
   fx: FxCue[];
+  cameraCues: CameraCue[];
+  skyCues: SkyCue[];
+  hints: Hint[];
+  /** ground look changes (by beat) */
+  groundCues: { beat: number; style: GroundStyle }[];
+  /** beat the Chaser rises (Infinity = never) */
+  chaserBeat: number;
+  /** [beat, on] toggles for scansion marks */
+  marks: { beat: number; on: boolean }[];
   actions: ActionMarker[];
   labels: Label[];
   /** x extent of authored content */
@@ -38,17 +77,34 @@ export interface RuntimeLevel {
   maxX: number;
   /** floor top y at world x (NaN over gaps) */
   floorYAt(x: number): number;
+  /** topmost static surface at x (floor/platform/block/slam); over a pit: nearest floor to the left */
+  surfaceYNear(x: number): number;
 }
 
 const FLOOR_DEPTH = 1400;
 const DEFAULT_LUM_H = 62;
 
-export function buildLevel(def: LevelDef, tempo: TempoMap): RuntimeLevel {
+/** Jabber geometry (see file header) */
+export const JABBER = { w: 70, h: 96, hurtK: 0.72, contactBeats: 0.42 } as const;
+/** Pendulum target geometry */
+export const PENDULUM = { strikeHeight: 150, highStrikeHeight: 390, ahead: 90, len: 300, amp: 0.55, r: 26, rBig: 36, periodBeats: 4 } as const;
+/** slam platform geometry/timing (beats relative to the slam beat) */
+/**
+ * Slam platform geometry/timing, in beats relative to its slam beat. A tap hop (~0.93 beat) pressed
+ * up to ~0.25 beat early lands at ~-0.32, so the press top spans [-0.34, +0.33] and is solid from
+ * -0.42 until just after the swung "and" (+swing+0.08); the visual is "down" exactly while solid.
+ */
+export const SLAM = { from: -0.34, to: 0.33, thickness: 34, solidEarly: 0.42, solidLateExtra: 0.08, riseBeats: 0.3, fallBeats: 0.35 } as const;
+/** Spike geometry */
+export const SPIKE = { visW: 62, visH: 54, hurtW: 28, hurtH: 28 } as const;
+
+export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): RuntimeLevel {
   const ppb = def.pixelsPerBeat;
   const bpm = tempo.bpmAtBeat(def.startBeat);
   const runSpeed = (ppb * bpm) / 60;
   const X = (beat: number) => beat * ppb;
   const spb = 60 / bpm;
+  const swing = song.swing;
 
   // ---------------------------------------------------------------- floor
   const floorFrom = def.startBeat - 16;
@@ -84,7 +140,6 @@ export function buildLevel(def: LevelDef, tempo: TempoMap): RuntimeLevel {
   const floorYNear = (x: number): number => {
     const y = floorYAt(x);
     if (!Number.isNaN(y)) return y;
-    // over a gap: use the nearest floor to the left
     let best = 0;
     for (const f of floors) if (f.x1 <= x) best = f.y;
     return best;
@@ -93,24 +148,11 @@ export function buildLevel(def: LevelDef, tempo: TempoMap): RuntimeLevel {
   const world = new CollisionWorld();
   for (const f of floors) world.add({ kind: 'solid', x: f.x0, y: f.y, w: f.x1 - f.x0, h: FLOOR_DEPTH });
 
-  // ---------------------------------------------------------------- items
+  // ---------------------------------------------------------------- geometry pass
   const platforms: Solid[] = [];
   const blocks: Solid[] = [];
-  const enemies: Enemy[] = [];
-  const lums: Lum[] = [];
-  const hazards: Hazard[] = [];
-  const checkpoints: Checkpoint[] = [];
-  const fx: FxCue[] = [];
-  const actions: ActionMarker[] = [];
-  const labels: Label[] = [];
-  let finishBeat = def.endBeat;
+  const slams: SlamPlatform[] = [];
   let id = 1;
-
-  const addLum = (beat: number, y: number, note?: number) => {
-    lums.push({ id: id++, beat, x: X(beat), y, note, collected: false, collectT: 0, skipped: false });
-  };
-
-  // pass 1: geometry (so entity placement below can query surfaces regardless of item order)
   for (const it of def.items) {
     switch (it.type) {
       case 'platform': {
@@ -127,95 +169,153 @@ export function buildLevel(def: LevelDef, tempo: TempoMap): RuntimeLevel {
         world.add(s);
         break;
       }
+      case 'slam': {
+        const s: Solid = { kind: 'oneway', x: X(it.beat + SLAM.from), y: 0, w: X(SLAM.to - SLAM.from), h: SLAM.thickness, active: true };
+        world.add(s);
+        slams.push({ id: id++, beat: it.beat, set: ((Math.round(it.beat) % 2) + 2) % 2 === 0 ? 'A' : 'B', solid: s, lift: 0, wasDown: true });
+        break;
+      }
       default:
         break;
     }
   }
 
-  /** topmost walkable surface at x (floor, platform or block); over a pit: nearest floor to the left */
   const surfaceYNear = (x: number): number => {
     const y = world.groundBelow(x, -1e5, 2e5);
     return Number.isNaN(y) ? floorYNear(x) : y;
   };
+  /** ground-level surface at x (floors, dips, press tops) — ignores raised awnings/platforms */
+  const groundYNear = (x: number): number => {
+    const y = world.groundBelow(x, -60, 2e5);
+    return Number.isNaN(y) ? floorYNear(x) : y;
+  };
 
-  // pass 2: entities, actions, cues
+  // ---------------------------------------------------------------- entities pass
+  const enemies: Enemy[] = [];
+  const lums: Lum[] = [];
+  const hazards: Hazard[] = [];
+  const pendulums: PendulumTarget[] = [];
+  const phrases: Phrase[] = [];
+  const checkpoints: Checkpoint[] = [];
+  const fx: FxCue[] = [];
+  const cameraCues: CameraCue[] = [];
+  const skyCues: SkyCue[] = [];
+  const hints: Hint[] = [];
+  const groundCues: { beat: number; style: GroundStyle }[] = [];
+  const marks: { beat: number; on: boolean }[] = [];
+  const actions: ActionMarker[] = [];
+  const labels: Label[] = [];
+  let finishBeat = def.endBeat;
+  let chaserBeat = Infinity;
+
+  const addLum = (beat: number, y: number, note?: number, angle = 0) => {
+    lums.push({ id: id++, beat, x: X(beat), y, note, collected: false, collectT: 0, skipped: false, angle });
+  };
+  const DEFAULT_FAIL: Record<string, FailKind> = { gap: 'death', spike: 'stumble', jabber: 'stumble', float: 'none' };
+
   for (const it of def.items) {
-    if ('action' in it && it.action) actions.push({ ...it.action, x: X(it.action.beat), source: it.type });
+    if ('action' in it && it.action) {
+      const a = it.action;
+      const x = X(a.beat);
+      actions.push({
+        ...a,
+        x,
+        source: it.type,
+        failKind: a.fail ?? DEFAULT_FAIL[it.type] ?? 'none',
+        phrase: -1,
+        glyph: a.mark === 'none' ? 'none' : a.mark ?? (a.type === 'jump' && (a.hold ?? 1) >= 0.5 ? 'long' : 'short'),
+        groundY: groundYNear(x),
+      });
+    }
     switch (it.type) {
-      case 'enemy': {
-        const kind = it.kind ?? 'grunt';
-        const w = kind === 'grunt' ? 76 : 70;
-        const h = kind === 'grunt' ? 92 : 64;
-        // Position so that a punch pressed on `beat` connects early in its active window:
-        // left edge sits ~55% of the punch reach ahead of the player's front at the press.
-        const left = X(it.beat) + Tun.player.width / 2 + Tun.punch.reach * 0.55;
-        const cx = left + w / 2;
-        const floorY = surfaceYNear(cx);
-        const y = kind === 'flyer' ? floorY - (it.h ?? 190) + h / 2 : floorY;
+      case 'jabber': {
+        const hurtW = JABBER.w * JABBER.hurtK;
+        const hurtLeft = X(it.beat) + (Tun.player.width / 2 - Tun.player.hurtInset) + JABBER.contactBeats * ppb;
+        const cx = hurtLeft + hurtW / 2;
+        const y = groundYNear(cx);
         enemies.push({
           id: id++,
-          kind,
+          kind: 'jabber',
           beat: it.beat,
           homeX: cx,
           homeY: y,
           x: cx,
           y,
-          w,
-          h,
+          w: JABBER.w,
+          h: JABBER.h,
           alive: true,
+          retired: false,
+          heaved: false,
           vx: 0,
           vy: 0,
           rot: 0,
           vrot: 0,
           deadTime: 0,
           hitFlash: 0,
-          react: it.react ?? { every: 1, kind: 'squash', amount: 0.14, decay: 0.3 },
+          jabT: 0,
+          react: it.react ?? { every: 1, kind: 'squash', amount: 0.1, decay: 0.3 },
         });
         break;
       }
-      case 'spikes': {
-        const x0 = X(it.from);
-        const x1 = X(it.to);
-        const fy = floorYNear((x0 + x1) / 2);
-        const vis = { x: x0, y: fy - 44, w: x1 - x0, h: 44 };
-        hazards.push({ id: id++, kind: 'spikes', vis, rect: { x: x0 + 10, y: fy - 30, w: x1 - x0 - 20, h: 30 } });
+      case 'spike': {
+        const x = X(it.beat);
+        const fy = groundYNear(x) - (it.h ?? 0);
+        const vis = { x: x - SPIKE.visW / 2, y: fy - SPIKE.visH, w: SPIKE.visW, h: SPIKE.visH };
+        const rect = { x: x - SPIKE.hurtW / 2, y: fy - SPIKE.hurtH, w: SPIKE.hurtW, h: SPIKE.hurtH };
+        hazards.push({ id: id++, kind: 'spike', vis, rect, beat: it.beat, alive: true, vx: 0, vy: 0, rot: 0, offX: 0, offY: 0 });
         break;
       }
-      case 'beam': {
-        const x0 = X(it.from);
-        const x1 = X(it.to);
-        const fy = floorYNear((x0 + x1) / 2);
-        const clearance = it.h ?? 66;
-        const top = fy - 1200;
-        const bottom = fy - clearance;
-        const vis = { x: x0, y: top, w: x1 - x0, h: bottom - top };
-        hazards.push({ id: id++, kind: 'beam', vis, rect: { x: x0 + 8, y: top, w: x1 - x0 - 16, h: bottom - top - 4 } });
+      case 'pendulum': {
+        const bx = X(it.beat) + PENDULUM.ahead;
+        const by = floorYNear(X(it.beat)) - (it.high ? PENDULUM.highStrikeHeight : PENDULUM.strikeHeight);
+        pendulums.push({
+          id: id++,
+          beat: it.beat,
+          big: !!it.big,
+          pivotX: bx,
+          pivotY: by - PENDULUM.len,
+          len: PENDULUM.len,
+          amp: PENDULUM.amp,
+          x: bx,
+          y: by,
+          r: it.big ? PENDULUM.rBig : PENDULUM.r,
+          struck: false,
+          struckT: 0,
+          glint: 0,
+        });
         break;
       }
+      case 'phrase':
+        phrases.push({ beats: it.beats });
+        break;
       case 'lum': {
-        addLum(it.beat, surfaceYNear(X(it.beat)) - (it.h ?? DEFAULT_LUM_H), it.note);
+        addLum(it.beat, groundYNear(X(it.beat)) - (it.h ?? DEFAULT_LUM_H), it.note);
         break;
       }
       case 'lumRow': {
         const every = it.every ?? 0.5;
-        for (let b = it.from; b <= it.to + 1e-6; b += every) addLum(b, surfaceYNear(X(b)) - (it.h ?? DEFAULT_LUM_H));
+        for (let b = it.from; b <= it.to + 1e-6; b += every) {
+          const sb = every === 0.5 ? swingBeat(b, swing) : b;
+          addLum(sb, surfaceYNear(X(sb)) - (it.h ?? DEFAULT_LUM_H));
+        }
         break;
       }
       case 'lumJump': {
-        const every = it.every ?? 0.25;
+        const every = it.every ?? 1 / 3;
         const holdSec = (it.hold ?? 1) * spb;
         const prof = jumpProfile(holdSec, runSpeed, ppb);
-        const takeoffY = surfaceYNear(X(it.beat));
+        const takeoffY = groundYNear(X(it.beat));
         const airBeats = prof.airtime / spb;
+        const H = (db: number) => heightAt(prof, db * spb);
         for (let db = it.skipFirst ? every : 0; db < airBeats - every * 0.5; db += every) {
-          const hgt = heightAt(prof, db * spb);
-          addLum(it.beat + db, takeoffY - hgt - Tun.player.height * 0.55);
+          const slope = (H(db + 0.02) - H(db - 0.02)) / (0.04 * ppb);
+          addLum(it.beat + db, takeoffY - H(db) - Tun.player.height * 0.6, undefined, -Math.atan(slope));
         }
         break;
       }
       case 'checkpoint': {
         const x = X(it.beat);
-        checkpoints.push({ beat: it.beat, x, y: surfaceYNear(x), reached: false, flash: 0 });
+        checkpoints.push({ beat: it.beat, x, y: groundYNear(x), reached: false, flash: 0 });
         break;
       }
       case 'finish':
@@ -223,6 +323,24 @@ export function buildLevel(def: LevelDef, tempo: TempoMap): RuntimeLevel {
         break;
       case 'fx':
         fx.push({ beat: it.beat, fx: it.fx, amount: it.amount ?? 1 });
+        break;
+      case 'camera':
+        cameraCues.push({ beat: it.beat, zoom: it.zoom, beats: it.beats ?? 4 });
+        break;
+      case 'sky':
+        skyCues.push({ beat: it.beat, preset: it.preset });
+        break;
+      case 'ground':
+        groundCues.push({ beat: it.beat, style: it.style });
+        break;
+      case 'hint':
+        hints.push({ beat: it.beat, beats: it.beats ?? 8, text: it.text });
+        break;
+      case 'chaser':
+        chaserBeat = Math.min(chaserBeat, it.beat);
+        break;
+      case 'marks':
+        marks.push({ beat: it.beat, on: it.on });
         break;
       case 'label':
         labels.push({ beat: it.beat, x: X(it.beat), text: it.text });
@@ -232,14 +350,28 @@ export function buildLevel(def: LevelDef, tempo: TempoMap): RuntimeLevel {
     }
   }
   actions.sort((a, b) => a.beat - b.beat);
+  // phrases: tag their actions; the final strike is a long "–" (the Heave)
+  phrases.forEach((ph, pi) => {
+    for (const b of ph.beats) {
+      for (const a of actions) if (Math.abs(a.beat - b) < 1e-6) a.phrase = pi;
+    }
+    const last = actions.find((a) => Math.abs(a.beat - ph.beats[2]) < 1e-6 && a.type === 'strike');
+    if (last && !last.mark) last.glyph = 'long';
+  });
   lums.sort((a, b) => a.beat - b.beat);
   enemies.sort((a, b) => a.beat - b.beat);
+  pendulums.sort((a, b) => a.beat - b.beat);
+  slams.sort((a, b) => a.beat - b.beat);
   checkpoints.sort((a, b) => a.beat - b.beat);
+  cameraCues.sort((a, b) => a.beat - b.beat);
+  skyCues.sort((a, b) => a.beat - b.beat);
+  marks.sort((a, b) => a.beat - b.beat);
 
   return {
     def,
     ppb,
     runSpeed,
+    swing,
     world,
     floors,
     platforms,
@@ -247,15 +379,76 @@ export function buildLevel(def: LevelDef, tempo: TempoMap): RuntimeLevel {
     enemies,
     lums,
     hazards,
+    pendulums,
+    slams,
+    phrases,
     checkpoints,
     finishX: X(finishBeat),
     finishBeat,
     fx,
+    cameraCues,
+    skyCues,
+    hints,
+    groundCues: groundCues.sort((a, b) => a.beat - b.beat),
+    chaserBeat,
+    marks,
     actions,
     labels,
     minX: X(floorFrom),
     maxX: X(floorTo),
     floorYAt,
+    surfaceYNear,
   };
 }
 
+/** Camera zoom the level asks for at `beat` (eased between cues). */
+export function cameraZoomAt(L: RuntimeLevel, beat: number, base: number): number {
+  let z = base;
+  for (const c of L.cameraCues) {
+    if (beat < c.beat) break;
+    const k = Math.min(1, (beat - c.beat) / Math.max(0.001, c.beats));
+    const e = k * k * (3 - 2 * k);
+    z = z + (c.zoom - z) * e;
+  }
+  return z;
+}
+
+/** Ground look at world beat position `beat` (default street). */
+export function groundStyleAt(L: RuntimeLevel, beat: number): GroundStyle {
+  let st: GroundStyle = 'street';
+  for (const c of L.groundCues) {
+    if (beat < c.beat) break;
+    st = c.style;
+  }
+  return st;
+}
+
+/** Are scansion marks on at `beat`? (default on) */
+export function marksOnAt(L: RuntimeLevel, beat: number): boolean {
+  let on = true;
+  for (const m of L.marks) {
+    if (beat < m.beat) break;
+    on = m.on;
+  }
+  return on;
+}
+
+/**
+ * slam platform state at song beat `now`: phase relative to its slam grid (period 2 beats).
+ * Solid from `solidEarly` before the slam until just after the swung "and".
+ */
+export function slamState(f: SlamPlatform, now: number, swing: number): { solid: boolean; lift: number; phase: number } {
+  let ph = (now - f.beat) % 2;
+  if (ph < 0) ph += 2;
+  // signed phase in [-1, 1): 0 = slam
+  const s = ph >= 1 ? ph - 2 : ph;
+  const end = swing + SLAM.solidLateExtra;
+  const solid = s >= -SLAM.solidEarly && s <= end;
+  // presentation: down exactly while solid, rising after, hovering, descending just before
+  let lift: number;
+  if (solid) lift = 0;
+  else if (s > end) lift = Math.min(1, (s - end) / SLAM.riseBeats);
+  else if (s >= -SLAM.solidEarly - SLAM.fallBeats) lift = (-SLAM.solidEarly - s) / SLAM.fallBeats;
+  else lift = 1;
+  return { solid, lift: Math.max(0, Math.min(1, lift)), phase: s };
+}

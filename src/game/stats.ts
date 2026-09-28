@@ -33,18 +33,20 @@ export interface Summary {
   meanMs: number;
   meanAbsMs: number;
   maxAbsMs: number;
+  p50AbsMs: number;
   p95AbsMs: number;
 }
 
 export function summarize(vals: number[]): Summary {
   const v = vals.filter((x) => Number.isFinite(x));
-  if (v.length === 0) return { n: 0, meanMs: NaN, meanAbsMs: NaN, maxAbsMs: NaN, p95AbsMs: NaN };
+  if (v.length === 0) return { n: 0, meanMs: NaN, meanAbsMs: NaN, maxAbsMs: NaN, p50AbsMs: NaN, p95AbsMs: NaN };
   const abs = v.map(Math.abs).sort((a, b) => a - b);
   return {
     n: v.length,
     meanMs: round(v.reduce((s, x) => s + x, 0) / v.length),
     meanAbsMs: round(abs.reduce((s, x) => s + x, 0) / abs.length),
     maxAbsMs: round(abs[abs.length - 1]),
+    p50AbsMs: round(abs[Math.floor(abs.length * 0.5)]),
     p95AbsMs: round(abs[Math.min(abs.length - 1, Math.floor(abs.length * 0.95))]),
   };
 }
@@ -60,6 +62,15 @@ export class RunStats {
   finished = false;
   executed: ExecutedAction[] = [];
   deathLog: { beat: number; cause: string }[] = [];
+  stumbles = 0;
+  stumbleLog: { beat: number; cause: string; lagBeats?: number }[] = [];
+  /** pendulum targets struck / total in play */
+  pendulums = 0;
+  pendulumsTotal = 0;
+  /** completed Hup-Hup-HEY phrases (strike landed as a Heave) */
+  heaves = 0;
+  /** beats needed to get back on the grid after each stumble (surge recovery) */
+  recoveries: number[] = [];
   /** sim-vs-audio drift samples (ms) */
   maxDriftMs = 0;
   hitstops = 0;
@@ -72,6 +83,11 @@ export class RunStats {
     this.finished = false;
     this.executed = [];
     this.deathLog = [];
+    this.stumbles = 0;
+    this.stumbleLog = [];
+    this.pendulums = 0;
+    this.heaves = 0;
+    this.recoveries = [];
     this.maxDriftMs = 0;
     this.hitstops = 0;
   }

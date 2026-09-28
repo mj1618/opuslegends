@@ -1,11 +1,14 @@
 /**
- * Player controller. Deterministic, fixed-step (called at Tun.sim.hz), reads only a Controls
- * snapshot — human input and the autoplay bot drive it identically.
+ * Player controller — the hero. Deterministic, fixed-step (called at Tun.sim.hz),
+ * reads only a Controls snapshot — human input and the autoplay bot drive it identically.
  *
- * Feel features: accel/decel, variable jump (release to cut), coyote time, jump buffer,
- * apex hang, fall gravity, fast fall, punch (buffered, hitbox + hitstop handled by Game),
- * slide/duck with low-ceiling lock, wall slide + wall jump, corner correction, ledge assist,
- * squash & stretch spring, beat-locked run cycle.
+ * Verbs (DESIGN §2): Scuttle (hold right; top speed = tempo, +15% catch-up surge when behind the
+ * grid), Hop (variable jump defined in BEATS: every tap <= minHoldBeats is the same 1-beat hop,
+ * hold ~1 beat = 2-beat jump), Strike (up-forward strike; hits ahead AND above; buffered; hitbox +
+ * hitstop handled by Game). Stumble = knockback + control lock + i-frames (never death).
+ * Feel: accel/decel, coyote time, jump buffer, apex hang, fall gravity, fast fall, corner
+ * correction, ledge assist, squash & stretch spring, beat-locked run cycle. Wall jump is off.
+ * Timing grades never touch any of this (physics ignores the judge).
  */
 import type { Controls } from '../engine/input';
 import { approach, clamp, type Rect } from '../engine/math';
@@ -15,7 +18,7 @@ import { Tun } from './tunables';
 export interface PlayerEvents {
   jump(kind: 'ground' | 'coyote' | 'buffer' | 'wall'): void;
   land(impactVy: number): void;
-  punch(): void;
+  strike(): void;
   slide(): void;
   footstep(): void;
 }
@@ -43,10 +46,18 @@ export class Player implements Body {
   jumping = false;
   coyote = 0;
   jumpBuffer = 0;
-  punchBuffer = 0;
-  punchTime = -1; // <0 = not punching
-  punchCooldown = 0;
-  punchHitSomething = false;
+  strikeBuffer = 0;
+  strikeTime = -1; // <0 = not striking
+  strikeCooldown = 0;
+  strikeHitSomething = false;
+  /** seconds since the current jump's takeoff (for the minimum-hold rule) */
+  jumpT = 0;
+  /** stumble: controls locked while > 0 (s) */
+  stumbleLock = 0;
+  /** stumble invulnerability (s) */
+  iframes = 0;
+  /** true while the catch-up surge is boosting top speed (presentation) */
+  surging = false;
   wallDir = 0;
   wallLock = 0;
   airTime = 0;
@@ -66,6 +77,8 @@ export class Player implements Body {
   private rect: Rect = { x: 0, y: 0, w: 0, h: 0 };
   private events: PlayerEvents;
   private pixelsPerBeat = 384;
+  /** seconds per beat (jump physics are defined in beats) */
+  spb = 0.4;
 
   constructor(events: PlayerEvents) {
     this.events = events;
@@ -77,15 +90,19 @@ export class Player implements Body {
     this.vx = this.vy = 0;
     this.runSpeed = runSpeed;
     this.pixelsPerBeat = pixelsPerBeat;
+    this.spb = pixelsPerBeat / runSpeed;
     this.mode = 'ready';
     this.grounded = true;
     this.groundY = y;
     this.sliding = false;
     this.h = Tun.player.height;
     this.jumping = false;
-    this.coyote = this.jumpBuffer = this.punchBuffer = 0;
-    this.punchTime = -1;
-    this.punchCooldown = 0;
+    this.coyote = this.jumpBuffer = this.strikeBuffer = 0;
+    this.strikeTime = -1;
+    this.strikeCooldown = 0;
+    this.stumbleLock = 0;
+    this.iframes = 0;
+    this.surging = false;
     this.wallDir = 0;
     this.wallLock = 0;
     this.sx = this.sy = 1;
@@ -108,34 +125,67 @@ export class Player implements Body {
     return this.runSpeed * Tun.run.speedScale;
   }
 
+  private get timeToApex(): number {
+    return Tun.jump.timeToApexBeats * this.spb;
+  }
+
   get gravity(): number {
-    return (2 * Tun.jump.height) / (Tun.jump.timeToApex * Tun.jump.timeToApex);
+    const t = this.timeToApex;
+    return (2 * Tun.jump.height) / (t * t);
   }
 
   get jumpVelocity(): number {
-    return this.gravity * Tun.jump.timeToApex;
+    return this.gravity * this.timeToApex;
   }
 
-  get punchActive(): boolean {
-    return this.punchTime >= Tun.punch.startup && this.punchTime < Tun.punch.startup + Tun.punch.active;
+  get strikeActive(): boolean {
+    return this.strikeTime >= Tun.strike.startup && this.strikeTime < Tun.strike.startup + Tun.strike.active;
   }
 
-  get punching(): boolean {
-    return this.punchTime >= 0;
+  get striking(): boolean {
+    return this.strikeTime >= 0;
+  }
+
+  get invulnerable(): boolean {
+    return this.iframes > 0;
   }
 
   hitbox(): Rect {
     return bodyRect(this, this.rect);
   }
 
-  /** Punch hitbox in world space (valid when punchActive). */
-  punchBox(out: Rect): Rect {
-    const hh = Tun.punch.hitboxHeight;
-    out.w = Tun.punch.reach + this.w * 0.5;
-    out.h = hh;
-    out.x = this.facing > 0 ? this.x : this.x - out.w;
-    out.y = this.y - Math.max(this.h, hh * 0.9) + (this.sliding ? 0 : 4);
+  /** Body rect narrowed for hazard/enemy contact (fairness). */
+  hurtbox(out: Rect): Rect {
+    const i = Tun.player.hurtInset;
+    out.x = this.x - this.w / 2 + i;
+    out.y = this.y - this.h + 4;
+    out.w = this.w - 2 * i;
+    out.h = this.h - 4;
     return out;
+  }
+
+  /** Strike hitbox in world space (valid when strikeActive): up-forward arc, hits ahead AND above. */
+  strikeBox(out: Rect): Rect {
+    const C = Tun.strike;
+    out.w = C.backReach + this.w / 2 + C.reach;
+    out.h = C.height;
+    out.x = this.facing > 0 ? this.x - C.backReach : this.x - this.w / 2 - C.reach;
+    out.y = this.y - C.height;
+    return out;
+  }
+
+  /** Knockback from a stumble (spike, jabber jab). Physics only; Game handles lums/crowd. */
+  stumble(): void {
+    const S = Tun.stumble;
+    this.vx = S.vx * this.facing;
+    this.vy = S.vy;
+    this.grounded = false;
+    this.jumping = false;
+    this.stumbleLock = S.lockTime;
+    this.iframes = S.iframesBeats * this.spb;
+    this.jumpBuffer = 0;
+    this.strikeBuffer = 0;
+    this.kick(1.3, 0.7);
   }
 
   /** Impulse into the squash/stretch spring. */
@@ -149,33 +199,53 @@ export class Player implements Body {
     this.px = this.x;
     this.py = this.y;
     this.updateSpring(dt);
-    if (this.mode === 'ready' || this.mode === 'dead') return;
+    if (this.mode === 'ready') {
+      // held at the spawn (cold open / count-in): the strike can still be waved
+      if (c.strikePressed && this.strikeTime < 0) {
+        this.strikeTime = 0;
+        this.kick(Tun.juice.strikeStretch[0], Tun.juice.strikeStretch[1]);
+      }
+      this.advanceStrike(dt);
+      return;
+    }
+    if (this.mode === 'dead') return;
 
     const J = Tun.jump;
     const finished = this.mode === 'finished';
-    const left = !finished && c.left;
-    const right = finished || c.right;
-    const down = !finished && c.down;
+    this.stumbleLock -= dt;
+    this.iframes -= dt;
+    const locked = this.stumbleLock > 0;
+    const left = !finished && !locked && c.left;
+    const right = finished || (!locked && c.right);
+    const down = !finished && !locked && c.down;
 
     // ---- timers & buffers
     this.coyote -= dt;
     this.jumpBuffer -= dt;
-    this.punchBuffer -= dt;
-    this.punchCooldown -= dt;
+    this.strikeBuffer -= dt;
+    this.strikeCooldown -= dt;
     this.wallLock -= dt;
-    if (!finished && c.jumpPressed) this.jumpBuffer = J.bufferTime;
-    if (!finished && c.punchPressed) this.punchBuffer = Tun.punch.bufferTime;
+    this.jumpT += dt;
+    if (!finished && !locked && c.jumpPressed) this.jumpBuffer = J.bufferTime;
+    if (!finished && !locked && c.strikePressed) this.strikeBuffer = Tun.strike.bufferTime;
 
     // ---- horizontal
     const dir = (right ? 1 : 0) - (left ? 1 : 0);
     if (dir !== 0 && !this.sliding) this.facing = dir;
     let max = this.maxSpeed;
     const GL = Tun.grooveLock;
+    this.surging = false;
     if (GL.enabled && dir > 0 && !finished && Number.isFinite(this.musicX)) {
       const lag = this.musicX - this.x;
-      if (lag > 0 && lag < GL.maxLagBeats * this.pixelsPerBeat) max += Math.min(GL.gain * lag, GL.maxBoost * this.runSpeed);
+      if (lag > 0 && lag < GL.maxLagBeats * this.pixelsPerBeat) {
+        max += Math.min(GL.gain * lag, GL.maxBoost * this.runSpeed);
+        this.surging = lag > 12;
+      }
     }
-    if (this.sliding) {
+    if (locked) {
+      // knockback: no control, gentle air drag
+      this.vx = approach(this.vx, 0, Tun.run.decelAir * dt);
+    } else if (this.sliding) {
       const target = dir === this.facing ? max * this.facing : 0;
       const acc = dir === this.facing ? Tun.run.accelGround : Tun.slide.friction;
       this.vx = approach(this.vx, target, acc * dt);
@@ -207,8 +277,9 @@ export class Player implements Body {
       this.wallDir = 0;
       this.events.jump('wall');
     }
-    // variable height: releasing jump while rising cuts the velocity (once)
-    if (this.jumping && !c.jump && this.vy < 0) {
+    // variable height: releasing jump while rising cuts the velocity (once) — but never before
+    // minHoldBeats, so every quick tap is the same 1-beat hop
+    if (this.jumping && !c.jump && this.vy < 0 && this.jumpT >= J.minHoldBeats * this.spb) {
       this.vy *= J.cutMultiplier;
       this.jumping = false;
     }
@@ -228,21 +299,17 @@ export class Player implements Body {
       this.vy = Tun.wall.slideMaxSpeed;
     }
 
-    // ---- punch
-    if (this.punchTime >= 0) {
-      this.punchTime += dt;
-      if (this.punchTime >= Tun.punch.duration) {
-        this.punchTime = -1;
-        this.punchCooldown = Tun.punch.cooldown;
-      }
-    }
-    if (this.punchBuffer > 0 && this.punchTime < 0 && this.punchCooldown <= 0) {
-      this.punchBuffer = 0;
-      this.punchTime = 0;
-      this.punchHitSomething = false;
-      if (!this.grounded && this.vy > -Tun.punch.airPop) this.vy = Math.min(this.vy, -Tun.punch.airPop);
-      this.kick(Tun.juice.punchStretch[0], Tun.juice.punchStretch[1]);
-      this.events.punch();
+    // ---- strike
+    this.advanceStrike(dt);
+    const S = Tun.strike;
+    const ready = this.strikeTime < 0 ? this.strikeCooldown <= 0 : S.cancelRecovery && this.strikeTime >= S.startup + S.active;
+    if (this.strikeBuffer > 0 && ready) {
+      this.strikeBuffer = 0;
+      this.strikeTime = 0;
+      this.strikeHitSomething = false;
+      if (!this.grounded && this.vy > -Tun.strike.airPop) this.vy = Math.min(this.vy, -Tun.strike.airPop);
+      this.kick(Tun.juice.strikeStretch[0], Tun.juice.strikeStretch[1]);
+      this.events.strike();
     }
 
     // ---- slide / duck
@@ -311,8 +378,18 @@ export class Player implements Body {
     }
   }
 
+  private advanceStrike(dt: number): void {
+    if (this.strikeTime < 0) return;
+    this.strikeTime += dt;
+    if (this.strikeTime >= Tun.strike.duration) {
+      this.strikeTime = -1;
+      this.strikeCooldown = Tun.strike.cooldown;
+    }
+  }
+
   private doJump(v: number): void {
     this.vy = -v;
+    this.jumpT = 0;
     this.grounded = false;
     this.coyote = 0;
     this.jumpBuffer = 0;

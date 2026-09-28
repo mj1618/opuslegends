@@ -34,17 +34,31 @@ World y grows DOWN; the base ground top is y = 0.
 - The 120 Hz fixed-step sim is *slaved* to song time: each frame it steps until `simTime`
   reaches `conductor.time`; rendering interpolates. When no music plays (title, death) it runs on a
   wall-clock accumulator. Input edges are timestamped and applied on the exact step they belong to.
-- Hitstop freezes the world but not the music; the lost time ("debt") is repaid by simulating
-  slightly faster right after (`Tun.punch.catchUpRate`), so the hero lands back on the beat.
-- **Groove lock** (`Tun.grooveLock`): holding forward while behind the music line gives up to +20%
-  speed until back on the beat grid. Never pushes ahead.
+- Hitstop (contact only) freezes the world but not the music; the lost time ("debt") is repaid by
+  simulating slightly faster right after (`Tun.strike.catchUpRate`), so the hero lands back on the beat.
+  The Perfect "Freeze" is presentation-only (zoom punch + speed lines), never a sim freeze.
+- **Catch-up surge** (`Tun.grooveLock`): holding forward while behind the music line gives up to +15%
+  speed until back on the beat grid (~4.7 beats after a stumble). Never pushes ahead.
 - Run speed is DERIVED: `runSpeed = pixelsPerBeat * BPM / 60`. Holding right = riding the music.
+- **Jump physics are in beats** (`Tun.jump.timeToApexBeats`): every tap ≤ `minHoldBeats` is the same
+  ~0.93-beat hop (~92 px); hold 1 beat = ~1.96-beat jump (~250 px), at any tempo.
+- **Timing judge** (`game/judge.ts`): each hop/strike PRESS is graded against the nearest intended
+  action (Perfect ±45 / Great ±90 / Good ±135 ms, early +12). Grades drive score, feedback and the
+  crowd (`game/crowd.ts`, streak meter → `shouts`/`bonus` stem gains) — never physics.
+- **Swing** lives in one place: `SongDef.swing` (0.67 shuffle; beatmap `audio.swing`). Everything on an
+  "and" (slam-platform lifts, jabber bows, 8th lum rows) reads it.
 
 **Levels are authored in musical time** (`level/types.ts`, helpers in `level/dsl.ts`):
-x = beat × pixelsPerBeat. Obstacles declare an *intended action* `{type:'jump'|'punch'|'slide', beat, hold}`,
-which drives the autoplay bot, debug markers, timing stats and playtest validation. `lumJump` places
-collectibles along the REAL simulated jump arc (`game/jumpProfile.ts`), so retuning jumps never breaks arcs.
-Full jump (hold 1 beat) ≈ 1.96 beats airtime at 150 BPM, tap ≈ 1.15 beats (see debug overlay / report).
+x = beat × pixelsPerBeat. Obstacles declare an *intended action* `{type:'jump'|'strike'|'slide', beat, hold}`,
+which drives the autoplay bot, the timing judge, scansion marks, debug markers, timing stats and playtest
+validation; each resolves a `failKind` (death/stumble/none) so `--miss` knows what a skip should cost.
+`lumJump` places collectibles along the REAL simulated jump arc (`game/jumpProfile.ts`).
+**Internal names are neutral mechanics** (the skin keeps changing): lum (token), pendulum (swinging
+target, strike at the bottom of its 1-bar swing), spike (stumble hazard), gap (lethal pit), slam
+platform (solid from the beat to the swung "and"), jabber (enemy: bows on the "and", jabs on the beat),
+phrase (Hup-Hup-HEY: hop, hop, strike → Heave), crowd (streak meter), chaser (the Burn, 2 beats behind),
+awning (optional high route). The current skin (Slim the pool shark, 42nd St → honky-tonk bar) is
+drawn by small placeholder functions in `render/entityDraw.ts` — the swap point for `src/art/`.
 
 ```
 src/
@@ -53,43 +67,57 @@ src/
            math.ts        helpers, rng, noise        tween.ts   easing + pooled tweens
            params.ts      URL params
   audio/   conductor.ts   audio-clock master clock   tempoMap.ts   beat<->time (piecewise tempo)
-           song.ts        SongDef (beat map, key/harmony), loaders, collectibleNote(), analyzeBeatAlignment()
-           placeholderSong.ts  150 BPM E-minor synth track (OfflineAudioContext)
+           song.ts        SongDef (beat map, swing, key/harmony, lanes: shouts/stops, stems), loaders,
+                          songFromBeatmap(beatmap.json), collectibleNote(), analyzeBeatAlignment()
+           placeholderSong.ts  164 BPM E shuffle synth track in the real form (pickup + 32 bars,
+                          chorus stab/HEY grid), rendered in 2-bar chunks, + 'shouts' & 'bonus' stems
            sfx.ts         synthesized SFX            audioSystem.ts  AudioContext + buses
            syncProbe.ts   AudioWorklet onset probe (live check that music plays where the clock says)
-  level/   types.ts       level schema               dsl.ts   authoring helpers (jumpGap, enemy, slideUnder…)
-           build.ts       LevelDef → RuntimeLevel (collision world, entities, action markers)
-           testLevel.ts   the placeholder level (~45 s)
-  game/    game.ts        owns everything: frame loop, time model, run flow, interactions, report
-           player.ts      controller (all constants in tunables.ts)   physics.ts  AABB world, moveBody
-           autoplay.ts    bot that presses intended actions on their beats   stats.ts  timing/frame stats
-           entities.ts    runtime entity records     jumpProfile.ts  simulated jump arcs
+  level/   types.ts       level schema               dsl.ts   authoring helpers (spikeHop, gapHop, gapJump, jabber,
+                          pendulum, slamRun, jumpStrike, hupHupHey, awning, lumArc*…) with measured tolerances
+           build.ts       LevelDef → RuntimeLevel (collision, entities, action markers, slamState, cues)
+           slice.ts       THE LEVEL: cold open + bars 0-32 (intro, verse 1a/1b, chorus 1)
+  game/    game.ts        owns everything: frame loop, time model, run flow (cold open → count-in → run →
+                          stumble / death → checkpoint rewind → finish), mechanics, interactions, report
+           player.ts      controller: run+surge, hop (beats), strike, stumble (constants in tunables.ts)
+           physics.ts     AABB world (+ switchable dynamic solids)    judge.ts  timing grades
+           crowd.ts       streak meter + stem gains  autoplay.ts  bot (+ jitter / late / spatial catch-up)
+           stats.ts       timing/frame stats         entities.ts  runtime records   jumpProfile.ts  jump arcs
   render/  renderer.ts    draws world/HUD/screens    camera.ts  follow, look-ahead, shake, zoom punch
+           entityDraw.ts  PLACEHOLDER draw functions (hero, audience strip, tokens, spikes, jabbers,
+                          pendulums, slam platforms, the Burn, splices, marks, ground, film pass)
            groove.ts      BEAT-REACTIVE HOOKS: groove.pulse(every, decay, phase) / bounce / wave, applyBeatReact(spec)
            background.ts  cached parallax layers     particles.ts  pooled SoA particles    sprites.ts cached placeholder art
   debug/   overlay.ts     ?debug=1 overlay           testApi.ts  window.__game
 playtest/playtest.mjs     headless autoplay run → video, screenshots, report.json
+playtest/probe.mjs        quick state probe: node playtest/probe.mjs "<query>" <secs> [shot.png|-] [js-expr]
 ```
 
-Swapping in a real song: add a `SongDef` with `source: {kind:'file', url:'audio/x.ogg'}` (file in `public/`,
-relative URL), set `tempo`, `audioOffset` (seconds into the file where beat 0 is), `key`, `harmony`;
-point `Game.song` at it; check `report.beatMapAlignment` (≈0 ms means the beat map matches the audio).
+Swapping in the real song: `songFromBeatmap(json, 'audio/…/')` turns the producer's beatmap.json
+(schema `opuslegends.beatmap/1`: song.tempo/audioOffset/key/harmony, audio.swing/files, sections, lanes)
+into a SongDef with stems; point `Game.song` at it; check `report.beatMapAlignment` (≈0 ms) and
+`report.shoutAlignment` (every chorus jabber strike sits on a `shouts` lane beat).
 Beat-reactive art: read `game.groove` in render code, or put a `BeatReactSpec` in level data.
 Presentation cues on beats: `{type:'fx', beat, fx:'flash'|'shake'|'zoom'|'bgPulse'}` or `conductor.at(beat, fn)`.
 
 ## Running / testing
 - `npm install`, then `npm run dev` (http://localhost:5173), `npm run build`, `npm run preview`, `npm run typecheck`.
-- Controls: arrows/WASD, Space/Z/W/Up jump (hold = higher), X/J punch, Down/S slide, Esc pause,
-  `[`/`]` latency offset, `` ` `` / F1 debug overlay. Gamepad: A jump, X/B punch, stick/dpad, LT slide.
+- Controls: hold →/D to run, Space/Z/W/Up hop (tap) / jump (hold), X/J strike (the cue swing; also
+  starts the cold open), Esc pause, `[`/`]` latency offset, `` ` `` / F1 debug overlay.
+  Gamepad: A hop, X/B/RT strike, stick/dpad.
 - URL params: `?debug=1` overlay (fps, song/beat, clock, hitboxes, beat grid, green dashed *music line*,
-  intended-action markers) · `?start=<beat>` start mid-level · `?autoplay=1` bot plays via the controller ·
-  `?mute=1` · `?latency=<ms>` · `?miss=46,97` bot deliberately misses those actions once (death/respawn test) ·
-  `?probe=1` live audio sync probe.
+  intended-action markers) · `?start=<beat>` start mid-level (checkpoints: 36, 68, 100) · `?coldopen=0` ·
+  `?autoplay=1` bot plays via the controller · `?jitter=<ms>` / `?late=<p>` / `?sloppy=1` sloppy bot ·
+  `?judge=1` timing-grade popups · `?mute=1` · `?latency=<ms>` · `?miss=37,28` bot deliberately skips those
+  actions once (stumble/death/respawn test) · `?probe=1` live audio sync probe.
 - `window.__game`: `state()`, `report()`, `start(beat?)`, `setLatency(ms)`, `debug(on)`, `level`, `game`.
 - `npm run playtest` — builds, serves, runs headless Chromium with autoplay, writes `playtest/out/`
   (`playtest.webm`, `shot-XX-beatYY.png` every 2 s, `report.json`). Exits non-zero unless: level completed,
-  deaths == expected, every intended action executed, action-vs-beat error ≤ 12 ms, hero position vs beat
-  grid ≤ 40 ms, sim drift ≤ 20 ms, beat map & live probe ≤ 5 ms, no console errors.
-  Options: `--debug` (overlay in shots), `--start=<beat>`, `--miss=<beats>`, `--no-video`, `--headed`, `--no-build`.
+  deaths/stumbles == what the missed actions' failKinds predict (0 normally), every intended action executed,
+  action-vs-beat error ≤ 12 ms, hero position vs beat grid ≤ 40 ms, sim drift ≤ 20 ms, beat map & live probe
+  ≤ 5 ms, chorus jabbers on the shout grid, no console errors.
+  Options: `--debug` (overlay in shots), `--start=<beat>`, `--miss=<beats>`, `--jitter=<ms>`, `--sloppy`
+  (completion only; reports deaths per section), `--seed=<n>`, `--out=<dir>` (parallel runs), `--no-video`,
+  `--headed`, `--no-build`.
 - Review screenshots with the Read tool on the PNGs. Headless software rendering at DPR 2 runs ~30 fps;
   that's SwiftShader fill-rate, not the game (JS render cost is ~0.05 ms/frame; 60 fps with GPU).

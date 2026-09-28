@@ -6,9 +6,9 @@
  * belongs to (instead of "whenever the next frame happens"), and uses them to measure
  * the player's timing accuracy against the beat.
  */
-export type Button = 'left' | 'right' | 'down' | 'jump' | 'punch' | 'start' | 'pause' | 'latUp' | 'latDown' | 'debug';
+export type Button = 'left' | 'right' | 'down' | 'jump' | 'strike' | 'start' | 'pause' | 'latUp' | 'latDown' | 'debug';
 
-export const BUTTONS: readonly Button[] = ['left', 'right', 'down', 'jump', 'punch', 'start', 'pause', 'latUp', 'latDown', 'debug'];
+export const BUTTONS: readonly Button[] = ['left', 'right', 'down', 'jump', 'strike', 'start', 'pause', 'latUp', 'latDown', 'debug'];
 
 export interface InputEdge {
   button: Button;
@@ -29,8 +29,8 @@ const KEYMAP: Record<string, Button> = {
   Space: 'jump',
   KeyZ: 'jump',
   KeyK: 'jump',
-  KeyX: 'punch',
-  KeyJ: 'punch',
+  KeyX: 'strike',
+  KeyJ: 'strike',
   Enter: 'start',
   Escape: 'pause',
   KeyP: 'pause',
@@ -44,9 +44,9 @@ const KEYMAP: Record<string, Button> = {
 const PAD_BUTTONS: [number, Button][] = [
   [0, 'jump'], // A / Cross
   [3, 'jump'], // Y / Triangle
-  [2, 'punch'], // X / Square
-  [1, 'punch'], // B / Circle
-  [7, 'punch'], // RT
+  [2, 'strike'], // X / Square
+  [1, 'strike'], // B / Circle
+  [7, 'strike'], // RT
   [6, 'down'], // LT
   [12, 'jump'], // dpad up
   [13, 'down'],
@@ -164,15 +164,15 @@ export class Controls {
   right = false;
   down = false;
   jump = false;
-  punch = false;
+  strike = false;
   /** edges, valid for exactly one simulation step */
   jumpPressed = false;
   jumpReleased = false;
-  punchPressed = false;
+  strikePressed = false;
   downPressed = false;
   /** song time of the edge that produced *Pressed this step (for timing stats), NaN if none */
   jumpPressTime = NaN;
-  punchPressTime = NaN;
+  strikePressTime = NaN;
   downPressTime = NaN;
 
   apply(button: Button, down: boolean, songTime: number): void {
@@ -198,12 +198,12 @@ export class Controls {
         if (!down && this.jump) this.jumpReleased = true;
         this.jump = down;
         break;
-      case 'punch':
-        if (down && !this.punch) {
-          this.punchPressed = true;
-          this.punchPressTime = songTime;
+      case 'strike':
+        if (down && !this.strike) {
+          this.strikePressed = true;
+          this.strikePressTime = songTime;
         }
-        this.punch = down;
+        this.strike = down;
         break;
       default:
         break;
@@ -211,12 +211,12 @@ export class Controls {
   }
 
   clearEdges(): void {
-    this.jumpPressed = this.jumpReleased = this.punchPressed = this.downPressed = false;
-    this.jumpPressTime = this.punchPressTime = this.downPressTime = NaN;
+    this.jumpPressed = this.jumpReleased = this.strikePressed = this.downPressed = false;
+    this.jumpPressTime = this.strikePressTime = this.downPressTime = NaN;
   }
 
   reset(): void {
-    this.left = this.right = this.down = this.jump = this.punch = false;
+    this.left = this.right = this.down = this.jump = this.strike = false;
     this.clearEdges();
   }
 }

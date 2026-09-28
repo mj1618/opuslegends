@@ -1,5 +1,5 @@
 /**
- * Simulates the REAL player controller on flat ground to get jump trajectories. Used by the
+ * Simulates the REAL player controller on slam ground to get jump trajectories. Used by the
  * level builder (lumJump places collectibles along the actual arc) and the debug overlay
  * (airtime readouts), so tuning the controller never breaks authored arcs.
  */
@@ -27,7 +27,7 @@ export function jumpProfile(holdSec: number, runSpeed: number, pixelsPerBeat: nu
   const world = new CollisionWorld();
   world.add({ kind: 'solid', x: -1e6, y: 0, w: 2e6, h: 100 });
   const noop = () => undefined;
-  const p = new Player({ jump: noop, land: noop, punch: noop, slide: noop, footstep: noop });
+  const p = new Player({ jump: noop, land: noop, strike: noop, slide: noop, footstep: noop });
   p.setWorld(world);
   p.spawn(0, 0, runSpeed, pixelsPerBeat);
   const c = new Controls();

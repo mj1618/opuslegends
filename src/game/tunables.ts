@@ -16,10 +16,13 @@ export const Tun = {
     maxStepsPerFrame: 30,
   },
 
+  /** Slim (the pool shark): hitbox 56x100, slide 56x40 [tune]; drawn ~130 px tall with the cue. */
   player: {
     width: 56,
-    height: 104,
-    slideHeight: 50,
+    height: 100,
+    slideHeight: 40,
+    /** hurtbox used against hazards/enemies is narrowed by this many px per side (fairness) */
+    hurtInset: 6,
   },
 
   run: {
@@ -51,16 +54,25 @@ export const Tun = {
     maxLagBeats: 4,
   },
 
+  /**
+   * Jump physics are defined in BEATS (DESIGN §4 / reference §3.2) so hops land on beats at any
+   * tempo: gravity = 2*height / (timeToApexBeats * secondsPerBeat)^2.
+   * Result (see debug overlay / report.jumpAirtimes): tap (hold <= minHoldBeats) = ~0.93 beat hop,
+   * ~92 px apex (lands just before the next beat, so a hop-per-beat chain always has the next press
+   * inside the jump buffer); hold 1 beat = ~1.96 beat jump, ~250 px apex.
+   */
   jump: {
     /** apex height of a fully held jump without apex hang (px) */
-    height: 250,
-    /** seconds to reach apex of a full jump */
-    timeToApex: 0.455,
+    height: 260,
+    /** time to apex of a full jump, in beats */
+    timeToApexBeats: 1.18,
     /** vy multiplier when jump is released while rising (variable jump height) */
-    cutMultiplier: 0.42,
+    cutMultiplier: 0.15,
+    /** the cut never happens before this (beats): every tap shorter than this is the SAME 1-beat hop */
+    minHoldBeats: 0.22,
     /** grace period after running off a ledge during which a jump still works */
     coyoteTime: 0.1,
-    /** a jump pressed this long before landing still fires on landing */
+    /** a jump pressed this long before landing still fires on landing (DESIGN tune range 80-130 ms) */
     bufferTime: 0.13,
     /** |vy| below this counts as "apex" (px/s) */
     apexThreshold: 170,
@@ -78,8 +90,9 @@ export const Tun = {
     ledgeAssist: 18,
   },
 
+  /** wall slide / wall jump: OFF for this level (DESIGN §2) */
   wall: {
-    enabled: true,
+    enabled: false,
     slideMaxSpeed: 300,
     jumpVX: 820,
     /** vertical speed as fraction of normal jump velocity */
@@ -88,24 +101,84 @@ export const Tun = {
     lockTime: 0.14,
   },
 
-  punch: {
+  /**
+   * THE STRIKE (DESIGN's "Claw"): an up-forward strike that hits things ahead AND above (DESIGN §2).
+   * Hitbox (facing right, relative to the feet centre): x in [-backReach, width/2 + reach],
+   * y in [-height, 0].
+   */
+  strike: {
     /** seconds from press to active hitbox */
     startup: 0.016,
     /** duration of the active hitbox */
     active: 0.17,
-    /** total duration of the punch animation */
-    duration: 0.26,
-    cooldown: 0.05,
+    /** total duration of the strike animation */
+    duration: 0.28,
+    cooldown: 0.04,
+    /** a new press may cut the previous strike's recovery once its active window is over (strikes on consecutive beats) */
+    cancelRecovery: true,
     bufferTime: 0.1,
-    /** hitbox reach beyond the body's front edge (px) */
-    reach: 118,
-    hitboxHeight: 96,
-    /** hitstop on contact (s) */
-    hitstop: 0.065,
+    /** reach beyond the body's front edge (px) */
+    reach: 170,
+    /** reach behind the body centre (overhead part of the arc) */
+    backReach: 24,
+    /** hitbox height above the feet (px): pendulums swing down to ~150 px */
+    height: 250,
+    /** hitstop on contact (s) — cosmetic, the lost time is repaid (see game.ts) */
+    hitstop: 0.055,
+    /** hitstop for a Heave (completed Hup-Hup-HEY) */
+    heaveHitstop: 0.09,
     /** after hitstop, the sim runs this much faster until the lost time is repaid (keeps the hero on the beat) */
     catchUpRate: 0.35,
-    /** small upward pop when punching in the air */
-    airPop: 140,
+    /** upward pop when striking in the air — 0: a pop would delay the landing and push the next hop off the beat */
+    airPop: 0,
+  },
+
+  /** Stumble (spikes, jabber jabs): DESIGN §4 fail state */
+  stumble: {
+    /** knockback velocity (DESIGN: ~0.5 beat lost; with the +15% surge that's back on the grid in ~4 beats) */
+    vx: -140,
+    vy: -420,
+    /** controls locked (s) */
+    lockTime: 0.12,
+    /** invulnerability, in beats */
+    iframesBeats: 1,
+    /** lums dropped (they hover 1 bar to re-grab) */
+    dropLums: 5,
+    dropHoverBeats: 4,
+  },
+
+  /** Timing grades (ms, symmetric) — early side gets +earlyBonusMs. Score/feedback/crowd only, never physics. */
+  judge: {
+    perfectMs: 45,
+    greatMs: 90,
+    goodMs: 135,
+    earlyBonusMs: 12,
+    /** early presses within this window sound on the target beat (SFX quantisation) */
+    quantizeEarlyMs: 150,
+  },
+
+  /** The crowd (streak meter + music reward; DESIGN's "crab choir") */
+  crowd: {
+    start: 3,
+    min: 3,
+    max: 24,
+    perGood: 1,
+    perPhrase: 3,
+    stumbleLoss: 0.25,
+    /** shouts stem: -6 dB at 0 members -> 0 dB at `fullAt` */
+    fullAt: 12,
+    /** BIG CATCH mode (bonus stem) at >= this */
+    bigCatchAt: 20,
+  },
+
+  /** The Chaser (chaser): DESIGN §4 */
+  chaser: {
+    /** beats behind the music grid */
+    behindBeats: 2,
+    /** when behind its target it advances at this multiple of run speed (hero surge is 1.15) */
+    catchUpMul: 1.1,
+    /** rise animation (beats) */
+    riseBeats: 4,
   },
 
   slide: {
@@ -121,24 +194,33 @@ export const Tun = {
     bounceVY: -1050,
   },
 
+  /** jabber truce flag: a soft bounce platform on the offbeat */
+  jabberFlag: {
+    bounceVY: -1250,
+  },
+
   juice: {
     jumpStretch: [0.78, 1.28] as const,
     landSquashMax: [1.38, 0.62] as const,
     slideSquash: [1.35, 0.55] as const,
-    punchStretch: [1.18, 0.9] as const,
+    strikeStretch: [0.9, 1.22] as const,
     /** squash spring */
     springK: 520,
     springDamp: 22,
     shakeOnHit: 0.32,
     shakeOnDeath: 0.7,
     shakeOnLandHard: 0.12,
-    zoomPunchHit: 0.035,
+    zoomPunchHit: 0.03,
+    zoomPunchHeave: 0.07,
     runDustEvery: 1,
   },
 
   camera: {
-    /** where the player sits horizontally when running right (0..1 of screen width) */
-    leadFraction: 0.32,
+    /** where the player sits horizontally when running right (0..1 of screen width).
+     *  0.30 at zoom 0.95 = ~3.6 beats of runway (DESIGN §4) */
+    leadFraction: 0.3,
+    /** default zoom (level 'camera' items can change it on a beat) */
+    zoom: 0.95,
     followX: 9,
     followY: 3.5,
     /** player screen-y fraction when grounded */
@@ -157,11 +239,13 @@ export const Tun = {
   flow: {
     /** beats of music played before the player is released at spawn / respawn */
     countInBeats: 4,
-    deathTime: 0.9,
-    respawnFade: 0.25,
+    /** death animation before the respawn (DESIGN: <= 0.6 s, respawn < 1 s) */
+    deathTime: 0.6,
+    respawnFade: 0.2,
     finishEndScreenDelay: 2.4,
-    /** world y below which the player dies */
-    killY: 700,
+    /** world y below which the player dies (the pit surface is drawn at Tun.flow.pitY) */
+    killY: 240,
+    pitY: 150,
   },
 };
 

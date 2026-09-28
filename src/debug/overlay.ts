@@ -11,7 +11,7 @@ import { enemyRect } from '../game/game';
 import { jumpProfile } from '../game/jumpProfile';
 import type { Rect } from '../engine/math';
 
-const COLORS = { jump: '#44e0ff', punch: '#ff5d7a', slide: '#ffc53d' } as const;
+const COLORS = { jump: '#44e0ff', strike: '#ff9a3d', slide: '#ffc53d' } as const;
 
 export class DebugOverlay {
   enabled: boolean;
@@ -110,7 +110,7 @@ export class DebugOverlay {
     ctx.lineWidth = 2;
     for (const s of L.world.all()) {
       if (s.x + s.w < v.x0 || s.x > v.x1) continue;
-      ctx.strokeStyle = s.kind === 'oneway' ? 'rgba(80,200,255,0.9)' : 'rgba(120,255,120,0.7)';
+      ctx.strokeStyle = s.active === false ? 'rgba(255,255,255,0.25)' : s.kind === 'oneway' ? 'rgba(80,200,255,0.9)' : 'rgba(120,255,120,0.7)';
       strokeRect(ctx, { x: s.x, y: s.y, w: s.w, h: Math.min(s.h, 200) });
     }
     ctx.strokeStyle = 'rgba(255,60,60,0.95)';
@@ -132,9 +132,26 @@ export class DebugOverlay {
     const p = g.player;
     ctx.strokeStyle = '#00ffcc';
     strokeRect(ctx, p.hitbox());
-    if (p.punchActive) {
+    strokeRect(ctx, p.hurtbox({ x: 0, y: 0, w: 0, h: 0 }));
+    if (p.strikeActive) {
       ctx.strokeStyle = '#ff00ff';
-      strokeRect(ctx, p.punchBox({ x: 0, y: 0, w: 0, h: 0 }));
+      strokeRect(ctx, p.strikeBox({ x: 0, y: 0, w: 0, h: 0 }));
+    }
+    // pendulums (strike targets) and the Chaser front
+    ctx.strokeStyle = 'rgba(127,227,176,0.9)';
+    for (const f of L.pendulums) {
+      if (f.struck || f.x < v.x0 || f.x > v.x1) continue;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    if (g.chaser.active) {
+      ctx.strokeStyle = 'rgba(0,200,255,0.9)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(g.chaser.x, v.y0);
+      ctx.lineTo(g.chaser.x, v.y1);
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -157,8 +174,9 @@ export class DebugOverlay {
       `clock ${c.clockSource} jitter ${c.clockJitterMs.toFixed(2)}ms  latency ${(c.latency * 1000).toFixed(0)}ms ([ ])`,
       `sim ${g.simTime.toFixed(3)}  drift ${((c.time - g.simTime) * 1000).toFixed(1)}ms  hitstop ${(g.hitstop * 1000).toFixed(0)}`,
       `hero x ${p.x.toFixed(0)} (beat ${(p.x / g.level.ppb).toFixed(2)}, music ${(c.beat - p.x / g.level.ppb).toFixed(2)} ahead)`,
-      `v ${p.vx.toFixed(0)},${p.vy.toFixed(0)} ${p.grounded ? 'G' : 'air'}${p.sliding ? ' SLIDE' : ''}${p.punching ? ' PUNCH' : ''} wall ${p.wallDir}`,
-      `deaths ${g.stats.deaths}  lums ${g.stats.lums}/${g.stats.lumsTotal}  cp ${g.checkpointIndex}`,
+      `v ${p.vx.toFixed(0)},${p.vy.toFixed(0)} ${p.grounded ? 'G' : 'air'}${p.sliding ? ' SLIDE' : ''}${p.striking ? ' STRIKE' : ''}${p.invulnerable ? ' IFRAMES' : ''}${p.surging ? ' SURGE' : ''}`,
+      `deaths ${g.stats.deaths}  stumbles ${g.stats.stumbles}  lums ${g.stats.lums}/${g.stats.lumsTotal}  pendulums ${g.stats.pendulums}/${g.stats.pendulumsTotal}  cp ${g.checkpointIndex}`,
+      `crowd ${g.crowd.count} (peak ${g.crowd.peak})  grades P${g.judge.counts.perfect} G${g.judge.counts.great} g${g.judge.counts.good} x${g.judge.counts.miss}  heaves ${g.stats.heaves}`,
       `jump airtime (beats) ${this.airtimes}`,
     ];
     // recent action timing

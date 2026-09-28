@@ -1,14 +1,39 @@
 /**
- * Renderer: draws the whole frame from game state (read-only). Placeholder art, but every
- * element is built on the beat-reactive hooks (Groove) so real art can slot in later.
+ * Renderer: draws the whole frame from game state (read-only). Placeholder art — every entity
+ * is drawn by a small function in entityDraw.ts (swap point for the art module) — built on the
+ * beat-reactive hooks (Groove).
  *
- * Draw order: background parallax -> world (floors, platforms, hazards, lums, enemies,
- * checkpoints, finish, player, particles) -> debug world overlay -> HUD -> screens -> flash/fade.
+ * Draw order: background (sky preset + parallax + haze) -> world (pit, pendulum rigs, ground, bar
+ * lines + scansion marks, slam platforms, beacons, spikes, pendulums, lums, jabbers, chaser) ->
+ * crowd -> hero -> particles -> popups -> debug world overlay -> HUD -> screens -> flash/fade.
  */
 import { VIEW_H, VIEW_W } from '../engine/display';
-import { clamp, lerp } from '../engine/math';
 import type { Game } from '../game/game';
 import { Tun } from '../game/tunables';
+import { groundStyleAt, marksOnAt } from '../level/build';
+import {
+  type HeroPose,
+  SLAM_LIFT_PX,
+  PAL,
+  drawBarLine,
+  drawBeacon,
+  drawChaser,
+  drawAudience,
+  drawAudienceIcon,
+  drawCueDot,
+  drawFilmPass,
+  drawHero,
+  drawPendulumRig,
+  drawPendulumTarget,
+  drawJabber,
+  drawLum,
+  drawPool,
+  drawScansion,
+  drawPit,
+  drawSpike,
+  drawSlamPlatform,
+  makeGroundTile,
+} from './entityDraw';
 import { applyBeatReact } from './groove';
 import { type SpriteSet, blit } from './sprites';
 
@@ -18,8 +43,7 @@ export class Renderer {
   private game: Game;
   private spr: SpriteSet;
   private groundPattern: CanvasPattern | null = null;
-  private scarf: { x: number; y: number }[] = [];
-  private blinkT = 0;
+  private timberPattern: CanvasPattern | null = null;
 
   constructor(game: Game, sprites: SpriteSet) {
     this.game = game;
@@ -29,7 +53,8 @@ export class Renderer {
   render(px: number, py: number): void {
     const g = this.game;
     const ctx = g.display.beginFrame();
-    if (!this.groundPattern) this.groundPattern = ctx.createPattern(this.spr.groundTile, 'repeat');
+    if (!this.groundPattern) this.groundPattern = ctx.createPattern(makeGroundTile('street'), 'repeat');
+    if (!this.timberPattern) this.timberPattern = ctx.createPattern(makeGroundTile('timber'), 'repeat');
 
     if (g.scene === 'loading' || g.scene === 'title') {
       this.drawTitle(ctx);
@@ -37,17 +62,26 @@ export class Renderer {
     }
 
     const cam = g.camera;
+    this.skyFor(g.phase === 'coldOpen' ? -50 : g.conductor.playing ? g.conductor.beat : g.spawnBeat);
     g.background.draw(ctx, cam.rx, cam.ry, g.groove);
 
     ctx.save();
     cam.apply(ctx);
     const v = cam.viewBounds();
-    this.drawLevel(ctx, v.x0, v.x1, v.y1);
+    this.drawLevel(ctx, v.x0, v.x1, v.y0, v.y1);
     this.drawPlayer(ctx, px, py);
     g.particles.draw(ctx, v.x0, v.x1);
+    this.drawPopups(ctx);
     g.debug.drawWorld(ctx, v);
     ctx.restore();
 
+    this.drawCrowd(ctx);
+    this.drawFreeze(ctx);
+    drawFilmPass(ctx, g.groove.time);
+    this.drawRewind(ctx);
+    let cue = 0;
+    for (const cp of g.level.checkpoints) cue = Math.max(cue, cp.flash);
+    drawCueDot(ctx, cue);
     this.drawHud(ctx);
     if (g.scene === 'end') this.drawEnd(ctx);
     if (g.paused) this.drawCenterText(ctx, 'PAUSED', 'press Enter / Space to resume');
@@ -69,110 +103,98 @@ export class Renderer {
 
   // ------------------------------------------------------------------ world
 
-  private drawLevel(ctx: CanvasRenderingContext2D, x0: number, x1: number, y1: number): void {
+  private skyFor(beat: number): void {
+    const cues = this.game.level.skyCues;
+    const bg = this.game.background;
+    let from = cues[0]?.preset ?? 'dawn';
+    let to = from;
+    let k = 1;
+    for (let i = 0; i < cues.length; i++) {
+      if (beat < cues[i].beat) break;
+      from = i > 0 ? cues[i - 1].preset : cues[i].preset;
+      to = cues[i].preset;
+      k = Math.min(1, (beat - cues[i].beat) / 8);
+    }
+    bg.skyFrom = from;
+    bg.skyTo = to;
+    bg.skyK = k;
+  }
+
+  private drawLevel(ctx: CanvasRenderingContext2D, x0: number, x1: number, y0: number, y1: number): void {
     const g = this.game;
     const L = g.level;
     const gr = g.groove;
-    const beatP = gr.pulse(1, 0.22);
+    const pitY = Tun.flow.pitY;
+    const wb = g.phase === 'coldOpen' ? L.def.startBeat : g.worldBeat;
 
-    // floors
+    // the pit (behind the ground)
+    drawPit(ctx, x0, x1, pitY, y1);
+
+    // training-dummy frames (behind the ground line)
+    for (const f of L.pendulums) {
+      if (f.pivotX < x0 - 300 || f.pivotX > x1 + 300) continue;
+      drawPendulumRig(ctx, f.pivotX, f.pivotY, L.surfaceYNear(f.pivotX));
+    }
+
+    // ground (asphalt on the Street, floorboards in the Dojo). Walkable-top rule (DESIGN §3):
+    // a 4 px film-black edge + a 2 px cream lip, so every surface reads day or night
+    const cutX = L.groundCues.map((c) => c.beat * L.ppb);
     for (const f of L.floors) {
       if (f.x1 < x0 || f.x0 > x1) continue;
       const a = Math.max(f.x0, x0 - 10);
       const b = Math.min(f.x1, x1 + 10);
-      ctx.fillStyle = this.groundPattern ?? '#5b3a2e';
       const depth = Math.max(0, Math.min(1400, y1 - f.y));
-      ctx.fillRect(a, f.y, b - a, depth);
-      // grass lip, bouncing slightly on the beat
-      const lip = 20 + beatP * 5;
-      ctx.fillStyle = '#6fd86a';
-      ctx.fillRect(a, f.y - 4, b - a, lip);
-      ctx.fillStyle = '#48b04c';
-      ctx.fillRect(a, f.y + lip - 6, b - a, 6);
-      // edge caps
-      ctx.fillStyle = '#3d2419';
-      if (f.x0 >= x0 - 10) ctx.fillRect(f.x0 - 3, f.y, 6, depth);
-      if (f.x1 <= x1 + 10) ctx.fillRect(f.x1 - 3, f.y, 6, depth);
-    }
-
-    // platforms / blocks
-    for (const s of L.platforms) {
-      if (s.x + s.w < x0 || s.x > x1) continue;
-      ctx.fillStyle = '#c98e52';
-      roundRect(ctx, s.x, s.y, s.w, s.h, 8);
-      ctx.fill();
-      ctx.fillStyle = '#e8b574';
-      ctx.fillRect(s.x + 6, s.y + 4, s.w - 12, 6);
-      ctx.strokeStyle = '#4a2a14';
-      ctx.lineWidth = 4;
-      roundRect(ctx, s.x, s.y, s.w, s.h, 8);
-      ctx.stroke();
-    }
-    for (const s of L.blocks) {
-      if (s.x + s.w < x0 || s.x > x1) continue;
-      ctx.fillStyle = this.groundPattern ?? '#5b3a2e';
-      ctx.fillRect(s.x, s.y, s.w, s.h);
-      ctx.strokeStyle = '#2d1a10';
-      ctx.lineWidth = 4;
-      ctx.strokeRect(s.x, s.y, s.w, s.h);
-    }
-
-    // hazards
-    for (const h of L.hazards) {
-      const r = h.vis;
-      if (r.x + r.w < x0 || r.x > x1) continue;
-      if (h.kind === 'spikes') {
-        for (let x = r.x; x < r.x + r.w - 4; x += 32) blit(ctx, this.spr.spike, x, r.y + r.h, 1, 1 + 0.08 * beatP);
-      } else {
-        // crusher beam: hazard-striped column with a glowing, spiked underside
-        ctx.fillStyle = '#2c2440';
-        ctx.fillRect(r.x, r.y, r.w, r.h);
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(r.x, r.y + r.h - 60, r.w, 44);
-        ctx.clip();
-        ctx.fillStyle = '#ffcf33';
-        ctx.fillRect(r.x, r.y + r.h - 60, r.w, 44);
-        ctx.fillStyle = '#1c1628';
-        for (let x = r.x - 60; x < r.x + r.w + 60; x += 40) {
-          ctx.beginPath();
-          ctx.moveTo(x, r.y + r.h - 16);
-          ctx.lineTo(x + 20, r.y + r.h - 16);
-          ctx.lineTo(x + 44, r.y + r.h - 60);
-          ctx.lineTo(x + 24, r.y + r.h - 60);
-          ctx.closePath();
-          ctx.fill();
-        }
-        ctx.restore();
-        const glow = 0.5 + 0.5 * beatP;
-        ctx.fillStyle = `rgba(255,70,90,${glow})`;
-        for (let x = r.x + 4; x < r.x + r.w - 10; x += 26) {
-          ctx.beginPath();
-          ctx.moveTo(x, r.y + r.h - 16);
-          ctx.lineTo(x + 11, r.y + r.h + 4);
-          ctx.lineTo(x + 22, r.y + r.h - 16);
-          ctx.closePath();
-          ctx.fill();
-        }
-        ctx.strokeStyle = '#120d1c';
-        ctx.lineWidth = 5;
-        ctx.strokeRect(r.x, r.y, r.w, r.h - 16);
+      const cuts = [a, ...cutX.filter((c) => c > a && c < b), b];
+      for (let k = 0; k < cuts.length - 1; k++) {
+        const style = groundStyleAt(L, (cuts[k] + cuts[k + 1]) / 2 / L.ppb);
+        ctx.fillStyle = (style === 'timber' ? this.timberPattern : this.groundPattern) ?? PAL.asphalt;
+        ctx.fillRect(cuts[k], f.y, cuts[k + 1] - cuts[k], depth);
       }
+      ctx.fillStyle = PAL.filmBlack;
+      ctx.fillRect(a, f.y, b - a, 5);
+      ctx.fillStyle = PAL.lip;
+      ctx.fillRect(a, f.y - 2, b - a, 3);
+      ctx.fillStyle = PAL.filmBlack;
+      if (f.x0 >= x0 - 30) ctx.fillRect(f.x0 - 2, f.y, 6, depth);
+      if (f.x1 <= x1 + 30) ctx.fillRect(f.x1 - 4, f.y, 6, depth);
+      // a dip below the base ground line: a shallow puddle
+      if (f.y > 20) drawPool(ctx, f.x0, f.x1, 14, f.y, gr.time);
     }
 
-    // checkpoints
+    // bar lines (gaffer-tape strokes on every downbeat, always on) + choreographer's chalk marks
+    const bpb = g.tempo.beatsPerBar;
+    const ppb = L.ppb;
+    const barPulse = gr.pulse(4, 0.4);
+    for (let b = Math.ceil(x0 / ppb / bpb) * bpb; b * ppb < x1; b += bpb) {
+      const fy = L.floorYAt(b * ppb);
+      if (!Number.isNaN(fy)) drawBarLine(ctx, b * ppb, fy, Math.abs(gr.beat - b) < 0.5 ? barPulse : 0);
+    }
+    for (const a of L.actions) {
+      if (a.x < x0 - 50 || a.x > x1 + 50 || a.glyph === 'none' || !marksOnAt(L, a.beat)) continue;
+      let y = a.groundY + 44;
+      const slam = L.slams.find((f) => a.x >= f.solid.x && a.x <= f.solid.x + f.solid.w);
+      if (slam) y = slam.solid.y + 20 - slam.lift * SLAM_LIFT_PX;
+      const d = gr.beat - a.beat;
+      const lit = d > -0.35 && d < 0.6 ? 1 - Math.abs(d) / 0.6 : 0;
+      const grade = g.judge.gradeAt(a.beat, a.type);
+      drawScansion(ctx, a.glyph, a.x, y, lit, grade === 'perfect');
+    }
+
+    // slam platforms
+    for (const f of L.slams) {
+      const s = f.solid;
+      if (s.x + s.w < x0 || s.x > x1) continue;
+      const slam = f.lift === 0 ? gr.pulse(1, 0.2) : 0;
+      drawSlamPlatform(ctx, s.x, s.y, s.w, s.h, f.lift, pitY, slam);
+    }
+
+    // checkpoints: film splices across the frame ("SC. <bar>")
     for (const cp of L.checkpoints) {
       if (cp.x < x0 - 100 || cp.x > x1 + 100) continue;
-      const wave = cp.reached ? 1 + 0.1 * gr.pulse(1, 0.3) : 1;
-      blit(ctx, this.spr.flag, cp.x, cp.y, wave, 1);
-      if (cp.flash > 0) {
-        ctx.globalAlpha = cp.flash;
-        blit(ctx, this.spr.lumGlow, cp.x + 40, cp.y - 170, 3, 3);
-        ctx.globalAlpha = 1;
-      }
+      drawBeacon(ctx, cp.x, y0, y1, cp.reached, cp.flash, `SC. ${Math.round(cp.beat / g.tempo.beatsPerBar)}`);
     }
 
-    // finish gate
+    // finish: the harbour's end post
     if (L.finishX > x0 - 200 && L.finishX < x1 + 200) {
       const fy = L.floorYAt(L.finishX - 1);
       const y = Number.isNaN(fy) ? 0 : fy;
@@ -181,14 +203,44 @@ export class Renderer {
       ctx.translate(L.finishX, y);
       ctx.scale(pulse, pulse);
       for (let i = 0; i < 14; i++) {
-        ctx.fillStyle = i % 2 ? '#ffffff' : '#1a1a1a';
+        ctx.fillStyle = i % 2 ? PAL.film : PAL.filmBlack;
         ctx.fillRect(-14, -420 + i * 30, 28, 30);
       }
-      ctx.fillStyle = '#ffd23f';
       ctx.font = `bold 44px ${FONT}`;
       ctx.textAlign = 'center';
-      ctx.fillText('FINISH', 0, -440);
+      outlineText(ctx, 'BAR 33', 0, -440, PAL.film);
       ctx.restore();
+    }
+
+    // spikes
+    for (const h of L.hazards) {
+      const cx = h.vis.x + h.vis.w / 2 + h.offX;
+      if (cx < x0 - 80 || cx > x1 + 80) continue;
+      if (!h.alive && h.offY > 900) continue;
+      const pulse = h.alive ? gr.pulse(1, 0.25) : 0;
+      drawSpike(ctx, cx, h.vis.y + h.vis.h - 22 + h.offY, pulse, h.rot);
+    }
+
+    // pendulum targets
+    for (const f of L.pendulums) {
+      if (f.pivotX < x0 - 200 || f.pivotX > x1 + 200) continue;
+      if (f.struck) {
+        if (f.struckT > 0.5) continue;
+        const k = f.struckT / 0.5;
+        ctx.globalAlpha = 1 - k;
+        ctx.strokeStyle = PAL.gold;
+        ctx.lineWidth = 6 * (1 - k);
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.r + 70 * k, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        continue;
+      }
+      const toBottom = wb - f.beat;
+      // glint 1 beat before the bottom of the swing (the telegraph), glow at the bottom
+      const glint = Math.max(0, 1 - Math.abs(toBottom + 1) / 0.3);
+      const bottomGlow = Math.max(0, 1 - Math.abs(toBottom) / 0.35);
+      drawPendulumTarget(ctx, f.pivotX, f.pivotY, f.x, f.y, f.r, glint, bottomGlow);
     }
 
     // lums
@@ -196,51 +248,74 @@ export class Renderer {
       if (l.x < x0 - 60 || l.x > x1 + 60 || l.skipped) continue;
       if (l.collected) {
         const t = l.collectT;
-        if (t > 0.4) continue;
-        const k = t / 0.4;
-        ctx.globalAlpha = 1 - k;
-        blit(ctx, this.spr.lum, l.x, l.y - 80 * k, 1 + k, 1 + k);
-        ctx.strokeStyle = '#fff2a8';
-        ctx.lineWidth = 4 * (1 - k);
-        ctx.beginPath();
-        ctx.arc(l.x, l.y, 20 + 60 * k, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
+        if (t > 0.35) continue;
+        const k = t / 0.35;
+        drawLum(ctx, l.x, l.y - 70 * k, l.angle - 0.8 * k, 1 + k * 0.6, 1, 1 - k);
         continue;
       }
-      // bounce: each lum pops on its own beat (so rows ripple in time)
+      // each lums leaps on its own beat so rows ripple in time
       const own = gr.pulse(1, 0.18, l.beat % 1);
-      const s = 1 + 0.25 * own;
-      const bob = -6 * (1 - gr.bounce(1, l.beat % 1));
-      blit(ctx, this.spr.lumGlow, l.x, l.y + bob, 0.9 + 0.4 * own, 0.9 + 0.4 * own);
-      blit(ctx, this.spr.lum, l.x, l.y + bob, s, s);
+      const bob = -8 * (1 - gr.bounce(1, l.beat % 1));
+      drawLum(ctx, l.x, l.y + bob, l.angle + Math.sin(gr.beat * Math.PI + l.x) * 0.12, 1 + 0.18 * own, own);
+    }
+    for (const h of g.loose) {
+      if (h.collected) continue;
+      const blink = h.t > 0 && h.expires - g.simTime < 0.6 ? (Math.floor(h.t * 12) % 2 ? 0.35 : 1) : 1;
+      drawLum(ctx, h.x, h.y, Math.sin(h.t * 6) * 0.4, 1, 0.5, blink);
     }
 
-    // enemies
+    // jabbers (bluff goons): bow on the swung "and", mask + jab on the beat
+    const off = gr.beat - Math.floor(gr.beat);
+    const bowK = Math.max(0, 1 - Math.abs(off - L.swing) / 0.3);
     for (const e of L.enemies) {
-      if (e.x < x0 - 150 || e.x > x1 + 150) continue;
-      if (!e.alive && e.deadTime > 1.5) continue;
-      const r = e.alive ? applyBeatReact(e.react, gr) : { sx: 1, sy: 1, dy: 0, flash: 0 };
-      if (e.kind === 'grunt') {
-        blit(ctx, this.spr.grunt, e.x, e.y + r.dy, r.sx * (e.alive ? 1 : 0.9), r.sy, e.rot);
-      } else {
-        const flap = Math.sin(gr.beat * Math.PI * 4);
-        const bob = e.alive ? 14 * gr.wave(2) : 0;
-        const cy = e.y - e.h / 2 + bob;
-        ctx.save();
-        ctx.translate(e.x, cy);
-        ctx.rotate(e.rot);
-        blit(ctx, this.spr.wing, 6, -4, 1, 0.4 + 0.6 * Math.abs(flap));
-        blit(ctx, this.spr.wing, -6, -4, -1, 0.4 + 0.6 * Math.abs(flap));
-        blit(ctx, this.spr.flyerBody, 0, 0, r.sx, r.sy);
-        ctx.restore();
-      }
+      if (e.x < x0 - 200 || e.x > x1 + 200) continue;
+      if ((!e.alive || e.retired) && e.deadTime > 2.2) continue;
+      const r = e.alive && !e.retired ? applyBeatReact(e.react, gr) : { sx: 1, sy: 1, dy: 0, flash: 0 };
+      const toJab = e.beat - gr.beat;
+      const windup = toJab > 0 && toJab < 1 ? 1 - toJab : 0;
+      // heaved = through the paper wall (away); struck = knocked toward the camera into the front row
+      const scale = e.heaved ? Math.max(0.15, 1 - e.deadTime * 0.9) : !e.alive ? 1 + Math.min(1.5, e.deadTime * 1.6) : 1;
+      drawJabber(ctx, e.x, e.y + r.dy, {
+        bow: e.alive && !e.retired ? bowK : 0,
+        jab: Math.min(1, e.jabT / 0.12),
+        windup,
+        flying: e.retired && e.alive,
+        dead: !e.alive,
+        rot: e.rot,
+        scale,
+        squash: r.sx - 1,
+      });
       if (e.hitFlash > 0) {
         ctx.globalAlpha = e.hitFlash;
         blit(ctx, this.spr.lumGlow, e.x, e.y - e.h / 2, 2.2, 2.2);
         ctx.globalAlpha = 1;
       }
     }
+
+    // the chaser: the film burning in from the left (drawn over everything behind the hero)
+    if (g.chaser.active && g.chaser.x > x0 - 800) {
+      const riseK = Math.min(1, (wb - g.chaser.riseBeat) / Tun.chaser.riseBeats);
+      const surge = Math.sin(Math.PI * Math.min(1, riseK)) * 0.8 * ppb;
+      const lagBeats = Number.isFinite(g.player.musicX) ? (g.player.musicX - g.player.x) / ppb : 0;
+      const showX = g.chaser.x + (riseK < 1 && lagBeats < 0.3 ? surge : 0);
+      drawChaser(ctx, showX, y0, gr.time, y1);
+    }
+  }
+
+  // ------------------------------------------------------------------ hero + crowd
+
+  private pose: HeroPose = { sx: 1, sy: 1, facing: 1, runPhase: 0, running: false, grounded: true, strike: NaN, beatBob: 0, spin: NaN, hidden: false, dead: false, surging: false, t: 0 };
+
+  /** the theatre audience along the bottom of the frame (screen space): the crowd streak */
+  private drawCrowd(ctx: CanvasRenderingContext2D): void {
+    const g = this.game;
+    const gr = g.groove;
+    const seats = Tun.crowd.max;
+    const standing = g.crowd.awake ? g.crowd.count : 0;
+    const p = g.player;
+    const wave = p.strikeTime >= 0 && g.crowd.count >= 4 ? p.strikeTime / 0.4 : -1;
+    const backbeat = gr.pulse(2, 0.3, 1);
+    drawAudience(ctx, seats, standing, gr.beat, gr.pulse(1, 0.3), g.conductor.playing ? backbeat : 0, wave, g.crowd.bigCatch);
   }
 
   private drawPlayer(ctx: CanvasRenderingContext2D, x: number, y: number): void {
@@ -248,190 +323,208 @@ export class Renderer {
     const p = g.player;
     const dead = p.mode === 'dead';
     if (dead && g.fade > 0.5) return;
-    const f = p.facing;
-    const h = p.h;
-    const w = p.w;
-    const sx = p.sx;
-    const sy = p.sy;
-    const sliding = p.sliding;
-    const bodyW = (sliding ? w * 1.5 : w) * sx;
-    const bodyH = h * sy;
-
-    // scarf trail (world-space history of the neck point)
-    const neckX = x - f * bodyW * 0.15;
-    const neckY = y - bodyH * 0.72;
-    this.scarf.unshift({ x: neckX, y: neckY });
-    if (this.scarf.length > 14) this.scarf.length = 14;
-    if (!dead && this.scarf.length > 2) {
-      const t = g.groove.beat;
-      ctx.fillStyle = '#e8374f';
-      ctx.beginPath();
-      for (let i = 0; i < this.scarf.length; i++) {
-        const s = this.scarf[i];
-        const wv = Math.sin(t * Math.PI * 2 + i * 0.7) * i * 0.8;
-        const wd = lerp(11, 2, i / this.scarf.length);
-        if (i === 0) ctx.moveTo(s.x, s.y - wd + wv);
-        else ctx.lineTo(s.x - f * i * 5, s.y - wd + wv + i * 1.5);
-      }
-      for (let i = this.scarf.length - 1; i >= 0; i--) {
-        const s = this.scarf[i];
-        const wv = Math.sin(t * Math.PI * 2 + i * 0.7) * i * 0.8;
-        const wd = lerp(11, 2, i / this.scarf.length);
-        ctx.lineTo(s.x - f * i * 5, s.y + wd + wv + i * 1.5);
-      }
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    ctx.save();
-    ctx.translate(x, y);
-    if (dead) {
-      ctx.rotate(g.groove.time * 12);
-      ctx.globalAlpha = 0.9;
-    }
-
-    // feet (run cycle locked to distance -> footfalls on the beat grid)
-    const run = p.grounded && !sliding && Math.abs(p.vx) > 50;
-    const ph = p.runPhase * Math.PI;
-    for (const side of [-1, 1]) {
-      let fx = side * 12;
-      let fy = 0;
-      if (run) {
-        const s = Math.sin(ph + (side > 0 ? 0 : Math.PI));
-        fx = f * s * 22;
-        fy = -Math.max(0, Math.cos(ph + (side > 0 ? 0 : Math.PI))) * 14;
-      } else if (!p.grounded) {
-        fx = side * 10 + f * 6;
-        fy = -8 + side * 4;
-      }
-      if (sliding) {
-        fx = f * (side * 16 + 30);
-        fy = -4;
-      }
-      ctx.fillStyle = '#2b2140';
-      ctx.beginPath();
-      ctx.ellipse(fx, fy - 7, 15, 9, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // body
-    const bx = -bodyW / 2;
-    const by = -bodyH - 6;
-    ctx.fillStyle = '#fff4e2';
-    ctx.strokeStyle = '#2b2140';
-    ctx.lineWidth = 5;
-    roundRect(ctx, bx, by, bodyW, bodyH, Math.min(bodyW, bodyH) * 0.45);
-    ctx.fill();
-    ctx.stroke();
-    // shirt
-    ctx.fillStyle = '#3f7cff';
-    roundRect(ctx, bx + 3, by + bodyH * 0.55, bodyW - 6, bodyH * 0.38, 10);
-    ctx.fill();
-
-    // eyes
-    this.blinkT += 1 / 60;
-    const blink = this.blinkT % 3.2 < 0.1;
-    const ex = f * bodyW * 0.18;
-    const ey = by + bodyH * 0.3;
-    for (const o of [-9, 11]) {
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.ellipse(ex + o, ey, 8, blink ? 1.5 : 11, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#2b2140';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-      if (!blink) {
-        ctx.fillStyle = '#1b1530';
-        ctx.beginPath();
-        ctx.arc(ex + o + f * 3.5, ey + 1, 4.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    // fists
-    const punchT = p.punchTime;
-    let reach = 0;
-    if (punchT >= 0) {
-      const k = punchT / Tun.punch.duration;
-      reach = k < 0.25 ? k / 0.25 : 1 - (k - 0.25) / 0.75;
-      reach = clamp(reach, 0, 1);
-    }
-    const fistY = by + bodyH * 0.55;
-    const backX = -f * (bodyW * 0.45);
-    const frontX = f * (bodyW * 0.5 + reach * (Tun.punch.reach * 0.8));
-    const armSwing = run ? Math.sin(p.runPhase * Math.PI) * 10 : 0;
-    ctx.fillStyle = '#fff4e2';
-    ctx.strokeStyle = '#2b2140';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(backX, fistY - armSwing, 11, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    const fr = 13 + reach * 9;
-    ctx.beginPath();
-    ctx.arc(frontX, fistY + armSwing * (1 - reach), fr, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    if (reach > 0.3) {
-      // speed lines behind the fist
-      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-      ctx.lineWidth = 3;
-      for (const o of [-8, 0, 8]) {
-        ctx.beginPath();
-        ctx.moveTo(frontX - f * (fr + 8), fistY + o);
-        ctx.lineTo(frontX - f * (fr + 40 * reach), fistY + o);
-        ctx.stroke();
-      }
-    }
-    ctx.restore();
+    const P = this.pose;
+    P.sx = p.sx;
+    P.sy = p.sy;
+    P.facing = p.facing;
+    P.runPhase = p.runPhase;
+    P.running = p.grounded && Math.abs(p.vx) > 50;
+    P.grounded = p.grounded;
+    P.strike = p.strikeTime >= 0 ? p.strikeTime / Tun.strike.duration : NaN;
+    P.beatBob = g.groove.pulse(1, 0.3);
+    const since = Tun.stumble.iframesBeats * p.spb - p.iframes;
+    P.spin = p.iframes > 0 && since < 0.35 ? since / 0.35 : NaN;
+    P.hidden = p.iframes > 0 && since >= 0.35 && Math.floor(g.groove.time * 20) % 2 === 0;
+    P.dead = dead;
+    P.surging = p.surging && p.mode === 'play';
+    P.t = g.groove.time;
+    drawHero(ctx, x, y, P);
   }
 
   // ------------------------------------------------------------------ HUD & screens
 
+  /** Perfect sweep: radial speed lines (the movie's slow-motion replay) */
+  private drawFreeze(ctx: CanvasRenderingContext2D): void {
+    const k = this.game.freezeFx / 0.2;
+    if (k <= 0) return;
+    ctx.strokeStyle = `rgba(248,241,220,${0.5 * k})`;
+    ctx.lineWidth = 4;
+    const cx = VIEW_W * 0.32;
+    const cy = VIEW_H * 0.62;
+    for (let i = 0; i < 28; i++) {
+      const a = (i / 28) * Math.PI * 2 + i * 0.37;
+      const r0 = 380 + ((i * 97) % 160);
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+      ctx.lineTo(cx + Math.cos(a) * (r0 + 400), cy + Math.sin(a) * (r0 + 400));
+      ctx.stroke();
+    }
+  }
+
+  /** death: the film visibly rewinds (reverse scrub) before the respawn */
+  private drawRewind(ctx: CanvasRenderingContext2D): void {
+    const g = this.game;
+    if (g.phase !== 'dying') return;
+    const k = Math.min(1, g.deathProgress * 1.4);
+    ctx.fillStyle = `rgba(248,241,220,${0.08 * k})`;
+    for (let i = 0; i < 9; i++) {
+      const y = ((g.groove.time * 2400 + i * 131) % VIEW_H) | 0;
+      ctx.fillRect(0, y, VIEW_W, 6);
+    }
+    ctx.globalAlpha = k;
+    ctx.font = `bold 120px ${FONT}`;
+    ctx.textAlign = 'center';
+    outlineText(ctx, '◀◀', VIEW_W / 2, VIEW_H * 0.42, PAL.film, 10);
+    ctx.globalAlpha = 1;
+    ctx.textAlign = 'left';
+  }
+
+  private drawPopups(ctx: CanvasRenderingContext2D): void {
+    const g = this.game;
+    if (!g.popups.length) return;
+    ctx.font = `bold 34px ${FONT}`;
+    ctx.textAlign = 'center';
+    for (const p of g.popups) {
+      ctx.globalAlpha = Math.max(0, 1 - p.t);
+      outlineText(ctx, p.text, p.x, p.y - 60 * p.t, p.color, 5);
+    }
+    ctx.globalAlpha = 1;
+    ctx.textAlign = 'left';
+  }
+
   private drawHud(ctx: CanvasRenderingContext2D): void {
     const g = this.game;
     const gr = g.groove;
-    // lum counter
     const pop = 1 + 0.12 * gr.pulse(1, 0.2);
-    blit(ctx, this.spr.lumGlow, 70, 70, 1.1, 1.1);
-    blit(ctx, this.spr.lum, 70, 70, 1.3 * pop, 1.3 * pop);
-    ctx.font = `bold 50px ${FONT}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
+    // lums counter
+    drawLum(ctx, 72, 70, -0.25, 1.5 * pop, gr.pulse(1, 0.3));
+    ctx.font = `bold 50px ${FONT}`;
     const wN = ctx.measureText(`${g.stats.lums}`).width;
-    outlineText(ctx, `${g.stats.lums}`, 110, 72, '#fff7d6');
+    outlineText(ctx, `${g.stats.lums}`, 118, 72, PAL.gold);
     ctx.font = `bold 28px ${FONT}`;
-    outlineText(ctx, `/ ${g.stats.lumsTotal}`, 110 + wN + 12, 80, '#d8c9a8');
-    // deaths
-    if (g.stats.deaths > 0) {
-      ctx.font = `bold 30px ${FONT}`;
-      outlineText(ctx, `☠ ${g.stats.deaths}`, 46, 140, '#ffb3c1');
+    outlineText(ctx, `/ ${g.stats.lumsTotal}`, 118 + wN + 12, 80, PAL.film);
+    // training dummies cracked
+    ctx.font = `bold 28px ${FONT}`;
+    ctx.fillStyle = PAL.wood;
+    ctx.beginPath();
+    ctx.ellipse(72, 134, 9, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    outlineText(ctx, `${g.stats.pendulums} / ${g.stats.pendulumsTotal}`, 100, 136, PAL.film);
+    // the audience (count + meter)
+    if (g.crowd.awake) {
+      const cx = 72;
+      const cy = 196;
+      const cp = 1 + 0.35 * g.crowd.flash;
+      drawAudienceIcon(ctx, cx, cy + 6, g.crowd.flash);
+      ctx.font = `bold ${Math.round(40 * cp)}px ${FONT}`;
+      outlineText(ctx, `${g.crowd.count}`, 104, cy, g.crowd.bigCatch ? PAL.gold : PAL.film);
+      const w = 220;
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillRect(170, cy - 8, w, 16);
+      ctx.fillStyle = g.crowd.bigCatch ? PAL.gold : PAL.film;
+      ctx.fillRect(170, cy - 8, (w * g.crowd.count) / Tun.crowd.max, 16);
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.fillRect(170 + (w * Tun.crowd.bigCatchAt) / Tun.crowd.max - 1, cy - 12, 3, 24);
+      if (g.crowd.bigCatch) {
+        ctx.font = `bold ${Math.round(34 + 6 * gr.pulse(1, 0.3))}px ${FONT}`;
+        outlineText(ctx, 'FULL HOUSE!', 410, cy, PAL.gold);
+      }
+    }
+    // deaths / stumbles (small)
+    if (g.stats.deaths > 0 || g.stats.stumbles > 0) {
+      ctx.font = `bold 24px ${FONT}`;
+      outlineText(ctx, `falls ${g.stats.deaths} · stumbles ${g.stats.stumbles}`, 46, 250, PAL.film, 4);
     }
     // beat metronome dots (top right): 4 dots, current beat lit
-    if (g.scene === 'play') {
+    if (g.scene === 'play' && g.phase !== 'coldOpen') {
       const bib = Math.floor(gr.beatInBar);
       for (let i = 0; i < 4; i++) {
         const on = i === bib && g.conductor.playing;
         const r = on ? 12 + 8 * gr.pulse(1, 0.2) : 9;
-        ctx.fillStyle = on ? (i === 0 ? '#ffd23f' : '#ffffff') : 'rgba(255,255,255,0.25)';
+        ctx.fillStyle = on ? (i === 0 ? PAL.gold : '#ffffff') : 'rgba(255,255,255,0.25)';
         ctx.beginPath();
         ctx.arc(VIEW_W - 170 + i * 40, 60, r, 0, Math.PI * 2);
         ctx.fill();
       }
+      ctx.font = `bold 22px ${FONT}`;
+      ctx.textAlign = 'right';
+      const barNo = Math.floor(gr.beat / 4);
+      if (g.conductor.playing) outlineText(ctx, `bar ${barNo}`, VIEW_W - 44, 100, 'rgba(255,255,255,0.7)', 4);
+      ctx.textAlign = 'left';
+    }
+    // cold open prompt
+    if (g.phase === 'coldOpen') {
+      const k = 0.6 + 0.4 * gr.pulse(1, 0.4);
+      ctx.textAlign = 'center';
+      ctx.font = `bold 64px ${FONT}`;
+      ctx.globalAlpha = Math.min(1, g.coldOpenT * 2);
+      outlineText(ctx, 'CUE-FU', VIEW_W / 2, VIEW_H * 0.2, PAL.film, 8);
+      ctx.globalAlpha = Math.min(1, g.coldOpenT * 2) * k;
+      ctx.font = `bold 44px ${FONT}`;
+      outlineText(ctx, 'press  X  (CUE SWEEP)  to roll the film', VIEW_W / 2, VIEW_H * 0.3, PAL.heroAccent, 7);
+      ctx.globalAlpha = 1;
     }
     // count-in
     if (g.phase === 'countIn' && g.scene === 'play' && g.conductor.playing) {
       const beatsLeft = g.spawnBeat - g.conductor.beat;
       if (beatsLeft > 0 && beatsLeft <= Tun.flow.countInBeats) {
+        // film countdown leader: a circle with a sweeping hand and the number
         const n = Math.ceil(beatsLeft);
+        const frac = beatsLeft - Math.floor(beatsLeft);
+        const cx = VIEW_W / 2;
+        const cy = VIEW_H * 0.32;
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = 'rgba(26,20,16,0.55)';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 110, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(233,216,180,0.35)';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, 110, -Math.PI / 2, -Math.PI / 2 + (1 - frac) * Math.PI * 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = PAL.film;
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 110, 0, Math.PI * 2);
+        ctx.moveTo(cx - 130, cy);
+        ctx.lineTo(cx + 130, cy);
+        ctx.moveTo(cx, cy - 130);
+        ctx.lineTo(cx, cy + 130);
+        ctx.stroke();
         const k = g.groove.pulse(1, 0.3);
-        ctx.font = `bold ${120 + 40 * k}px ${FONT}`;
+        ctx.font = `bold ${110 + 30 * k}px ${FONT}`;
         ctx.textAlign = 'center';
-        ctx.globalAlpha = 0.9;
-        outlineText(ctx, n <= 3 ? String(n) : 'READY', VIEW_W / 2, VIEW_H * 0.3, '#ffffff');
+        outlineText(ctx, n === 1 ? 'HEY!' : String(n), cx, cy + 6, n === 1 ? PAL.heroAccent : PAL.film);
         ctx.globalAlpha = 1;
       }
+    }
+    // first-appearance hint (tutorial text)
+    const beat = g.conductor.playing ? g.conductor.beat : -1;
+    for (const h of g.level.hints) {
+      const d = beat - h.beat;
+      if (d < -0.5 || d > h.beats) continue;
+      const a = Math.min(1, (d + 0.5) / 0.5, (h.beats - d) / 1);
+      ctx.globalAlpha = Math.max(0, a);
+      ctx.font = `bold 38px ${FONT}`;
+      ctx.textAlign = 'center';
+      const w = ctx.measureText(h.text).width + 60;
+      ctx.fillStyle = 'rgba(20,26,58,0.55)';
+      ctx.fillRect(VIEW_W / 2 - w / 2, VIEW_H * 0.12 - 32, w, 64);
+      outlineText(ctx, h.text, VIEW_W / 2, VIEW_H * 0.12, '#ffffff', 5);
+      ctx.globalAlpha = 1;
+      break;
+    }
+    // dubbed subtitle on the song's shouts (cream, never yellow: yellow reads as reward)
+    if (g.subtitle.t > 0 && g.scene === 'play') {
+      ctx.globalAlpha = Math.min(1, g.subtitle.t * 5);
+      ctx.font = `bold 52px ${FONT}`;
+      ctx.textAlign = 'center';
+      outlineText(ctx, g.subtitle.text, VIEW_W / 2, VIEW_H - 120, '#F4EFE2', 7);
+      ctx.globalAlpha = 1;
     }
     if (g.toast.t > 0) {
       ctx.globalAlpha = Math.min(1, g.toast.t * 2);
@@ -446,27 +539,29 @@ export class Renderer {
 
   private drawTitle(ctx: CanvasRenderingContext2D): void {
     const g = this.game;
+    g.background.skyFrom = g.background.skyTo = 'neon';
+    g.background.skyK = 1;
     g.background.draw(ctx, g.groove.time * 200, -240, g.groove);
     ctx.fillStyle = 'rgba(10,6,30,0.35)';
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     const k = g.groove.pulse(1, 0.25);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `bold ${150 + 10 * k}px ${FONT}`;
-    outlineText(ctx, 'OPUS LEGENDS', VIEW_W / 2, VIEW_H * 0.36, '#ffe066', 12);
+    ctx.font = `bold ${120 + 8 * k}px ${FONT}`;
+    outlineText(ctx, 'CUE-FU', VIEW_W / 2, VIEW_H * 0.34, PAL.heroAccent, 12);
     ctx.font = `bold 34px ${FONT}`;
-    outlineText(ctx, g.song.title + (g.song.artist ? ` — ${g.song.artist}` : ''), VIEW_W / 2, VIEW_H * 0.48, '#ffffff');
+    outlineText(ctx, 'OpusLegends · vertical slice: cold open → Chorus 1 · ' + g.song.title, VIEW_W / 2, VIEW_H * 0.46, '#ffffff');
     ctx.font = `bold 46px ${FONT}`;
-    if (g.loadError) outlineText(ctx, 'Failed to load audio: ' + g.loadError, VIEW_W / 2, VIEW_H * 0.66, '#ff8080');
-    else if (g.scene === 'loading') outlineText(ctx, 'tuning the band…', VIEW_W / 2, VIEW_H * 0.66, '#ffffff');
+    if (g.loadError) outlineText(ctx, 'Failed to load audio: ' + g.loadError, VIEW_W / 2, VIEW_H * 0.64, '#ff8080');
+    else if (g.scene === 'loading') outlineText(ctx, 'tuning the band…', VIEW_W / 2, VIEW_H * 0.64, '#ffffff');
     else {
       ctx.globalAlpha = 0.6 + 0.4 * k;
-      outlineText(ctx, 'PRESS ANY KEY TO START', VIEW_W / 2, VIEW_H * 0.66, '#ffffff');
+      outlineText(ctx, 'PRESS ANY KEY', VIEW_W / 2, VIEW_H * 0.64, '#ffffff');
       ctx.globalAlpha = 1;
     }
-    ctx.font = `26px ${FONT}`;
-    outlineText(ctx, 'Arrows / WASD move · Space / Z / W jump (hold = higher) · X / J punch · Down / S slide · Gamepad supported', VIEW_W / 2, VIEW_H * 0.8, '#e8e0ff', 5);
-    outlineText(ctx, '[ / ] adjust audio latency · Esc pause · ` debug overlay', VIEW_W / 2, VIEW_H * 0.85, '#bfb4e0', 5);
+    ctx.font = `28px ${FONT}`;
+    outlineText(ctx, 'Hold → run · Space/Z/W: tap = HOP, hold = JUMP · X/J: CUE SWEEP · Gamepad: A hop, X/B sweep', VIEW_W / 2, VIEW_H * 0.8, '#e8e0ff', 5);
+    outlineText(ctx, '[ / ] audio latency · Esc pause · ` debug overlay', VIEW_W / 2, VIEW_H * 0.85, '#bfb4e0', 5);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
     g.debug.drawScreen(ctx);
@@ -478,31 +573,34 @@ export class Renderer {
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `bold 110px ${FONT}`;
-    outlineText(ctx, 'LEVEL COMPLETE!', VIEW_W / 2, VIEW_H * 0.24, '#ffe066', 10);
+    ctx.font = `bold 100px ${FONT}`;
+    outlineText(ctx, 'SLICE COMPLETE!', VIEW_W / 2, VIEW_H * 0.18, PAL.heroAccent, 10);
     const r = g.report();
-    const secs = (g.stats.finishedAt - g.stats.startedAt) / 1000;
-    const acc = r.timing.press.n > 0 ? r.timing.press.meanAbsMs : r.timing.exec.meanAbsMs;
-    const grade = !Number.isFinite(acc) ? '-' : acc < 25 ? 'PERFECT GROOVE' : acc < 50 ? 'GREAT GROOVE' : acc < 90 ? 'GOOD GROOVE' : 'LOOSE GROOVE';
+    const gr = r.grades;
+    const total = gr.perfect + gr.great + gr.good + gr.miss;
     const lines: [string, string][] = [
-      ['Lums', `${g.stats.lums} / ${g.stats.lumsTotal}`],
-      ['Deaths', `${g.stats.deaths}`],
-      ['Time', `${secs.toFixed(1)} s`],
-      ['Rhythm', Number.isFinite(acc) ? `±${acc.toFixed(0)} ms  (${r.matchedActions}/${r.intendedActions} on beat)` : '-'],
+      ['Fortune coins', `${g.stats.lums} / ${g.stats.lumsTotal}`],
+      ['Training dummies', `${g.stats.pendulums} / ${g.stats.pendulumsTotal}`],
+      ['Audience on its feet', `${g.crowd.peak}`],
+      ['On the beat', `${gr.perfect + gr.great + gr.good} / ${total}  (${gr.perfect} perfect, ${gr.great} great)`],
+      ['Heaves', `${g.stats.heaves} / ${r.phrases}`],
+      ['Falls · stumbles', `${g.stats.deaths} · ${g.stats.stumbles}`],
     ];
-    ctx.font = `bold 48px ${FONT}`;
+    ctx.font = `bold 42px ${FONT}`;
     lines.forEach(([k, v], i) => {
       ctx.textAlign = 'right';
-      outlineText(ctx, k, VIEW_W / 2 - 30, VIEW_H * 0.4 + i * 72, '#cfc3ff');
+      outlineText(ctx, k, VIEW_W / 2 - 30, VIEW_H * 0.32 + i * 64, '#cfc3ff');
       ctx.textAlign = 'left';
-      outlineText(ctx, v, VIEW_W / 2 + 30, VIEW_H * 0.4 + i * 72, '#ffffff');
+      outlineText(ctx, v, VIEW_W / 2 + 30, VIEW_H * 0.32 + i * 64, '#ffffff');
     });
+    const pct = total > 0 ? (gr.perfect + gr.great * 0.7 + gr.good * 0.4) / total : 0;
+    const cup = pct > 0.85 && g.stats.lums >= g.stats.lumsTotal * 0.9 ? 'BOX-OFFICE SMASH' : pct > 0.65 ? 'CULT CLASSIC' : pct > 0.4 ? 'B-MOVIE' : 'STRAIGHT TO VIDEO';
     ctx.textAlign = 'center';
     ctx.font = `bold 56px ${FONT}`;
-    outlineText(ctx, grade, VIEW_W / 2, VIEW_H * 0.74, '#7dffb0', 8);
+    outlineText(ctx, cup, VIEW_W / 2, VIEW_H * 0.76, PAL.gold, 8);
     ctx.font = `bold 34px ${FONT}`;
     ctx.globalAlpha = 0.6 + 0.4 * g.groove.pulse(1, 0.3);
-    outlineText(ctx, 'press Space / Enter to play again', VIEW_W / 2, VIEW_H * 0.86, '#ffffff');
+    outlineText(ctx, 'press Space / Enter to play again', VIEW_W / 2, VIEW_H * 0.87, '#ffffff');
     ctx.globalAlpha = 1;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';

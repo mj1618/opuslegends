@@ -42,3 +42,53 @@ synth palette + mix chain; full arrangement next.
   threat only in bars 1–4; mixed verbs; a moving threat per act; high routes; an always-busy screen; difficulty
   targets (first clear 10–20 deaths). §7 now lists minimum required actions per section (~277 total), and a density
   linter for `npm run playtest` is specified. Fun Risk 1 is now "still boring".
+
+## Iteration 1 — gameplay notes
+What shipped (autoplay clears it: 0 deaths, 119/119 actions, ≤4 ms off the beat; `--miss` and `--sloppy` pass):
+- **Controller**: run with a tempo cap and a +15% catch-up surge. Hop physics are defined in beats: every tap up to
+  0.22 beat is the same ~0.93-beat hop, and a 1-beat hold gives a ~1.96-beat jump, at any BPM. Up-forward strike
+  (the cue swing) that can cancel its own recovery, so strikes on consecutive beats work. Stumble = knockback +
+  i-frames + 5 dropped tokens + crowd −25%. Death = pit or the Burn. Hitbox 56×100 (Slim). Wall-jump is off.
+- **Systems**: timing judge (P/G/G ±45/90/135, early +12, grades only), crowd streak meter driving the `shouts` and
+  `bonus` stem gains, SFX quantised to the target beat on early presses, cold open (STRIKE starts bar 0), checkpoints
+  at bars 9/17/25 with a 0.6 s death and a 1-bar count-in, the chaser from bar 5, scansion marks + bar lines, and
+  one swing constant (`SongDef.swing`).
+- **Song**: the placeholder is rebuilt to the real form. It's 164 BPM with a shuffle, a pickup plus 32 bars, and the
+  chorus stab/HEY grid with stop-time. The chorus hook melody comes from the transcription. It has stems, and a
+  beatmap loader (`songFromBeatmap`) makes swapping in the real render a data change.
+- **Level** (`level/slice.ts`): bars 1–4 are zero threat. Bars 5–8 alternate hazards on 1 & 3 with dummies on 2 & 4,
+  plus an air strike. Verse 1a mixes gaps, spikes, mid-air strikes on high dummies, jabbers and an optional awning
+  route. Verse 1b has slam-platform runs (2 → 5 → 8) with hop-strikes. The chorus puts jabbers on every HEY, a
+  stop-time line and two Hup-Hup-HEYs (the second hop over a lethal gap).
+
+Tuned (the measurements are in `dsl.ts`):
+- Tap hop shortened from 1.0 to 0.93 beat and jump buffer raised to 130 ms. Without this, a late hop followed by an
+  early press broke slam-platform chains.
+- Slam platforms are solid from −0.42 beat until the swung "and" + 0.08, on a wider board. The visual is "down"
+  exactly while the platform is solid.
+- Spikes sit at the hop's arc centre (+0.45 beat), giving about ±110 ms of timing slack.
+- Jabbers are placed so contact happens 0.42 beat after the strike beat, giving about −220/+135 ms.
+- Stumble knockback reduced, so the surge recovers in 4.7 beats (DESIGN wants ≤ 4).
+- The Perfect freeze and the air-strike pop never touch the sim: both used to drag the hero off the grid.
+
+Sloppy human (±85 ms jitter + 10% late presses, re-rolled every attempt), 3 seeds: 1, 2 and 7 deaths, almost all in
+Verse 1b (slam platforms). Stumbles were 2 per run. ±90 ms jitter clears with 0 deaths; ±110 ms dies in the platform
+runs.
+
+Fun assessment (honest):
+- Probably fun: the hop-per-beat platform pogo, the chorus's strike-on-every-HEY with the crowd standing up and the
+  shouts stem getting louder, and a clean Hup-Hup-HEY.
+- Probably not yet:
+  - Difficulty spikes where the 8-platform run (bars 22–23) meets sloppy timing.
+  - Patterns repeat: "hop, dummy, hop, dummy" in bars 5–8, and jumpStrike used 6 times.
+  - Most pendulums are optional, so they read as filler.
+  - The screen is still static: no reactive props, background brawls or moving threats yet.
+  - The user's own verdicts were "boring" before the density pass and "too hard, repetitive" after it.
+
+Open questions for the redesign:
+- Where should the difficulty curve sit? DESIGN §4 rule 7 wants 0–2 deaths in bars 1–24, and the sloppy bot's
+  Verse 1b deaths suggest the 8-run is too long for a first encounter.
+- Moving threats (sliding bottles/stools, thrown bottles) and an always-busy screen (props, brawlers, debris,
+  camera punches on stabs) are specified but not built.
+- A density linter (required actions per window, verb mix, max same-verb run) belongs in `npm run playtest`.
+- Should the Freeze and the jabber bow bounce (optional high route) become real routes?

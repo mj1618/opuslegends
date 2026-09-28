@@ -9,6 +9,8 @@ export type SolidKind = 'solid' | 'oneway';
 
 export interface Solid extends Rect {
   kind: SolidKind;
+  /** dynamic solids (slam platforms) can be switched off; inactive solids are invisible to collision */
+  active?: boolean;
 }
 
 /** Physics body anchored at FEET CENTER (x = center, y = bottom). */
@@ -49,7 +51,7 @@ export class CollisionWorld {
     return this.solids;
   }
 
-  /** Solids whose x-extent overlaps [x0, x1]. Returned array is reused — don't keep it. */
+  /** Active solids whose x-extent overlaps [x0, x1]. Returned array is reused — don't keep it. */
   query(x0: number, x1: number): Solid[] {
     const out = this.scratch;
     out.length = 0;
@@ -66,7 +68,7 @@ export class CollisionWorld {
     for (let i = lo; i < s.length; i++) {
       const o = s[i];
       if (o.x > x1) break;
-      if (o.x + o.w > x0) out.push(o);
+      if (o.x + o.w > x0 && o.active !== false) out.push(o);
     }
     return out;
   }

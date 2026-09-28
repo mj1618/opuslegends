@@ -8,7 +8,7 @@
  */
 import { VIEW_H, VIEW_W, makeCanvas } from '../engine/display';
 import { makeRng, mod } from '../engine/math';
-import type { BeatReactSpec } from '../level/types';
+import type { BeatReactSpec, SkyPreset } from '../level/types';
 import { type Groove, applyBeatReact } from './groove';
 
 export interface ParallaxLayer {
@@ -22,8 +22,23 @@ export interface ParallaxLayer {
   react?: BeatReactSpec;
 }
 
+/** Lighting presets (DESIGN §3 lighting arc): sky gradient + haze laid over the far layers. */
+export const SKY_PRESETS: Record<SkyPreset, { stops: [number, string][]; haze: string; hazeA: number; stars: number }> = {
+  // 42nd Street golden hour: faded ochre
+  golden: { stops: [[0, '#C9A874'], [0.55, '#DCC7A0'], [1, '#E9D8B4']], haze: '#DCC7A0', hazeA: 0.45, stars: 0 },
+  // neon marquee dusk -> night
+  neon: { stops: [[0, '#150F1E'], [0.55, '#2A1E3A'], [0.85, '#4A2A4E'], [1, '#6A3A5A']], haze: '#2A1E3A', hazeA: 0.35, stars: 1 },
+  // the honky-tonk bar: warm lamplight on timber, a back-bar of glowing bottles (interior backdrop)
+  honkytonk: { stops: [[0, '#2E2118'], [0.5, '#4E3A2C'], [1, '#7A5A40']], haze: '#4E3A2C', hazeA: 0.55, stars: 0 },
+};
+
 export class Background {
   private sky: HTMLCanvasElement;
+  private skies: Record<SkyPreset, HTMLCanvasElement>;
+  /** current lighting: cross-fade from -> to by k (set by the renderer from level sky cues) */
+  skyFrom: SkyPreset = 'golden';
+  skyTo: SkyPreset = 'golden';
+  skyK = 1;
   /** beat glow overlay, pre-rendered (gradients are expensive to build per frame) */
   private glow: HTMLCanvasElement;
   private layers: ParallaxLayer[];
@@ -32,12 +47,18 @@ export class Background {
 
   constructor(seed: number) {
     this.sky = makeSky();
+    this.skies = { golden: makePresetSky('golden'), neon: makePresetSky('neon'), honkytonk: makePresetSky('honkytonk') };
     this.glow = makeGlow();
     this.layers = makePlaceholderLayers(seed);
   }
 
   draw(ctx: CanvasRenderingContext2D, camX: number, camY: number, g: Groove): void {
-    ctx.drawImage(this.sky, 0, 0, VIEW_W, VIEW_H);
+    ctx.drawImage(this.skies[this.skyFrom] ?? this.sky, 0, 0, VIEW_W, VIEW_H);
+    if (this.skyK < 1 && this.skyTo !== this.skyFrom) {
+      ctx.globalAlpha = this.skyK;
+      ctx.drawImage(this.skies[this.skyTo], 0, 0, VIEW_W, VIEW_H);
+      ctx.globalAlpha = 1;
+    } else if (this.skyTo !== this.skyFrom) ctx.drawImage(this.skies[this.skyTo], 0, 0, VIEW_W, VIEW_H);
     // beat glow on the horizon
     const glow = 0.1 * g.pulse(1, 0.35) + 0.18 * g.pulse(4, 0.8) + this.pulse * 0.5;
     if (glow > 0.01) {
@@ -61,8 +82,75 @@ export class Background {
         if (sy !== 1) ctx.drawImage(L.canvas, x, y + h * (1 - sy), w, h * sy);
         else ctx.drawImage(L.canvas, x, y);
       }
+      // aerial haze: far layers lose contrast and take the sky's colour (DESIGN §3 rules)
+      const pre = SKY_PRESETS[this.skyK >= 0.5 ? this.skyTo : this.skyFrom];
+      ctx.globalAlpha = pre.hazeA * (1 - L.factor);
+      ctx.fillStyle = pre.haze;
+      ctx.fillRect(0, Math.max(0, y), VIEW_W, VIEW_H - Math.max(0, y));
+      ctx.globalAlpha = 1;
     }
   }
+}
+
+function makePresetSky(name: SkyPreset): HTMLCanvasElement {
+  const pre = SKY_PRESETS[name];
+  const [c, ctx] = makeCanvas(VIEW_W / 2, VIEW_H / 2);
+  const g = ctx.createLinearGradient(0, 0, 0, c.height);
+  for (const [o, col] of pre.stops) g.addColorStop(o, col);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, c.width, c.height);
+  if (pre.stars) {
+    const rng = makeRng(7);
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    for (let i = 0; i < 90; i++) {
+      const s = rng() * 1.6 + 0.3;
+      ctx.fillRect(rng() * c.width, rng() * c.height * 0.45, s, s);
+    }
+  }
+  // Big Jim's pagoda on the horizon (placeholder silhouette: the goal, always visible)
+  ctx.fillStyle = name === 'golden' ? 'rgba(94,43,78,0.45)' : 'rgba(10,8,12,0.75)';
+  const bx = c.width * 0.82;
+  let by = c.height * 0.66;
+  for (let f = 0; f < 5; f++) {
+    const w = 70 - f * 11;
+    ctx.fillRect(bx - w / 2, by - 22, w, 22);
+    ctx.beginPath();
+    ctx.moveTo(bx - w / 2 - 16, by - 22);
+    ctx.lineTo(bx, by - 34);
+    ctx.lineTo(bx + w / 2 + 16, by - 22);
+    ctx.closePath();
+    ctx.fill();
+    by -= 30;
+  }
+  if (name === 'neon') {
+    // aviator glints in the top window
+    ctx.fillStyle = 'rgba(201,211,218,0.9)';
+    ctx.fillRect(bx - 8, by - 4, 6, 4);
+    ctx.fillRect(bx + 2, by - 4, 6, 4);
+  }
+  if (name === 'honkytonk') {
+    // indoors: a back-bar with shelves of glowing bottles and neon beer signs instead of a sky
+    ctx.fillStyle = '#2E2118';
+    ctx.fillRect(0, 0, c.width, c.height);
+    const rng2 = makeRng(3);
+    for (let shelf = 0; shelf < 3; shelf++) {
+      const sy = c.height * (0.28 + shelf * 0.16);
+      ctx.fillStyle = '#4E3A2C';
+      ctx.fillRect(0, sy, c.width, 6);
+      for (let x = 6; x < c.width; x += 14 + rng2() * 10) {
+        const h = 18 + rng2() * 22;
+        ctx.fillStyle = ['rgba(47,163,122,0.7)', 'rgba(201,138,58,0.7)', 'rgba(126,58,48,0.7)', 'rgba(233,216,180,0.5)'][Math.floor(rng2() * 4)];
+        ctx.fillRect(x, sy - h, 8, h);
+        ctx.fillRect(x + 2, sy - h - 8, 4, 8);
+      }
+    }
+    for (const [nx, col] of [[0.18, 'rgba(70,214,160,0.8)'], [0.62, 'rgba(224,86,155,0.8)']] as const) {
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 4;
+      ctx.strokeRect(c.width * nx, c.height * 0.08, 110, 34);
+    }
+  }
+  return c;
 }
 
 function makeGlow(): HTMLCanvasElement {
