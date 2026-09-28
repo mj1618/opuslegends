@@ -248,3 +248,19 @@ are hopped), E3 (4 threats in the chorus runway).
   there in one run, the uncalibrated bot 3×); act 2 may want a gentler `Tun.chaser` or fewer stumbles per bar.
   `gapHop`'s default is now 'std' (−110/+150; was −120/+200). The playtest bot's 10 % late tail is the sloppy
   model's only source of deaths, so the ±85 rate is sensitive to ~10 ms of early-side window.
+
+## Iteration 3 — outcome + fun review
+Shipped: act-1 teeth (Burn pressure, block-peak lethal combos, skill crowd, knee-slide fix, hints ≤3, wow moments),
+audible crowd reward (projection-booth filter → full-range, overlays up at FULL HOUSE, grade/miss sounds), feedback
+stamps + combo counter, per-section breakables, dancing goons, act 2 (bars 34-60: facade climb, bottles/firebombs,
+window smash, bowling-alley chorus). Act 3 planned (docs/level/act3_plan.md).
+Review (docs/reviews/iter3.md): act 1 WORKS (±40: 0 deaths, ±85: 0.6, ±130: 2.6; ignore-everything bots caught).
+Act 2 breaks fairness (late slack 110-125 ms vs act 1's 150+, bottles 70 ms → 6-11 deaths for laggy players),
+is act 1 reskinned (9/12 elements), the climb is flat (790 px rise over 12,300 px), bowling chorus darkest screen,
+gate 9/11 (intensity corr 0.30, Burn death loop bars 40-41).
+
+## Iteration 4 — Act 3 climax + act 2 made its own (in progress)
+Parallel: (a) act 3 build per act3_plan + review; (b) act 2 rework: real verticality, fairness slack, unique
+set-pieces; (c) gameplay fixes: Burn respawn distance, crowd start 8, latency calibration in the cold open, act-1
+chorus early-press slack, crowd continuity + Hup-Hup-HEY → FULL HOUSE, hop-led blocks, poster count; (d) art: act-3
+environments + Big Jim rig + letters + iris, lit bowling alley, glint/window-crash camera moments; (e) audio: act-3 SFX.
