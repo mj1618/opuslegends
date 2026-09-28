@@ -24,6 +24,10 @@
  *   cue                landmarks (`name`: section starts, final_hit, ...)
  *   shouts             OVERLAY gang HEY!/HUP! (`word`)      stomps, claps, cowbell: OVERLAY hits
  *   splices            the edit's cut points
+ *   tokenMelody        what a collected token SINGS (iteration 6, tools/music/original/tokens.py): the vocal melody two
+ *                      octaves up (`pitch`, token MIDI) where the singer agrees with it within 35 cents (`mode` double |
+ *                      measured), else a chord tone a third above (`harmony`); `sung` = the transcribed note
+ *   piano              the record's own piano hits (the demucs piano stem's onsets; `vel`): the bar pianist plays these
  * The placeholder song only has shouts + stops. Unknown lane names return an empty lane.
  */
 
@@ -112,6 +116,23 @@ export interface OverlayHit extends LaneEventBase {
   vel: number;
 }
 
+export interface TokenNote extends SpanEvent {
+  /** the token voice's MIDI note (C5..A6) */
+  pitch: number;
+  /** the transcribed sung note (MIDI) */
+  sung: number;
+  /** double / measured: the token doubles what the singer sings (within 35 cents); harmony: a chord tone near it */
+  mode: 'double' | 'measured' | 'harmony';
+  /** pYIN median of the singer (MIDI float) and its distance to the nearest semitone (cents), where measured */
+  measured?: number;
+  cents?: number;
+  section?: string;
+}
+export interface PianoHit extends LaneEventBase {
+  vel: number;
+  pos?: 'on' | 'and' | 'trip';
+}
+
 /** lane name -> event type */
 export interface LaneTypes {
   kick: DrumHit;
@@ -133,6 +154,8 @@ export interface LaneTypes {
   claps: OverlayHit;
   cowbell: OverlayHit;
   splices: LaneEventBase;
+  tokenMelody: TokenNote;
+  piano: PianoHit;
 }
 export type LaneName = keyof LaneTypes;
 

@@ -38,6 +38,8 @@ export class Conductor {
   /** extra stems, played sample-aligned with `buffer` through per-stem gain buses */
   stems: Record<string, AudioBuffer> = {};
   private stemBus: Record<string, GainNode> = {};
+  /** per-stem FLARE path (iteration 6: a smashed goon's part flares): stem -> flare gain (0 at rest) -> the bus's EQ/clip */
+  private stemFlare: Record<string, GainNode> = {};
   /** unity taps of individual stems BEFORE their (crowd-driven) bus gain — for the sync probe */
   private taps: Record<string, GainNode> = {};
   /**
@@ -177,13 +179,14 @@ export class Conductor {
     // Schedule relative to currentTime (the scheduling timeline); the audible mapping above
     // tells us when that is heard. The pre-roll must be schedulable too.
     const when = ctx.currentTime + Math.max(lead, pre + 0.02);
-    const start = (buffer: AudioBuffer, dest: AudioNode, tap?: AudioNode) => {
+    const start = (buffer: AudioBuffer, dest: AudioNode, tap?: AudioNode, also?: AudioNode) => {
       const src = ctx.createBufferSource();
       src.buffer = buffer;
       const g = ctx.createGain();
       g.gain.value = 1;
       src.connect(g).connect(dest);
       if (tap) g.connect(tap);
+      if (also) g.connect(also);
       if (bufOffset >= 0) {
         if (bufOffset < buffer.duration) {
           if (pre > 0) {
@@ -198,7 +201,7 @@ export class Conductor {
       this.sources.push({ src, gain: g });
     };
     if (this.buffer) start(this.buffer, this.inserts.record ?? this.out);
-    for (const [name, buf] of Object.entries(this.stems)) start(buf, this.bus(name), this.taps[name]);
+    for (const [name, buf] of Object.entries(this.stems)) start(buf, this.bus(name), this.taps[name], this.stemFlare[name]);
     // Song time `from` is at scheduled ctx time `when`; in the audible timeline that is the
     // same ctx time (getOutputTimestamp contextTime is on the same timeline).
     this.startCtx = when;
@@ -263,8 +266,13 @@ export class Conductor {
     let b = this.stemBus[name];
     if (!b) {
       // the crowd-driven gain + the rule's zero-latency EQ / soft clip (audio/mix.ts OVERLAY_RULES)
-      b = makeOverlayBus(this.ctx, OVERLAY_RULES[name], this.inserts[name] ?? this.out, this.song.stemGains?.[name] ?? 1);
+      const bus = makeOverlayBus(this.ctx, OVERLAY_RULES[name], this.inserts[name] ?? this.out, this.song.stemGains?.[name] ?? 1);
+      b = bus.gain;
       this.stemBus[name] = b;
+      const flare = this.ctx.createGain();
+      flare.gain.value = 0;
+      flare.connect(bus.sum);
+      this.stemFlare[name] = flare;
     }
     return b;
   }
@@ -308,6 +316,26 @@ export class Conductor {
       if (!instant && Math.abs((this.stemTarget[name] ?? -1) - g) < 1e-4) continue;
       this.setStemGain(name, g, instant ? 0.05 : OVERLAY_RULES[name].rampBeats * spb, instant ? undefined : when, instant);
     }
+  }
+
+  /**
+   * FLARE a stem (a smashed goon's part: its overlay jumps out of the mix): from ctx time `when` the stem plays at
+   * `db` over its crowd level (at least `floorDb` absolute, so it is heard even where the crowd has it silent), holds
+   * `holdSec`, then glides back over `releaseSec`. A parallel path: the crowd glides are untouched.
+   */
+  flareStem(name: string, when: number, db = 6, holdSec = 0.37, releaseSec = 0.37, floorDb = -10): boolean {
+    if (!(name in this.stems)) return false;
+    this.bus(name);
+    const f = this.stemFlare[name];
+    const now = this.ctx.currentTime;
+    const t = Number.isFinite(when) && when > now ? when : now;
+    const c = this.stemTarget[name] ?? this.stemBus[name].gain.value;
+    const total = Math.max(c * Math.pow(10, db / 20), Math.pow(10, floorDb / 20));
+    const add = Math.max(0, total - c);
+    f.gain.cancelScheduledValues(t);
+    f.gain.setTargetAtTime(add, t, 0.004);
+    f.gain.setTargetAtTime(0, t + holdSec, Math.max(0.01, releaseSec / 4));
+    return true;
   }
 
   stemGain(name: string): number {

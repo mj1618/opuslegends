@@ -249,7 +249,9 @@ At ≥ 20, **FULL HOUSE**: everyone's up, popcorn flies, the marquee bulbs chase
 compensation, tap test in pause, bounded auto-cal).
 
 **Score:** **tokens** are the lums: brass pool-hall tokens stamped with an 8-ball. They trace the ideal path, and each
-pickup plays the next note of a honky-tonk piano ladder from the current chord. **Cups:** Bronze / Silver / Gold Cue,
+pickup SINGS the next note of Croce's vocal melody (iteration 6, Castle Rock's lum trick): a bright honky-tonk piano +
+bell two octaves over him, doubling him where he's on pitch and harmonising where he bends, chord tones between phrases
+(`audio/tokenMelody.ts`). Lay token rows on the `tokenMelody` lane's onsets and they play the tune. **Cups:** Bronze / Silver / Gold Cue,
 then **"Top Billing"** (every token and every pendulum); thresholds set after layout **[tune]**.
 
 ---

@@ -293,6 +293,10 @@ LANE_DESC = {
     "claps": "OVERLAY: hand claps (reward stem)",
     "cowbell": "OVERLAY: cowbell accents (reward stem)",
     "splices": "EDIT: where the edit jumps (crossfade centred on t)",
+    "tokenMelody": "what a collected token sings (tools/music/original/tokens.py): pitch = token MIDI (the vocal two "
+                   "octaves up); mode double | measured (the singer agrees within agreeCents) | harmony (a chord tone a "
+                   "third above: the singer bends or can't be measured); sung = the transcribed note, measured = pYIN",
+    "piano": "the record's own piano hits (demucs piano stem onsets; vel 0..1): the bar-pianist goon plays these",
 }
 
 
@@ -345,6 +349,14 @@ def stage_lanes():
         cue.append(G.ev((s["bars"][0] - 1) * 4, name=s["name"], bar=s["bars"][0]))
     cue.append(G.ev((116 - 1) * 4, name="fade_start", bar=116, note="the original fades out from ~bar 116"))
     lanes["cue"] = cue
+    # iteration 6: the token voice (the melody measured against the record) + the piano hits (token_lanes.py)
+    from original import tokens as T
+    ft_v, midi_v = T.vocal_pitch(st["vocals"], SR, os.path.join(BUILD, "vocal_pyin.npz"))
+    notes = [{"beat": e["beat"], "pitch": e["pitch"], "durBeats": e["durBeats"], "section": e.get("section")}
+             for e in lanes["melody"]] + T.outro_tag_notes(TR)
+    lanes["tokenMelody"] = T.token_part(sorted(notes, key=lambda n: n["beat"]), ft_v, midi_v, G, harmony(G),
+                                        T.band_tuning(lanes["bass"]))
+    lanes["piano"] = T.piano_lane(st["piano"], SR, G)
     with open(os.path.join(BUILD, "lanes.json"), "w") as f:
         json.dump({"lanes": lanes, "info": info}, f)
     print({k: len(v) for k, v in lanes.items()}, info)

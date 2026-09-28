@@ -128,6 +128,9 @@ class Writer:
         if not stereo and y.ndim == 2:
             y = y.mean(axis=0)
         y = finish(y, loop=loop, **meta.pop("_finish", {}))
+        lufs = meta.pop("_lufs", None)
+        if lufs is not None:        # a SET of notes at one loudness (peaks stay <= -1 dBFS): no per-note gain tables
+            y = y * min(10 ** ((lufs - momentary_max(y)) / 20), 10 ** (-1 / 20) / (np.max(np.abs(y)) + 1e-12))
         wav = os.path.join(HERE, "build", "sfx", f"{sid}.wav")
         os.makedirs(os.path.dirname(wav), exist_ok=True)
         wavfile.write(wav, SR, np.ascontiguousarray(y.T).astype(np.float32))
@@ -170,7 +173,8 @@ def main():
     ap.add_argument("--q", type=int, default=3)
     ap.add_argument("--synth", action="store_true", help="all-synth voices (default: sampled where the song is)")
     ap.add_argument("--set", default="all", help="which sounds to render: all | core (iterations 1-3) | stage (the act-2/3 "
-                    "set, instruments/fx_stage.py). A partial render MERGES into the existing manifest (other ids kept)")
+                    "set, instruments/fx_stage.py) | feel (iteration 6: token voice, WHEW, canister, poster stings, goon "
+                    "stingers; instruments/fx_feel.py). A partial render MERGES into the existing manifest (other ids kept)")
     args = ap.parse_args()
     W = Writer(args.out, args.q)
     rp, sc = riff_pitches(args.song)
@@ -179,6 +183,8 @@ def main():
         core_set(W, rp, args.synth, R)
     if args.set in ("all", "stage"):
         stage_set(W, R)
+    if args.set in ("all", "feel"):
+        feel_set(W, R, args.synth)
     write_manifest(W, args, sc)
 
 
@@ -388,6 +394,51 @@ def stage_set(W, R):
           -16.0, stereo=True, _finish={"fade_ms": 150.0})
     W.add("window_crash", S.window_crash(SR, R(368)), "act2", "the Heave through the big window (bar 51): sash crack + "
           "pane explosion + shard rain", -14.0, stereo=True, _finish={"fade_ms": 200.0})
+
+
+def feel_set(W, R, synth=False):
+    """iteration 6: the token voice (tokens sing the melody), the near-miss WHEW, the film canister, the poster's rank
+    stings, the goon stingers (instruments/fx_feel.py)"""
+    from instruments import fx_feel as F
+    P = Palette(use_samples=not synth)
+    pno = P.piano(synth=dict(bright=1.15))
+
+    def piano(events, seed=5):
+        """events (midi, at_s, dur_s, vel) on the song's honky-tonk piano -> mono"""
+        end = max(a + d for _, a, d, _ in events) + 1.6
+        return render(pno, [ev(pitch=float(m), dur_beats=d / SPB, vel=v, at=a) for m, a, d, v in events], end, seed)
+
+    # the token voice: C5..A6 chromatic (the melody two octaves up + chord tones), piano + glass-bell sparkle
+    for m in range(72, 94):
+        y = render(pno, [ev(pitch=float(m), dur_beats=0.8, vel=0.72)], 1.3, m)
+        y = F.token_voice(y, m, SR, R(600 + m))
+        W.add(f"token_{nn(m).replace('#', 's')}", y, "token", "TOKEN VOICE (a collected token sings the vocal melody, "
+              "audio/tokenMelody.ts): honky-tonk piano + a glass-bell sparkle, bright and short", -22.0, midi=m,
+              _finish={"fade_ms": 80.0}, _lufs=-17.0)
+    # the near-miss WHEW
+    W.add("whew_gasp", F.whew_gasp(SR, R(610)), "whew", "near-miss: the audience's quick inhale 'HAH!' (on the event)",
+          -20.0, stereo=True, _finish={"fade_ms": 60.0})
+    W.add("whew_relief", F.whew_relief(SR, R(611)), "whew", "near-miss survived: a rising admiring 'ooOOH' swelling into "
+          "a short cheer (starts on the next beat; its cheer lands ~0.55 s in)", -20.0, stereo=True,
+          _finish={"fade_ms": 300.0})
+    # the film canister: lid clank + reel spin-up + a glass arpeggio of the band's chord
+    for name, chord in (("E", (88, 92, 95, 100)), ("A", (81, 85, 88, 93)), ("B", (83, 87, 90, 95))):
+        W.add(f"canister_{name}", F.canister(chord, SR, R(620 + chord[0])), "canister", f"FILM CANISTER found: tin lid "
+              f"clank + reel ratchet + glass arpeggio up the {name} chord", -18.0, stereo=True, midi=chord[0],
+              _finish={"fade_ms": 200.0})
+    # the poster (THE END) + the rank stings
+    for sid, size, desc in (("theend_big", "big", "S rank"), ("theend", "normal", "A / B rank"),
+                            ("theend_small", "small", "C rank")):
+        W.add(sid, F.theend(piano, SR, R(630), size), "poster", f"THE END flourish ({desc}): the projector runs the "
+              "leader out under a honky-tonk run up E pentatonic + a tremolo E chord", -18.0, stereo=True,
+              _finish={"fade_ms": 250.0})
+    W.add("rank_flop", F.flop(piano, SR, R(634)), "poster", "STRAIGHT TO VIDEO (D rank): the piano player's deflating "
+          "'wah wah wah waaah' (B A# A G#)", -19.0, stereo=True, _finish={"fade_ms": 250.0})
+    W.add("claps_sparse", F.claps_sparse(SR, R(635)), "poster", "the unimpressed house: four lone claps and a cough",
+          -22.0, stereo=True, _finish={"fade_ms": 100.0})
+    # goon stingers (the stomp goon = jukebox_boom, the cowbell goon = tonk_lo + tonk_hi)
+    W.add("piano_gliss", F.piano_gliss(piano, SR, R(640)), "goon", "the bar pianist smashed: a glissando down from E7 "
+          "into a low E octave slam", -18.0, _finish={"fade_ms": 200.0})
 
 
 def write_manifest(W, args, sc):

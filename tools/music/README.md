@@ -37,6 +37,9 @@ sfx.py                 one-shots for the game (same voices as the song, in its k
 check_grid.py          verifies a render against its gameplay grid (stops, empty stem bars, stems sum, shout onsets)
 build_original.py      the ORIGINAL recording: per-beat tempo map, lanes, the level edit, reward overlays
                        (runs in tools/music/.venv; see "The original recording" below)
+token_lanes.py         iteration 6: the `tokenMelody` (what a collected token sings, measured against the singer)
+                       and `piano` lanes merged into both beat maps without a full rebuild (original/tokens.py)
+feel_report.py         analysis of the mix lab's iteration-6 scenes (`mixlab.mjs --prefix=feel`)
 original/              beatgrid.py (hit-locked smooth grid), timegrid.py (beat<->time on a per-beat map),
                        lanes.py (drums/bass/vocal/transcription lanes), overlay.py (overlay arrangement)
 producer/score.py      the DSL (Score, Section, Track, swing, humanize, automation, stops, markers)
@@ -391,6 +394,12 @@ break-shot KRAK, the BIG JIM letters' creaks + slams on a descending E line, Big
 the iris slam, film run-out, mega cheer, curtain-call applause, marquee clank; act 2's bottle whistle, firebomb
 whoosh/burst, bottle smash, ball rumble/hit, pins, window crash) and MERGES it into the existing manifest, leaving
 every other file untouched. After a re-render, copy the new `onsetSec`s into `src/audio/samples.ts` SAMPLE_ONSETS.
+`feel` (iteration 6, `instruments/fx_feel.py`, merged the same way): the TOKEN VOICE `token_C5`..`token_A6`
+(chromatic; the song's sampled honky-tonk piano + a glass-bell sparkle, all at -17 LUFS: `_lufs` level-matches a
+set), the near-miss `whew_gasp` / `whew_relief` (a rising "ooOOH" into a cheer: vocals.py `OOHUP`), `canister_E/A/B`
+(tin lid + reel ratchet + a glass arpeggio of that chord), the poster's `theend_big` / `theend` / `theend_small`
+(a piano run + tremolo E chord over the projector running out), `rank_flop` ("wah wah wah waaah"), `claps_sparse`,
+and the bar pianist's `piano_gliss`.
 
 `flags` lists anything outside targets.
 
@@ -403,7 +412,9 @@ beat-locked modulation (pumping), booth spectrum and stereo width, each overlay 
 own band during its lane events, grade bells and every theatre SFX vs the music, and HF clicks on a tone. It
 needs the licensed recording; nothing it writes is committed. Target numbers are in CLAUDE.md ("The music is
 the reward"). `stage_report.py <dir>` analyses the act-2/3 scenes (`mixlab.mjs --prefix=act`): each level audio cue
-vs the music, THE HUSH and THE FINALE (CLAUDE.md "Level audio cues").
+vs the music, THE HUSH and THE FINALE (CLAUDE.md "Level audio cues"). `feel_report.py <dir>` analyses iteration 6's
+scenes (`--prefix=feel`): the start at crowd 14, tokens vs the music and vs the SINGER's pitch at that moment
+(doubled / consonant harmony / rub), WHEW, canister, goon stingers + flare depth, the poster by rank.
 
 ## The original recording (`build_original.py`)
 
@@ -418,7 +429,7 @@ tools/music/.venv/bin/python tools/music/build_original.py [--stage grid|lanes|f
 | Stage | What it does |
 |---|---|
 | `grid` | demucs drum stem, **compensated for demucs' 1105-sample MP3 decode lag**. librosa tracking, then every beat is locked to the drummer's broadband attack. A robust 5-beat local fit gives the tempo map: 476 per-beat points, 161.5 → 166.6 BPM, 93 % of beats within 10 ms of the hits. Writes `reports/jim_original.grid.json` and a click-track mix `build/original/click_check.wav`. |
-| `lanes` | Drum hits classified by beat-parity calibration (kick/snare/tom, exact times). Also `fills`, bass notes (pYIN), `bassWalks` (transcription figures snapped to detected onsets), vocal phrases and held notes (no words), transcription `melody`/`hooks`, `bassOut` stop-time and per-bar `energy`. |
+| `lanes` | Drum hits classified by beat-parity calibration (kick/snare/tom, exact times). Also `fills`, bass notes (pYIN), `bassWalks` (transcription figures snapped to detected onsets), vocal phrases and held notes (no words), transcription `melody`/`hooks`, `bassOut` stop-time and per-bar `energy`. Iteration 6: `tokenMelody` (each melody note measured with pYIN on the vocal stem: the token doubles it two octaves up where the singer sits within 35 cents of it, else plays a chord tone >= a minor third from him; `original/tokens.py`) and `piano` (the record's piano hits). `token_lanes.py` recomputes just these two into the committed maps. |
 | `full` | Renders the reward overlays (`shouts`, `stomps`, `cowbell`) with the sampled palette on the per-beat map. Calibrates their levels against the record, encodes, and writes `assets/audio/jim_original.beatmap.json`. |
 | `edit` | Cuts verse 2's block (song bar 33 b3 → 62 b3, inside the identical B7 turnaround) and ends on song bar 115 with our final hit. The overlays are cut the same way. Writes `assets/audio/jim_edit.beatmap.json`. |
 

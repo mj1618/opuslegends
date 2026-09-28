@@ -23,6 +23,19 @@
  *   stage.mechTelegraph(kind, beat)    act 2: the thrown bottle's whistle / the firebomb's whoosh / the bowling ball's
  *   stage.mechFx(kind)                 rumble one beat ahead; bottle smash, firebomb burst, ball hit
  *
+ * Iteration 6 ("feel"):
+ *   stage.onToken(beat?)               a collected token SINGS the next note of the vocal melody (audio/tokenMelody.ts):
+ *                                      ON its own beat if picked up early, else on the next grid point (<= 70 ms) / now.
+ *                                      Returns the pick (+ played = false without samples: Sfx.lum is the fallback)
+ *   stage.onWhew(e)                    near-miss (game 'whew'): the audience's quick inhale now, and a rising 'ooOOH'
+ *                                      swelling into a cheer from the next beat — called off if you die before it
+ *   stage.onCanister(e)                a film canister (game 'canister'): lid clank + reel + a glass arpeggio of the chord
+ *   stage.onPoster(letter)             the end-of-reel poster: THE END flourish + the rank's sting, and the finale's
+ *                                      applause re-levelled to the billing (audio/mix.ts POSTER_SFX)
+ *   stage.goonHit(part, beat)          a goon playing `part` (audio/goonParts.ts) was smashed: its overlay FLARES and its
+ *                                      stinger lands on the part's next hit. Automatic for the level's jabbers (a strike
+ *                                      graded on a jabber's beat); `stage.goons` = each jabber beat's part (for the art)
+ *
  * In the game: `StageAudio.forGame(audio, conductor)` + `stage.listen(game.events)` (grade / miss / crowd /
  * stumble / death / smash arrive as game events); Game calls setCrowd(value, true) on spawns and onCheckpoint().
  * Other code (art, HUD) can read `stage.combo` or call these directly; everything is idempotent-safe.
@@ -35,9 +48,11 @@ import type { AudioSystem } from './audioSystem';
 import { type Booth, type Squeeze, makeSoftClip } from './booth';
 import type { Conductor } from './conductor';
 import { type AudioCue, type LevelLike, levelAudioCues, levelFirebombs } from './cues';
-import { BOOTH, FULL_HOUSE, GRADE_SFX, STAGE_BUS, STAGE_SFX, type StageLayer, type StageSound, boothState, dbToGain } from './mix';
-import { CHIME_NOTES, SampleBank, type SampleId, type SampleVoice } from './samples';
+import { type GoonPart, PART_STEM, goonPartAt, nextPartHit } from './goonParts';
+import { BOOTH, FULL_HOUSE, GOON_FLARE, GRADE_SFX, POSTER_SFX, STAGE_BUS, STAGE_SFX, TOKEN_SFX, type StageLayer, type StageSound, boothState, dbToGain } from './mix';
+import { CHIME_NOTES, SampleBank, TOKEN_NOTES, type SampleId, type SampleVoice } from './samples';
 import { type SongDef, chordAt, mtof } from './song';
+import { type TokenPick, TokenMelody, tokenGrid } from './tokenMelody';
 
 export type StageGrade = 'perfect' | 'great' | 'good' | 'miss';
 
@@ -64,6 +79,8 @@ export interface StageHost {
   clock: StageClock;
   /** set the overlay stems for a crowd count, gliding from ctx time `when` (instant: ~now, 50 ms) */
   setOverlays(crowd: number, when: number, instant: boolean): void;
+  /** flare an overlay stem from ctx time `when` (a smashed goon's part: Conductor.flareStem); optional */
+  flareOverlay?(stem: string, when: number, holdSec: number): void;
 }
 
 /** The slice of the gameplay event bus (game/events.ts GameEvents) that StageAudio listens to. */
@@ -75,6 +92,18 @@ export interface StageEventSource {
   on(type: 'death', fn: (e: { beat: number }) => void): unknown;
   on(type: 'smash', fn: (e: { beat: number }) => void): unknown;
 }
+
+/** iteration 6's events (game/events.ts 'whew' / 'canister'), read loosely: the audio never needs more than these */
+export interface WhewLike {
+  kind?: string;
+  beat?: number;
+  ms?: number;
+}
+export interface CanisterLike {
+  beat?: number;
+  index?: number;
+}
+export type PosterLetter = keyof typeof POSTER_SFX;
 
 /** how far ahead (beats) `at` / `hush` cues are put on the audio clock */
 const CUE_LOOKAHEAD = 2.5;
@@ -99,6 +128,14 @@ export class StageAudio {
   private reacted = new Set<number>();
   /** thrown-object arrival beats whose telegraph is the firebomb whoosh (the rest whistle) */
   private firebombs = new Set<number>();
+  /** the token voice's melody (iteration 6) */
+  readonly tokens: TokenMelody;
+  /** the level's goons (jabber beats) -> the part each plays (audio/goonParts.ts goonPartAt; the art reads this too) */
+  readonly goons = new Map<number, GoonPart>();
+  /** the last 64 tokens sung (debug / tests: `__game.game.stage.tokenLog`) */
+  readonly tokenLog: (TokenPick & { played: boolean })[] = [];
+  /** the finale's curtain-call applause voices (the poster re-levels them) */
+  private applause: SampleVoice[] = [];
 
   /** the stage sounds' bus: soft clip (STAGE_BUS) -> the SFX bus */
   private readonly cueOut: AudioNode;
@@ -109,6 +146,7 @@ export class StageAudio {
     const clip = makeSoftClip(host.ctx, STAGE_BUS.clipDb);
     clip.output.connect(host.sfxOut);
     this.cueOut = clip.input;
+    this.tokens = new TokenMelody(host.song);
   }
 
   /** The game's wiring: the Conductor is the clock, AudioSystem owns the booth and the buses. */
@@ -132,6 +170,7 @@ export class StageAudio {
       song: c.song,
       clock,
       setOverlays: (n, when, instant) => c.setCrowdLevel(n, instant, when),
+      flareOverlay: (stem, when, holdSec) => void c.flareStem(stem, when, GOON_FLARE.db, holdSec, holdSec),
     });
     c.onBeat((b) => stage.beatTick(b));
     // a pause / quit cuts the music: call off the cue sounds and the hush already on the clock (they re-arm when it
@@ -150,7 +189,10 @@ export class StageAudio {
       this.onGrade(e.grade, e.beat, e.combo);
       // a graded strike ON a smash cue's target: its sound goes on the PRESS (quantized like the bells), not on the
       // hitbox contact a frame or three later (the KRAK must land on the fill's tom)
-      if (e.verb !== 'jump') this.onSmash(e.beat);
+      if (e.verb !== 'jump') {
+        this.onSmash(e.beat);
+        this.onGoonStruck(e.beat);
+      }
     });
     events.on('miss', (e) => {
       if (e.failKind === 'none') this.onMiss(e.beat);
@@ -161,6 +203,10 @@ export class StageAudio {
     events.on('death', () => this.onDeath());
     events.on('smash', (e) => this.onSmash(e.beat));
     events.on('miss', (e) => this.onTargetMissed(e.beat));
+    // iteration 6 (game/events.ts): the near-miss and the film canisters
+    const loose = events as unknown as { on(type: string, fn: (e: unknown) => void): unknown };
+    loose.on('whew', (e) => this.onWhew(e as WhewLike));
+    loose.on('canister', (e) => this.onCanister(e as CanisterLike));
   }
 
   /** Load the sampled one-shots and start the projector bed (best-effort; synth fallbacks otherwise). */
@@ -321,6 +367,7 @@ export class StageAudio {
   /** Death: the Conductor's tape-stop does the music; the audience groans under it. */
   onDeath(): void {
     this.combo = 0;
+    this.tokens.reset();
     this.resetSchedule();
     this.play('crowd_ooh', this.host.clock.now() + 0.05, GRADE_SFX.groanDb, { rate: 0.78, lp: 1400 });
   }
@@ -344,6 +391,11 @@ export class StageAudio {
   /** The level's audio: its cues (audio/cues.ts levelAudioCues) + the act-2 mechanics' telegraph voices. */
   useLevel(def: LevelLike, song: SongDef): void {
     this.setCues(levelAudioCues(def, song), { firebombs: levelFirebombs(def) });
+    // the goons: every jabber plays a part of the song (the art animates it on that part's hits)
+    this.goons.clear();
+    for (const it of def.items as { type?: string; beat?: number }[]) {
+      if (it.type === 'jabber' && typeof it.beat === 'number') this.goons.set(Math.round(it.beat * 100), goonPartAt(song, it.beat));
+    }
   }
 
   /** the cues in effect (read-only) */
@@ -479,7 +531,118 @@ export class StageAudio {
   private layer(l: StageLayer, when: number, track: boolean): SampleVoice | null {
     const v = this.samples.playNode(l.id, this.cueOut, when, { gain: dbToGain(l.db), rate: l.rate, lp: l.lp, align: l.align });
     if (v && track) this.voices.push(v);
+    if (v && l.id === 'crowd_applause_long') {
+      const now = this.ctx.currentTime;
+      this.applause = [...this.applause.filter((a) => a.end > now), v];
+    }
     return v;
+  }
+
+  // ------------------------------------------------------------------ iteration 6: tokens, WHEW, canisters, poster, goons
+
+  /**
+   * A token collected: it SINGS (audio/tokenMelody.ts). `beat` = the token's own beat (its authored position, snapped to
+   * the triplet/swing grid point within TOKEN_SFX.snapBeats): picked up early (<= TOKEN_SFX.earlySec) it sounds ON that beat; otherwise on the next triplet/swing grid point if that
+   * is <= TOKEN_SFX.lateSec away, else now. `played` false = no samples (the caller's synth fallback).
+   */
+  onToken(beat?: number): TokenPick & { played: boolean; when: number } {
+    const { clock, song } = this.host;
+    const now = clock.now();
+    const gb = clock.graphBeat();
+    let q = Number.isFinite(gb) ? gb : (beat ?? 0);
+    let when = now;
+    // a token laid a hair off the grid (a jump arc's samples) sings on the grid point it sits on
+    const snapped = beat !== undefined ? tokenGrid(beat - 0.5, song.swing).reduce((a, b) => (Math.abs(b - beat) < Math.abs(a - beat) ? b : a)) : NaN;
+    const own = Number.isFinite(snapped) && Math.abs(snapped - (beat as number)) <= TOKEN_SFX.snapBeats ? snapped : beat;
+    const at = own !== undefined ? clock.ctxAtBeat(own) : NaN;
+    if (Number.isFinite(at) && at >= now && at - now <= TOKEN_SFX.earlySec) {
+      q = own as number;
+      when = at;
+    } else if (Number.isFinite(gb)) {
+      for (const p of tokenGrid(gb, song.swing)) {
+        const t = clock.ctxAtBeat(p);
+        if (t >= now + 0.002) {
+          if (t - now <= TOKEN_SFX.lateSec) {
+            q = p;
+            when = t;
+          }
+          break;
+        }
+      }
+    }
+    const pick = this.tokens.pick(q);
+    const [sm, id] = TOKEN_NOTES.reduce((a, b) => (Math.abs(b[0] - pick.midi) < Math.abs(a[0] - pick.midi) ? b : a));
+    const played = this.play(id, when, TOKEN_SFX.db, { rate: Math.pow(2, (pick.midi - sm) / 12), align: true });
+    this.tokenLog.push({ ...pick, played });
+    if (this.tokenLog.length > 64) this.tokenLog.shift();
+    return { ...pick, played, when };
+  }
+
+  /**
+   * Near-miss (game 'whew'): the audience's quick inhale NOW, then the relief — a rising 'ooOOH' that swells into a
+   * cheer — from the next beat (tracked: a death before it calls it off).
+   */
+  onWhew(_e: WhewLike = {}): void {
+    const now = this.host.clock.now();
+    for (const l of STAGE_SFX.whewGasp as StageLayer[]) this.layer(l, now, false);
+    const nb = this.nextGrid(1, 0.12);
+    for (const l of STAGE_SFX.whewRelief as StageLayer[]) this.layer(l, nb.when, true);
+  }
+
+  /** A film canister found: its sting (the chord's arpeggio) on the next swung 8th (<= ~0.2 s), else now. */
+  onCanister(e: CanisterLike = {}): void {
+    const { clock, song } = this.host;
+    const g = this.nextGrid(0.5, 0.01);
+    const when = g.when - clock.now() < 0.22 ? g.when : clock.now();
+    const b = Number.isFinite(g.beat) ? g.beat : (e.beat ?? 0);
+    const root = ((((song.key.root + chordAt(song, b)[0]) % 12) + 12) % 12);
+    const sound: StageSound = root === 9 ? 'canisterA' : root === 11 ? 'canisterB' : 'canisterE';
+    for (const l of STAGE_SFX[sound] as StageLayer[]) this.layer(l, when, false);
+  }
+
+  /**
+   * The end-of-reel poster appears (Game, scene 'end'): THE END flourish + the rank's sting (POSTER_SFX), and the finale's
+   * curtain-call applause (still ringing from the final hit) is re-levelled to the billing over ~0.8 s.
+   */
+  onPoster(letter: string): void {
+    const tier = POSTER_SFX[(letter in POSTER_SFX ? letter : 'B') as PosterLetter];
+    const now = this.host.clock.now();
+    for (const l of tier.layers) this.play(l.id, now + l.at, l.db);
+    const g = dbToGain(tier.applauseDb);
+    for (const v of this.applause) {
+      if (v.end <= now) continue;
+      v.gain.gain.cancelScheduledValues(now);
+      v.gain.gain.setValueAtTime(v.gain.gain.value, now);
+      v.gain.gain.setTargetAtTime(v.gain.gain.value * g, now + 0.3, 0.2);
+    }
+  }
+
+  /** a strike graded on a goon's beat: that goon's part flares */
+  private onGoonStruck(beat: number): void {
+    const part = this.goons.get(Math.round(beat * 100));
+    if (part) this.goonHit(part, beat);
+  }
+
+  /**
+   * A goon playing `part` was smashed on `beat`: the part's overlay FLARES (+6 dB for a beat, audible even at a low crowd)
+   * and the goon's stinger lands ON the part's next hit (<= 1 beat away; else the next beat).
+   */
+  goonHit(part: GoonPart, beat: number): void {
+    const { clock, song } = this.host;
+    const now = clock.now();
+    const gb = clock.graphBeat();
+    const from = Number.isFinite(gb) ? gb : beat;
+    const hit = nextPartHit(song, part, from + 0.02, 1);
+    const hb = hit ? hit.beat : Math.ceil(from + 0.02);
+    const when = Number.isFinite(gb) ? clock.ctxAtBeat(hb) : now;
+    const spb = clock.secondsPerBeat(hb);
+    const stem = PART_STEM[part];
+    if (stem) this.host.flareOverlay?.(stem, when - 0.01, GOON_FLARE.holdBeats * (Number.isFinite(spb) ? spb : 0.37));
+    const sound = `goon${part[0].toUpperCase()}${part.slice(1)}` as StageSound;
+    for (const l of (STAGE_SFX[sound] ?? []) as StageLayer[]) {
+      const t = Number.isFinite(gb) ? clock.ctxAtBeat(hb + (l.beats ?? 0)) : now;
+      this.layer(l, Math.max(now, t), true);
+    }
   }
 
   // ------------------------------------------------------------------ plumbing

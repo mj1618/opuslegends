@@ -258,6 +258,55 @@ export const STAGE_SFX = {
   pinScatter: [{ id: 'pin_scatter', db: -11, align: true }],
   pinStrike: [{ id: 'pin_scatter_big', db: -8, align: true }],
   windowCrash: [{ id: 'window_crash', db: -9, align: true }],
+  // ---- iteration 6 (tools/music/sfx.py --set=feel)
+  /** near-miss WHEW: the audience's quick inhale on the event (now), then — if you live — the rising 'ooOOH' swelling
+   *  into a cheer, started on the next beat (called off by a death) */
+  whewGasp: [{ id: 'whew_gasp', db: -10 }],
+  whewRelief: [{ id: 'whew_relief', db: -13 }],
+  /** a FILM CANISTER found: lid clank + reel spin-up + a glass arpeggio up the band's chord (E / A / B), on the beat */
+  canisterE: [{ id: 'canister_E', db: -9, align: true }],
+  canisterA: [{ id: 'canister_A', db: -9, align: true }],
+  canisterB: [{ id: 'canister_B', db: -9, align: true }],
+  /** a smashed goon's stinger, ON its part's next hit (the part's overlay flares with it: Conductor.flareStem) */
+  goonStomps: [{ id: 'jukebox_boom', db: -10, align: true }],
+  goonClaps: [{ id: 'unison_clack', db: -12, align: true }],
+  goonCowbell: [
+    { id: 'tonk_lo', db: -6, align: true },
+    { id: 'tonk_hi', db: -8, beats: 0.659, align: true },
+  ],
+  goonPiano: [{ id: 'piano_gliss', db: -10, align: true }],
+  goonShouts: [{ id: 'hey_crowd', db: -12, align: true }],
 } satisfies Record<string, StageLayer[]>;
 
 export type StageSound = keyof typeof STAGE_SFX;
+
+/**
+ * TOKENS SING THE MELODY (iteration 6, audio/tokenMelody.ts): the token voice's level (dB on the SFX bus, like
+ * GRADE_SFX) and timing. `lateSec`: a late / loose token waits for the next grid point only if it is this close;
+ * `snapBeats`: a token laid this close to a triplet / swung-8th grid point sings on it. Measured (mix lab, the real
+ * level's tokens): -9..-11 dB under the music at each token (the Great bell's level), ~-4 dB in its own band.
+ */
+export const TOKEN_SFX = { db: -16, lateSec: 0.07, earlySec: 0.15, snapBeats: 0.17 } as const;
+
+/** a smashed goon's part FLARES (Conductor.flareStem): +db over its crowd level (>= -10 dB absolute) for holdBeats,
+ *  gliding back over as long; the overlay bus's soft clip caps the transients, so it reads as ~+4 dB louder */
+export const GOON_FLARE = { db: 9, holdBeats: 1 } as const;
+
+/**
+ * THE POSTER (iteration 6): the end-of-reel one-sheet's stings by rank letter (seconds after the poster appears; the
+ * stamp slams ~0.75 s in: render/screens.ts drawEndScreen). `applauseDb` re-levels the finale's curtain-call applause
+ * (already ringing from the final hit) — the house claps as hard as your billing: S roars, D goes quiet.
+ */
+export interface PosterLayer {
+  id: SampleId;
+  db: number;
+  /** seconds after the poster appears */
+  at: number;
+}
+export const POSTER_SFX: Record<'S' | 'A' | 'B' | 'C' | 'D', { layers: PosterLayer[]; applauseDb: number }> = {
+  S: { layers: [{ id: 'theend_big', db: -8, at: 0 }, { id: 'crowd_mega_cheer', db: -12, at: 0.72 }], applauseDb: 2 },
+  A: { layers: [{ id: 'theend', db: -9, at: 0 }, { id: 'crowd_cheer_swell', db: -13, at: 0.55 }], applauseDb: -2 },
+  B: { layers: [{ id: 'theend', db: -11, at: 0 }, { id: 'crowd_applause', db: -16, at: 0.7 }], applauseDb: -7 },
+  C: { layers: [{ id: 'theend_small', db: -12, at: 0.1 }, { id: 'claps_sparse', db: -12, at: 0.8 }], applauseDb: -16 },
+  D: { layers: [{ id: 'rank_flop', db: -11, at: 0.1 }, { id: 'claps_sparse', db: -14, at: 1.9 }], applauseDb: -40 },
+};

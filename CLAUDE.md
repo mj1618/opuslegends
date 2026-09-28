@@ -146,6 +146,33 @@ World y grows DOWN; the base ground top is y = 0.
   (−11.2 vs −13.0 momentary), our stack −3.7 dB under the baked hit, limiter max 2.7 dB there (2.0 music alone, 2.5
   with the player's strike + bell), applause carrying the tail at −20..−28 LUFS after the record fades; every act
   scene ≤ −0.2 dBTP except rare +0.1 spikes from the synth strike's random HF bursts.
+- **Feel sounds** (iteration 6, `stage.ts`, levels in `mix.ts` TOKEN_SFX / GOON_FLARE / POSTER_SFX / STAGE_SFX, samples
+  `tools/music/sfx.py --set=feel`). **Tokens sing the melody** (`audio/tokenMelody.ts`): Game calls
+  `stage.onToken(l.beat)` on every token pickup (spilled tokens: `onToken()`; `Sfx.lum` is the no-samples fallback); the
+  token voice (`token_C5`..`token_A6`: the song's honky-tonk piano + a glass-bell sparkle) plays the vocal melody two
+  octaves up, from the beat map's `tokenMelody` lane (`tools/music/token_lanes.py`): every melody note was MEASURED on
+  the vocal stem (pYIN) — where the singer sits within 35 cents of it (and doesn't scoop from > 60 cents) the token
+  DOUBLES it (~50 % of chorus notes, ~40 % of the speech-like verses), else it plays a chord tone ≥ a minor third from
+  him (HARMONY, voice-led); a second token on the same sung note turns to a chord tone around it and back; between
+  phrases tokens arpeggiate the bar's chord (ping-pong). Timing: ON the token's own beat snapped to the triplet /
+  swung-8th grid (picked up early), else the next grid point ≤ 70 ms, else now. Measured (the real level's tokens, a
+  clean pickup): −10 dB under the music at each token (−3..−6 in its band), on the grid (0 ms), 1.5 % (act 1) / 6 %
+  (act 3, the outro ad-libs) of sung-over tokens rub the singer (60–200 cents), 0 % in the chorus scene; the chorus mix
+  +0.3 LU, limiter as FULL HOUSE. **WHEW** (game 'whew'): `whew_gasp` now + `whew_relief` (a rising "ooOOH" into a
+  cheer) from the next beat, called off by a death: −9 dB vs the music. **Film canister** (game 'canister'): tin lid +
+  reel ratchet + a glass arpeggio of the bar's chord (`canister_E/A/B`) on the next swung 8th: −7 dB. **The poster**:
+  Game calls `stage.onPoster(rank().letter)` as the end screen appears: THE END flourish (projector running out under a
+  piano run + tremolo E chord; S big, C small, D a deflating "wah wah wah waaah" + sparse claps) and the finale's
+  curtain-call applause re-levelled to the billing (S +2 dB … D −40): applause 3–6 s after the poster −27 (S) / −31
+  (A) / −38 (D) LUFS. **Goons** (`audio/goonParts.ts`, for the art too): `partHits(song, part, a, b)` /
+  `nextPartHit` / `partPulse(song, part, beat)` (1 → 0 after each hit) / `goonPartAt(song, beat)` for stomps / claps /
+  cowbell (overlay lanes) / piano (the record's own piano hits, `piano` lane) / shouts; `stage.goons` = the level's
+  jabbers → part; a strike graded on a jabber's beat = `stage.goonHit(part, beat)`: the part's overlay FLARES
+  (`Conductor.flareStem`: a parallel path, +9 dB over its crowd level, ≥ −10 dB absolute, 1 beat; the bus clip makes
+  it ~+4..5 dB) and its stinger (`jukebox_boom` / `unison_clack` / the cowbell tonks / `piano_gliss` / `hey_crowd`)
+  lands ON the part's next hit. **The start at crowd 14** (the record full from beat 0): intro −15.2 LUFS (−16.9 at the
+  old 8, −15.7 at 12), −2.3 dBTP, no limiting; verse 1 at 14 with bells −13.4 LUFS, limiter max 0.2 dB; the overlays
+  at 14 sit right (stomps −3.7 dB under the record at 63 Hz, shouts +3.4 in the gaps).
 - **Rewinds / count-ins**: a checkpoint rewinds the music 1 bar (`Tun.flow.countInBeats`) with a 35 ms
   pre-rolled fade-in (full gain on the downbeat, no click); stick clicks (`Sfx.sticks`) tick the
   count-in on the recording's own grid (the edit has no pickup: the first count-in is sticks only).
@@ -216,6 +243,8 @@ src/
            booth.ts       projection-booth film-sound processor on the music bus + overlay bus EQ/clip
            stage.ts       StageAudio: crowd -> booth/overlays/cheers, grade/miss/stumble/death/checkpoint sounds
            cues.ts        level audio cues (hush / at / onSmash / onMiss) derived from level items; STAGE_SFX stacks in mix.ts
+           tokenMelody.ts tokens sing the vocal melody (the measured `tokenMelody` lane; chord tones between phrases)
+           goonParts.ts   which song part a goon plays + its hits (partHits / partPulse / goonPartAt), for audio + art
            samples.ts     sampled one-shots (assets/audio/sfx, tools/music/sfx.py) with onset alignment
            lab/mixlab.*   offline render of the real audio graph (OfflineAudioContext in headless Chromium)
            placeholderSong.ts  164 BPM E shuffle synth track in the real form (pickup + 32 bars,
@@ -284,7 +313,8 @@ covering a beat), `where(pred)`, `onBeat(tol)`, `beats()`. Lanes: `kick`/`snare`
 `backbeat`), `fills` (`accents`), `bass`, `bassWalks` (the walkdown/walk-ups: `name`, `notes`), `vocalPhrases`,
 `sustains` (held notes: `pitch`, `endBeat`), `melody`, `hooks` (`hookA` title line / `hookB` tag), `bassOut`
 (stop-time), `stops`, `energy` (per bar `intensity` 0..1), `cue`, overlay `shouts`/`stomps`/`claps`/`cowbell`,
-`splices`. Plus `song.section(name)`, `song.sectionAt(beat)`, `song.energyAt(beat)`, `song.barBeat(bar, beat)`
+`splices`, `tokenMelody` (what a token sings there: `pitch`, `mode` double/measured/harmony — lay token rows on its
+onsets to make the tokens sing the tune), `piano` (the record's piano hits). Plus `song.section(name)`, `song.sectionAt(beat)`, `song.energyAt(beat)`, `song.barBeat(bar, beat)`
 (edit bar 1 = beat 0). E.g. `jimEdit.lane('snare').between(88, 120).filter((e) => e.backbeat)`.
 Beat-reactive art: read `game.groove` in render code, or put a `BeatReactSpec` in level data.
 Presentation cues on beats: `{type:'fx', beat, fx:'flash'|'shake'|'zoom'|'bgPulse'}` or `conductor.at(beat, fn)`.
@@ -338,7 +368,9 @@ Presentation cues on beats: `{type:'fx', beat, fx:'flash'|'shake'|'zoom'|'bgPuls
   the REAL game level's audio cues with a clean player (every breakable struck ON its beat) three ways (mix / `_music`
   / `_cues`, + `_legacy` = iteration 3's sounds only) and `tools/music/stage_report.py` reports each cue sound vs the
   music (broadband + in its own band), the hush (depth, KRAK, drop contrast, click test, release timing) and the
-  finale (added loudness, peaks, limiter at the hit, the ring-out tail). The human's listening list:
+  finale (added loudness, peaks, limiter at the hit, the ring-out tail). `--prefix=feel` (iteration 6) →
+  `tools/music/feel_report.py`: the start at crowd 14, tokens (the lab's and the REAL level's) vs the music and vs the
+  singer's pitch, WHEW, canister, goons (+ flare depth), the poster by rank. The human's listening list:
   `docs/reviews/audio_checklist.md`.
 - Review screenshots with the Read tool on the PNGs. Headless software rendering at DPR 2 runs ~30 fps;
   that's SwiftShader fill-rate, not the game (JS render cost is ~0.05 ms/frame; 60 fps with GPU).

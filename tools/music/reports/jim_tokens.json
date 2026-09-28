@@ -1,0 +1,110 @@
+{
+ "bandTuningCents": -2.0,
+ "agreeCents": 35.0,
+ "full": {
+  "verse1": {
+   "notes": 100,
+   "double": 49,
+   "measured": 6,
+   "harmony": 45,
+   "doubledFrac": 0.55
+  },
+  "chorus1": {
+   "notes": 52,
+   "double": 29,
+   "measured": 0,
+   "harmony": 23,
+   "doubledFrac": 0.56
+  },
+  "verse2": {
+   "notes": 110,
+   "double": 43,
+   "measured": 12,
+   "harmony": 55,
+   "doubledFrac": 0.5
+  },
+  "chorus2": {
+   "notes": 52,
+   "double": 30,
+   "measured": 0,
+   "harmony": 22,
+   "doubledFrac": 0.58
+  },
+  "verse3": {
+   "notes": 107,
+   "double": 50,
+   "measured": 5,
+   "harmony": 52,
+   "doubledFrac": 0.51
+  },
+  "chorus3": {
+   "notes": 52,
+   "double": 27,
+   "measured": 0,
+   "harmony": 25,
+   "doubledFrac": 0.52
+  },
+  "chorus4": {
+   "notes": 52,
+   "double": 31,
+   "measured": 0,
+   "harmony": 21,
+   "doubledFrac": 0.6
+  },
+  "outro": {
+   "notes": 55,
+   "double": 18,
+   "measured": 5,
+   "harmony": 32,
+   "doubledFrac": 0.42
+  }
+ },
+ "edit": {
+  "verse1": {
+   "notes": 100,
+   "double": 49,
+   "measured": 6,
+   "harmony": 45,
+   "doubledFrac": 0.55
+  },
+  "chorus1": {
+   "notes": 52,
+   "double": 29,
+   "measured": 0,
+   "harmony": 23,
+   "doubledFrac": 0.56
+  },
+  "verse3": {
+   "notes": 107,
+   "double": 50,
+   "measured": 5,
+   "harmony": 52,
+   "doubledFrac": 0.51
+  },
+  "chorus3": {
+   "notes": 52,
+   "double": 27,
+   "measured": 0,
+   "harmony": 25,
+   "doubledFrac": 0.52
+  },
+  "chorus4": {
+   "notes": 52,
+   "double": 31,
+   "measured": 0,
+   "harmony": 21,
+   "doubledFrac": 0.6
+  },
+  "outro": {
+   "notes": 49,
+   "double": 18,
+   "measured": 5,
+   "harmony": 26,
+   "doubledFrac": 0.47
+  }
+ },
+ "pianoHits": {
+  "full": 117,
+  "edit": 65
+ }
+}

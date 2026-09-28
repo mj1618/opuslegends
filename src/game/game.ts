@@ -1306,7 +1306,8 @@ export class Game {
       if (Math.abs(h.x - cx) < 70 && Math.abs(h.y - cy) < 80) {
         h.collected = true;
         this.stats.lums++;
-        this.sfx.lum(collectibleNote(this.song, beatW, this.lumStreak.count++));
+        // a spilled token sings too (audio/tokenMelody.ts); the synth ladder only without samples
+        if (!this.stage.onToken().played) this.sfx.lum(collectibleNote(this.song, beatW, this.lumStreak.count++));
       }
     }
     // --- checkpoints
@@ -1611,7 +1612,9 @@ export class Game {
     if (beatNow - this.lumStreak.lastBeat > 1.1) this.lumStreak.count = 0;
     this.lumStreak.lastBeat = beatNow;
     const idx = l.note ?? this.lumStreak.count++;
-    this.sfx.lum(collectibleNote(this.song, l.beat, idx));
+    // the token SINGS the song's vocal melody ON its beat (StageAudio.onToken, audio/tokenMelody.ts); the synth chord
+    // ladder is the fallback without samples
+    if (!this.stage.onToken(l.beat).played) this.sfx.lum(collectibleNote(this.song, l.beat, idx));
     this.particles.emit({ x: l.x, y: l.y, count: 8, speed: [120, 380], life: [0.25, 0.5], size: [5, 10], color: '#E0B64A', drag: 3, shrink: 1 });
   }
 

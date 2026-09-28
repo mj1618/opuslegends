@@ -363,13 +363,16 @@ export function makeSoftClip(ctx: BaseAudioContext, ceilingDb: number): { input:
 
 /**
  * An overlay stem's bus: the crowd-driven gain, then the rule's EQ and soft clip (all zero-latency, so
- * the stem stays sample-aligned with the record). Returns the gain node (its input) — the chain's tail is
- * connected to `dest`.
+ * the stem stays sample-aligned with the record). Returns the gain node (its input) and `sum`, where a parallel path
+ * (the Conductor's flare) joins before the EQ / clip — the chain's tail is connected to `dest`.
  */
-export function makeOverlayBus(ctx: BaseAudioContext, rule: OverlayRule | undefined, dest: AudioNode, initialGain: number): GainNode {
+export function makeOverlayBus(ctx: BaseAudioContext, rule: OverlayRule | undefined, dest: AudioNode, initialGain: number): { gain: GainNode; sum: GainNode } {
   const g = ctx.createGain();
   g.gain.value = initialGain;
-  let tail: AudioNode = g;
+  // `sum`: the crowd-gain path and any parallel path (Conductor's goon FLARE) meet here, before the EQ / clip
+  const sum = ctx.createGain();
+  g.connect(sum);
+  let tail: AudioNode = sum;
   for (const e of rule?.eq ?? []) {
     const f = ctx.createBiquadFilter();
     f.type = e.type;
@@ -384,5 +387,5 @@ export function makeOverlayBus(ctx: BaseAudioContext, rule: OverlayRule | undefi
     tail = c.output;
   }
   tail.connect(dest);
-  return g;
+  return { gain: g, sum };
 }

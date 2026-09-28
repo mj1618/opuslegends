@@ -10,7 +10,7 @@
  *
  * Needs the licensed recording (assets/audio/licensed/jim_edit.ogg). Nothing it writes is committed.
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -109,6 +109,51 @@ SCENARIOS.push(
   ...scene('act3_finale', 326, 360),
   ...scene('act2_mech', 196, 240),
 );
+// ---- iteration 6 ("feel"): the record full from beat 0 (the crowd now starts at 14), tokens singing the melody, the
+// near-miss WHEW, the film canister, the goons' flares + stingers, the poster stings. `tools/music/feel_report.py`.
+const BMAP = JSON.parse(readFileSync(join(root, 'assets/audio/jim_edit.beatmap.json'), 'utf8'));
+/** a token on every melody-lane onset in [a, b) + one on every beat of the gaps (>= 1 beat from a sung note) */
+const tokenEvents = (a, b) => {
+  const notes = BMAP.lanes.tokenMelody.filter((n) => n.beat >= a && n.beat < b);
+  const ev = notes.map((n) => ({ beat: n.beat, token: true }));
+  for (let k = Math.ceil(a); k < b; k++) if (!notes.some((n) => Math.abs(n.beat - k) < 1 || (n.beat < k && n.endBeat > k - 0.5))) ev.push({ beat: k, token: true });
+  return ev;
+};
+const MUSICSTEMS = ['record', 'shouts', 'stomps', 'cowbell'];
+const feel = (name, base) => [
+  { name, ...base },
+  { name: `${name}_music`, ...base, nosfx: true },
+  { name: `${name}_sfx`, ...base, mute: MUSICSTEMS },
+];
+SCENARIOS.push(
+  // the run's first 32 beats as a first-timer hears them now (crowd 14 = the booth open) vs the old start (8)
+  { name: 'feel_intro14', from: 0, to: 40, crowd: 14, ticks: true },
+  { name: 'feel_intro14_record', from: 0, to: 40, crowd: 14, mute: ['shouts', 'stomps', 'cowbell'] },
+  { name: 'feel_intro12', from: 0, to: 40, crowd: 12, ticks: true },
+  { name: 'feel_intro8', from: 0, to: 40, crowd: 8, ticks: true },
+  { name: 'feel_intro14_stomps', from: 0, to: 40, crowd: 14, mute: ['record', 'shouts', 'cowbell'] },
+  { name: 'feel_intro14_shouts', from: 0, to: 40, crowd: 14, mute: ['record', 'stomps', 'cowbell'] },
+  // verse 1 at 14 with a perfect-ish player climbing (bells), the whole chain
+  { name: 'feel_verse14', from: 16, to: 80, crowd: 14, ticks: true, events: range(16, 80).map((beat) => ({ beat, grade: 'perfect' })) },
+  // tokens singing: chorus 1 at FULL HOUSE, verse 1 at 14
+  ...feel('feel_tok_chorus', { from: 84, to: 124, crowd: 20, ticks: true, events: tokenEvents(84, 124) }),
+  ...feel('feel_tok_verse', { from: 16, to: 48, crowd: 14, ticks: true, events: tokenEvents(16, 48) }),
+  // the REAL level's tokens (every lum laid in the level, picked up clean): acts 1 + 3's choruses and verse 1
+  ...feel('feel_lvltok_act1', { from: 0, to: 132, crowd: 16, ticks: true, levelTokens: true }),
+  ...feel('feel_lvltok_act3', { from: 270, to: 340, crowd: 22, ticks: true, levelTokens: true }),
+  // near-miss WHEW (chorus 1 at FULL HOUSE), a film canister (turnaround B7 + verse E), goons smashed
+  ...feel('feel_whew', { from: 88, to: 104, crowd: 20, ticks: true, events: [{ beat: 90.4, whew: true }, { beat: 97.3, whew: true }] }),
+  ...feel('feel_canister', { from: 120, to: 140, crowd: 16, ticks: true, events: [{ beat: 125.3, canister: true }, { beat: 134.2, canister: true }] }),
+  ...feel('feel_goons', {
+    from: 84, to: 132, crowd: 16, ticks: true,
+    events: [{ beat: 89, goon: 'stomps' }, { beat: 96, goon: 'cowbell' }, { beat: 101, goon: 'claps' }, { beat: 110, goon: 'cowbell' }, { beat: 124.4, goon: 'piano' }, { beat: 128, goon: 'shouts' }],
+  }),
+  // the stems alone with and without the goons (the flare depth)
+  { name: 'feel_goons_stems', from: 84, to: 132, crowd: 16, nosfx: true, mute: ['record'], events: [{ beat: 89, goon: 'stomps' }, { beat: 96, goon: 'cowbell' }, { beat: 110, goon: 'cowbell' }, { beat: 128, goon: 'shouts' }] },
+  { name: 'feel_goons_stems_ref', from: 84, to: 132, crowd: 16, nosfx: true, mute: ['record'] },
+  // the finale into the poster, S and D (the applause re-levelled to the billing)
+  ...['S', 'A', 'D'].map((L) => ({ name: `feel_poster_${L}`, from: 326, to: 362, crowd: 24, ticks: true, level: true, levelEvents: true, events: [{ beat: 347.5, poster: L }] })),
+);
 const only = args.only ? new Set(String(args.only).split(',')) : null;
 const prefix = args.prefix ? String(args.prefix).split(',') : null;
 
@@ -164,7 +209,8 @@ if (!args['no-report']) {
   const py = join(root, 'tools/music/.venv/bin/python');
   const names = metas.map((m) => m.name);
   let status = 0;
-  if (names.some((n) => !n.startsWith('act'))) status ||= spawnSync(py, [join(root, 'tools/music/mix_report.py'), out], { stdio: 'inherit' }).status ?? 1;
+  if (names.some((n) => !n.startsWith('act') && !n.startsWith('feel'))) status ||= spawnSync(py, [join(root, 'tools/music/mix_report.py'), out], { stdio: 'inherit' }).status ?? 1;
   if (names.some((n) => n.startsWith('act'))) status ||= spawnSync(py, [join(root, 'tools/music/stage_report.py'), out], { stdio: 'inherit' }).status ?? 1;
+  if (names.some((n) => n.startsWith('feel'))) status ||= spawnSync(py, [join(root, 'tools/music/feel_report.py'), out], { stdio: 'inherit' }).status ?? 1;
   process.exit(status);
 }

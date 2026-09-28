@@ -4,12 +4,14 @@
  * SFX, FULL HOUSE cheers) in an OfflineAudioContext, driven by a scripted clock. Run by mixlab.mjs,
  * which saves 4-channel float WAVs (ch 0-1 = master out, ch 2-3 = pre-limiter) for tools/music/mix_report.py.
  */
+import { buildLevel } from '../../level/build';
 import { gameLevel } from '../../level/index';
 import { AudioSystem } from '../audioSystem';
 import { Conductor } from '../conductor';
 import type { LevelLike } from '../cues';
-import { STAGE_SFX } from '../mix';
+import { GOON_FLARE, STAGE_SFX } from '../mix';
 import { Sfx } from '../sfx';
+import type { GoonPart } from '../goonParts';
 import { loadSongBuffer, loadSongStems, makeTempoMap } from '../song';
 import { jimEdit } from '../songs';
 import { StageAudio, type StageClock, type StageGrade } from '../stage';
@@ -32,6 +34,18 @@ export interface LabEvent {
   arrive?: number;
   /** act 2 impact at `beat` */
   fx?: 'shatter' | 'ignite' | 'ballHit';
+  // ---- iteration 6
+  /** a token laid ON `beat`, picked up 60 ms early (StageAudio.onToken(beat)); `loose`: a spilled token, no own beat */
+  token?: boolean;
+  loose?: boolean;
+  /** a near-miss (game 'whew') at `beat` */
+  whew?: boolean;
+  /** a film canister picked up at `beat` */
+  canister?: boolean;
+  /** the poster appears at `beat` with this rank letter */
+  poster?: string;
+  /** a goon playing this part is smashed on `beat` */
+  goon?: GoonPart;
 }
 
 export interface Scenario {
@@ -59,6 +73,8 @@ export interface Scenario {
   noStrikes?: boolean;
   /** the player's strikes/bells only: no stage sounds (the iteration-3 baseline for the same play) */
   legacy?: boolean;
+  /** a token pickup (60 ms early) for every token the REAL level lays in [from, to) (iteration 6) */
+  levelTokens?: boolean;
 }
 
 type Item = { type: string; beat?: number; style?: string; look?: string; giant?: boolean; action?: { type?: string; beat?: number } };
@@ -148,6 +164,7 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
     song,
     clock,
     setOverlays: (n, when, instant) => cond.setCrowdLevel(n, instant, when),
+    flareOverlay: (stem, when, hold) => void cond.flareStem(stem, when, GOON_FLARE.db, hold, hold),
   });
   await stage.load();
   if (sc.nosfx) audio.booth.muteBed();
@@ -160,9 +177,14 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
   stage.setCrowd(sc.crowd, true);
 
   const lev = sc.levelEvents ? levelEvents(sc.from, sc.to).map((e) => (sc.noStrikes ? { ...e, strike: false } : e)).filter((e) => e.strike || e.smash || e.mech || e.fx) : [];
-  const evs = [...(sc.events ?? []), ...lev];
+  const toks: LabEvent[] = sc.levelTokens
+    ? buildLevel(gameLevel, tempo, song).lums.filter((l) => l.beat >= sc.from && l.beat < sc.to).map((l) => ({ beat: l.beat, token: true }))
+    : [];
+  const evs = [...(sc.events ?? []), ...lev, ...toks];
   if (sc.ticks) for (let b = Math.ceil(sc.from); b < sc.to; b++) evs.push({ beat: b });
-  const at = (e: LabEvent): number => (e.miss || e.missTarget ? 0.135 : e.grade || e.strike || e.smash ? -0.02 : e.crowd !== undefined ? -0.015 : 0);
+  const at = (e: LabEvent): number =>
+    e.miss || e.missTarget ? 0.135 : e.token ? -0.06 : e.grade || e.strike || e.smash || e.goon ? -0.02 : e.crowd !== undefined ? -0.015 : 0;
+  const tokens: { beat: number; midi: number; source: string; mode?: string; when: number; sung?: number }[] = [];
   evs.sort((a, b) => a.beat + at(a) / 0.37 - (b.beat + at(b) / 0.37));
   for (const e of evs) {
     now = clock.ctxAtBeat(e.beat) + at(e);
@@ -179,7 +201,15 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
     if (e.missTarget && !sc.legacy) stage.onTargetMissed(e.beat);
     if (e.mech && !sc.legacy) stage.mechTelegraph(e.mech, (e.arrive ?? e.beat + 1.5) - 1);
     if (e.fx && !sc.legacy) stage.mechFx(e.fx);
-    const other = e.strike || e.smash || e.missTarget || e.mech || e.fx;
+    if (e.token || e.loose) {
+      const p = stage.onToken(e.loose ? undefined : e.beat);
+      tokens.push({ beat: p.beat, midi: p.midi, source: p.source, mode: p.note?.mode, sung: p.note?.sung, when: p.when - (clock.ctxAtBeat(0) - tempo.beatToTime(0)) });
+    }
+    if (e.whew) stage.onWhew({ beat: e.beat });
+    if (e.canister) stage.onCanister({ beat: e.beat });
+    if (e.goon) stage.goonHit(e.goon, e.beat);
+    if (e.poster) stage.onPoster(e.poster);
+    const other = e.strike || e.smash || e.missTarget || e.mech || e.fx || e.token || e.loose || e.whew || e.canister || e.goon || e.poster;
     if (!e.grade && !e.miss && !e.stumble && !e.checkpoint && e.crowd === undefined && !other) stage.beatTick(e.beat);
   }
   const out = await ctx.startRendering();
@@ -211,6 +241,9 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
       stageSfx: STAGE_SFX,
       smashes: evs.filter((e) => e.smash).map((e) => e.beat),
       mechs: evs.filter((e) => e.mech || e.fx).map((e) => ({ kind: e.mech ?? e.fx, arrive: e.arrive ?? e.beat })),
+      // iteration 6: what each token sang (song time of its sound = `when`), the feel events
+      tokens,
+      feel: evs.filter((e) => e.whew || e.canister || e.goon || e.poster).map((e) => ({ beat: e.beat, whew: e.whew, canister: e.canister, goon: e.goon, poster: e.poster })),
     },
   };
 }
