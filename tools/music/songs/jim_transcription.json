@@ -1,0 +1,4719 @@
+{
+ "song": "You Don't Mess Around with Jim (Jim Croce, 1972) - musical transcription for an original instrumental arrangement. Notes/chords/rhythms only; no lyrics.",
+ "source": "reference/jim_croce_original.mp3 (primary). Cross-checked with jim_backing_preview.mp3 and published chord charts (chords/structure only).",
+ "conventions": {
+  "pitch": "Scientific pitch (C4 = middle C = MIDI 60). Vocal is written at sounding pitch (male voice, E3-D4 range).",
+  "time": "4/4, bars numbered from 1 at the first downbeat (0.14 s). songBeat = 0-based quarter-note index from bar 1 beat 1. beatInBar is 1-based (1.667 = swung 'and' of beat 1).",
+  "swing": "Shuffle: the off-beat 8th sits at 2/3 of the beat (triplet swing). Positions x.67 / x.33 are triplet-grid positions."
+ },
+ "tempo": {
+  "bpmStart": 161.5,
+  "bpmEnd": 166.5,
+  "bpmMean": 163.9,
+  "recommendedArrangementBpm": 164,
+  "feel": "shuffle/swing, measured off-beat position 0.675 of the beat (ratio ~2.1:1 = triplet shuffle)",
+  "notatedAs": "4/4 with shuffled 8ths (published sheet music: cut time, 'moderately bright in 2', half note ~82)",
+  "stability": "Live band, no click: gradual push from ~161.5 BPM (intro) to ~166 BPM (outro), ~+3%. Beat-to-beat jitter ~6 ms SD.",
+  "sectionBpm": {
+   "intro": 161.0,
+   "verse1": 162.2,
+   "prechorus1": 164.4,
+   "chorus1": 163.6,
+   "tag1": 162.5,
+   "turnaround1": 165.4,
+   "verse2": 163.0,
+   "prechorus2": 163.3,
+   "chorus2": 162.9,
+   "tag2": 160.2,
+   "turnaround2": 163.7,
+   "verse3": 164.6,
+   "prechorus3": 166.4,
+   "chorus3": 163.8,
+   "tag3": 164.1,
+   "breakdown": 165.8,
+   "chorus4": 164.9,
+   "tag4": 164.1,
+   "outro": 166.3
+  }
+ },
+ "timeSignature": "4/4",
+ "key": {
+  "tonic": "E",
+  "mode": "E major / E blues (mixolydian with blue notes G natural and A#)",
+  "tuning": "concert A440 (measured -5..-10 cents)",
+  "notes": "Harmony is dominant-7th blues: E(7), A7, B7. Melody leans on G natural (blue 3rd) against G# in the chords."
+ },
+ "form": [
+  {
+   "name": "intro",
+   "bars": [
+    1,
+    4
+   ],
+   "numBars": 4,
+   "startSec": 0.14,
+   "endSec": 6.1,
+   "bpm": 161.0,
+   "notes": "Band only: drums, bass, acoustic guitars on E. No vocal."
+  },
+  {
+   "name": "verse1",
+   "bars": [
+    5,
+    20
+   ],
+   "numBars": 16,
+   "startSec": 6.1,
+   "endSec": 29.77,
+   "bpm": 162.2,
+   "notes": "Vocal enters on bar 5 beat 1. Bars 13-20 = second half (A7/B7), bass mostly tacet (stop-time feel)."
+  },
+  {
+   "name": "prechorus1",
+   "bars": [
+    21,
+    22
+   ],
+   "numBars": 2,
+   "startSec": 29.77,
+   "endSec": 32.69,
+   "bpm": 164.4,
+   "notes": "2 bars E; bass walk-up E-F#-G# into the chorus A7; vocal pickup into chorus in bar 22."
+  },
+  {
+   "name": "chorus1",
+   "bars": [
+    23,
+    30
+   ],
+   "numBars": 8,
+   "startSec": 32.69,
+   "endSec": 44.42,
+   "bpm": 163.6,
+   "notes": "8 bars: A7 E7 A7 E7 A7 A7 B7(walkdown) E. Title-line hook = bars 29-30."
+  },
+  {
+   "name": "tag1",
+   "bars": [
+    31,
+    31
+   ],
+   "numBars": 1,
+   "startSec": 44.42,
+   "endSec": 45.9,
+   "bpm": 162.5,
+   "notes": "1 bar E: post-chorus vocal tag hook (pickup from bar 30 beat 3)."
+  },
+  {
+   "name": "turnaround1",
+   "bars": [
+    32,
+    33
+   ],
+   "numBars": 2,
+   "startSec": 45.9,
+   "endSec": 48.8,
+   "bpm": 165.4,
+   "notes": "2 bars B7, no vocal; bass B-B-B-B then B-B-C#-D# walk-up; piano B-octave stabs."
+  },
+  {
+   "name": "verse2",
+   "bars": [
+    34,
+    49
+   ],
+   "numBars": 16,
+   "startSec": 48.8,
+   "endSec": 72.37,
+   "bpm": 163.0,
+   "notes": "Same 16-bar harmony as verse 1; vocal pickup at bar 33 beat 3&. Piano enters. Stop-time bars 38-39 and 42-47."
+  },
+  {
+   "name": "prechorus2",
+   "bars": [
+    50,
+    51
+   ],
+   "numBars": 2,
+   "startSec": 72.37,
+   "endSec": 75.31,
+   "bpm": 163.3,
+   "notes": "2 bars E, walk-up to A7."
+  },
+  {
+   "name": "chorus2",
+   "bars": [
+    52,
+    59
+   ],
+   "numBars": 8,
+   "startSec": 75.31,
+   "endSec": 87.09,
+   "bpm": 162.9,
+   "notes": "As chorus 1."
+  },
+  {
+   "name": "tag2",
+   "bars": [
+    60,
+    60
+   ],
+   "numBars": 1,
+   "startSec": 87.09,
+   "endSec": 88.59,
+   "bpm": 160.2,
+   "notes": "Tag hook."
+  },
+  {
+   "name": "turnaround2",
+   "bars": [
+    61,
+    62
+   ],
+   "numBars": 2,
+   "startSec": 88.59,
+   "endSec": 91.52,
+   "bpm": 163.7,
+   "notes": "B7 turnaround."
+  },
+  {
+   "name": "verse3",
+   "bars": [
+    63,
+    78
+   ],
+   "numBars": 16,
+   "startSec": 91.52,
+   "endSec": 114.85,
+   "bpm": 164.6,
+   "notes": "Same harmony; bars 63-70 feature the boogie walking bass (E-E-B-B then E-G#-A-A#-B). Stop-time bars 71-76."
+  },
+  {
+   "name": "prechorus3",
+   "bars": [
+    79,
+    80
+   ],
+   "numBars": 2,
+   "startSec": 114.85,
+   "endSec": 117.74,
+   "bpm": 166.4,
+   "notes": "2 bars E, walk-up F-F#-G-G# to A7."
+  },
+  {
+   "name": "chorus3",
+   "bars": [
+    81,
+    88
+   ],
+   "numBars": 8,
+   "startSec": 117.74,
+   "endSec": 129.46,
+   "bpm": 163.8,
+   "notes": "As chorus 1."
+  },
+  {
+   "name": "tag3",
+   "bars": [
+    89,
+    89
+   ],
+   "numBars": 1,
+   "startSec": 129.46,
+   "endSec": 130.93,
+   "bpm": 164.1,
+   "notes": "Tag hook, sung higher (up to E4) the third time."
+  },
+  {
+   "name": "breakdown",
+   "bars": [
+    90,
+    97
+   ],
+   "numBars": 8,
+   "startSec": 130.93,
+   "endSec": 142.5,
+   "bpm": 165.8,
+   "notes": "8 bars E vamp: bass quarters + chromatic pickup B1-C2-D2-D#2 every 2nd bar; vocal is low, speech-like ad-lib (no fixed melody). Bar 97 carries the pickup into chorus 4."
+  },
+  {
+   "name": "chorus4",
+   "bars": [
+    98,
+    105
+   ],
+   "numBars": 8,
+   "startSec": 142.5,
+   "endSec": 154.15,
+   "bpm": 164.9,
+   "notes": "Final chorus, as chorus 1."
+  },
+  {
+   "name": "tag4",
+   "bars": [
+    106,
+    106
+   ],
+   "numBars": 1,
+   "startSec": 154.15,
+   "endSec": 155.61,
+   "bpm": 164.1,
+   "notes": "Tag hook."
+  },
+  {
+   "name": "outro",
+   "bars": [
+    107,
+    119
+   ],
+   "numBars": 13,
+   "startSec": 155.61,
+   "endSec": 173.6,
+   "bpm": 166.3,
+   "notes": "E vamp; the tag hook repeats every 2 bars (B3 lands on bars 108,110,...,118); bass walk-ups G#-A-A#-B. Fade from ~bar 116; last beat ~bar 119 (173.3 s), audio silent by ~176 s."
+  }
+ ],
+ "totalBars": 119,
+ "chordsPerBar": [
+  {
+   "bar": 1,
+   "chord": "E",
+   "startSec": 0.14
+  },
+  {
+   "bar": 2,
+   "chord": "E",
+   "startSec": 1.65
+  },
+  {
+   "bar": 3,
+   "chord": "E",
+   "startSec": 3.12
+  },
+  {
+   "bar": 4,
+   "chord": "E",
+   "startSec": 4.61
+  },
+  {
+   "bar": 5,
+   "chord": "E",
+   "startSec": 6.1
+  },
+  {
+   "bar": 6,
+   "chord": "E",
+   "startSec": 7.59
+  },
+  {
+   "bar": 7,
+   "chord": "E",
+   "startSec": 9.07
+  },
+  {
+   "bar": 8,
+   "chord": "E",
+   "startSec": 10.56
+  },
+  {
+   "bar": 9,
+   "chord": "E",
+   "startSec": 12.03
+  },
+  {
+   "bar": 10,
+   "chord": "E",
+   "startSec": 13.51
+  },
+  {
+   "bar": 11,
+   "chord": "E",
+   "startSec": 15.01
+  },
+  {
+   "bar": 12,
+   "chord": "E7",
+   "startSec": 16.47
+  },
+  {
+   "bar": 13,
+   "chord": "A7",
+   "startSec": 17.94
+  },
+  {
+   "bar": 14,
+   "chord": "A7",
+   "startSec": 19.45
+  },
+  {
+   "bar": 15,
+   "chord": "A7",
+   "startSec": 20.92
+  },
+  {
+   "bar": 16,
+   "chord": "A7",
+   "startSec": 22.4
+  },
+  {
+   "bar": 17,
+   "chord": "B7",
+   "startSec": 23.87
+  },
+  {
+   "bar": 18,
+   "chord": "A7",
+   "startSec": 25.35
+  },
+  {
+   "bar": 19,
+   "chord": "B7",
+   "startSec": 26.82
+  },
+  {
+   "bar": 20,
+   "chord": "A7",
+   "startSec": 28.31
+  },
+  {
+   "bar": 21,
+   "chord": "E",
+   "startSec": 29.77
+  },
+  {
+   "bar": 22,
+   "chord": "E",
+   "startSec": 31.24
+  },
+  {
+   "bar": 23,
+   "chord": "A7",
+   "startSec": 32.69
+  },
+  {
+   "bar": 24,
+   "chord": "E7",
+   "startSec": 34.17
+  },
+  {
+   "bar": 25,
+   "chord": "A7",
+   "startSec": 35.64
+  },
+  {
+   "bar": 26,
+   "chord": "E7",
+   "startSec": 37.11
+  },
+  {
+   "bar": 27,
+   "chord": "A7",
+   "startSec": 38.57
+  },
+  {
+   "bar": 28,
+   "chord": "A7",
+   "startSec": 40.05
+  },
+  {
+   "bar": 29,
+   "chord": "B7",
+   "startSec": 41.51
+  },
+  {
+   "bar": 30,
+   "chord": "E",
+   "startSec": 42.98
+  },
+  {
+   "bar": 31,
+   "chord": "E",
+   "startSec": 44.42
+  },
+  {
+   "bar": 32,
+   "chord": "B7",
+   "startSec": 45.9
+  },
+  {
+   "bar": 33,
+   "chord": "B7",
+   "startSec": 47.34
+  },
+  {
+   "bar": 34,
+   "chord": "E",
+   "startSec": 48.8
+  },
+  {
+   "bar": 35,
+   "chord": "E",
+   "startSec": 50.3
+  },
+  {
+   "bar": 36,
+   "chord": "E",
+   "startSec": 51.79
+  },
+  {
+   "bar": 37,
+   "chord": "E",
+   "startSec": 53.27
+  },
+  {
+   "bar": 38,
+   "chord": "E",
+   "startSec": 54.74
+  },
+  {
+   "bar": 39,
+   "chord": "E",
+   "startSec": 56.21
+  },
+  {
+   "bar": 40,
+   "chord": "E",
+   "startSec": 57.69
+  },
+  {
+   "bar": 41,
+   "chord": "E7",
+   "startSec": 59.19
+  },
+  {
+   "bar": 42,
+   "chord": "A7",
+   "startSec": 60.63
+  },
+  {
+   "bar": 43,
+   "chord": "A7",
+   "startSec": 62.09
+  },
+  {
+   "bar": 44,
+   "chord": "A7",
+   "startSec": 63.55
+  },
+  {
+   "bar": 45,
+   "chord": "A7",
+   "startSec": 65.04
+  },
+  {
+   "bar": 46,
+   "chord": "B7",
+   "startSec": 66.5
+  },
+  {
+   "bar": 47,
+   "chord": "A7",
+   "startSec": 67.96
+  },
+  {
+   "bar": 48,
+   "chord": "B7",
+   "startSec": 69.43
+  },
+  {
+   "bar": 49,
+   "chord": "A7",
+   "startSec": 70.91
+  },
+  {
+   "bar": 50,
+   "chord": "E",
+   "startSec": 72.37
+  },
+  {
+   "bar": 51,
+   "chord": "E",
+   "startSec": 73.84
+  },
+  {
+   "bar": 52,
+   "chord": "A7",
+   "startSec": 75.31
+  },
+  {
+   "bar": 53,
+   "chord": "E7",
+   "startSec": 76.79
+  },
+  {
+   "bar": 54,
+   "chord": "A7",
+   "startSec": 78.25
+  },
+  {
+   "bar": 55,
+   "chord": "E7",
+   "startSec": 79.74
+  },
+  {
+   "bar": 56,
+   "chord": "A7",
+   "startSec": 81.19
+  },
+  {
+   "bar": 57,
+   "chord": "A7",
+   "startSec": 82.69
+  },
+  {
+   "bar": 58,
+   "chord": "B7",
+   "startSec": 84.15
+  },
+  {
+   "bar": 59,
+   "chord": "E",
+   "startSec": 85.62
+  },
+  {
+   "bar": 60,
+   "chord": "E",
+   "startSec": 87.09
+  },
+  {
+   "bar": 61,
+   "chord": "B7",
+   "startSec": 88.59
+  },
+  {
+   "bar": 62,
+   "chord": "B7",
+   "startSec": 90.06
+  },
+  {
+   "bar": 63,
+   "chord": "E",
+   "startSec": 91.52
+  },
+  {
+   "bar": 64,
+   "chord": "E",
+   "startSec": 93.02
+  },
+  {
+   "bar": 65,
+   "chord": "E",
+   "startSec": 94.48
+  },
+  {
+   "bar": 66,
+   "chord": "E",
+   "startSec": 95.93
+  },
+  {
+   "bar": 67,
+   "chord": "E",
+   "startSec": 97.39
+  },
+  {
+   "bar": 68,
+   "chord": "E",
+   "startSec": 98.85
+  },
+  {
+   "bar": 69,
+   "chord": "E",
+   "startSec": 100.3
+  },
+  {
+   "bar": 70,
+   "chord": "E7",
+   "startSec": 101.76
+  },
+  {
+   "bar": 71,
+   "chord": "A7",
+   "startSec": 103.2
+  },
+  {
+   "bar": 72,
+   "chord": "A7",
+   "startSec": 104.68
+  },
+  {
+   "bar": 73,
+   "chord": "A7",
+   "startSec": 106.13
+  },
+  {
+   "bar": 74,
+   "chord": "A7",
+   "startSec": 107.6
+  },
+  {
+   "bar": 75,
+   "chord": "B7",
+   "startSec": 109.04
+  },
+  {
+   "bar": 76,
+   "chord": "A7",
+   "startSec": 110.49
+  },
+  {
+   "bar": 77,
+   "chord": "B7",
+   "startSec": 111.95
+  },
+  {
+   "bar": 78,
+   "chord": "A7",
+   "startSec": 113.41
+  },
+  {
+   "bar": 79,
+   "chord": "E",
+   "startSec": 114.85
+  },
+  {
+   "bar": 80,
+   "chord": "E",
+   "startSec": 116.29
+  },
+  {
+   "bar": 81,
+   "chord": "A7",
+   "startSec": 117.74
+  },
+  {
+   "bar": 82,
+   "chord": "E7",
+   "startSec": 119.21
+  },
+  {
+   "bar": 83,
+   "chord": "A7",
+   "startSec": 120.67
+  },
+  {
+   "bar": 84,
+   "chord": "E7",
+   "startSec": 122.15
+  },
+  {
+   "bar": 85,
+   "chord": "A7",
+   "startSec": 123.59
+  },
+  {
+   "bar": 86,
+   "chord": "A7",
+   "startSec": 125.07
+  },
+  {
+   "bar": 87,
+   "chord": "B7",
+   "startSec": 126.51
+  },
+  {
+   "bar": 88,
+   "chord": "E",
+   "startSec": 127.99
+  },
+  {
+   "bar": 89,
+   "chord": "E",
+   "startSec": 129.46
+  },
+  {
+   "bar": 90,
+   "chord": "E",
+   "startSec": 130.93
+  },
+  {
+   "bar": 91,
+   "chord": "E",
+   "startSec": 132.36
+  },
+  {
+   "bar": 92,
+   "chord": "E",
+   "startSec": 133.8
+  },
+  {
+   "bar": 93,
+   "chord": "E",
+   "startSec": 135.25
+  },
+  {
+   "bar": 94,
+   "chord": "E",
+   "startSec": 136.7
+  },
+  {
+   "bar": 95,
+   "chord": "E",
+   "startSec": 138.16
+  },
+  {
+   "bar": 96,
+   "chord": "E",
+   "startSec": 139.61
+  },
+  {
+   "bar": 97,
+   "chord": "E",
+   "startSec": 141.06
+  },
+  {
+   "bar": 98,
+   "chord": "A7",
+   "startSec": 142.5
+  },
+  {
+   "bar": 99,
+   "chord": "E7",
+   "startSec": 143.93
+  },
+  {
+   "bar": 100,
+   "chord": "A7",
+   "startSec": 145.38
+  },
+  {
+   "bar": 101,
+   "chord": "E7",
+   "startSec": 146.83
+  },
+  {
+   "bar": 102,
+   "chord": "A7",
+   "startSec": 148.29
+  },
+  {
+   "bar": 103,
+   "chord": "A7",
+   "startSec": 149.77
+  },
+  {
+   "bar": 104,
+   "chord": "B7",
+   "startSec": 151.21
+  },
+  {
+   "bar": 105,
+   "chord": "E",
+   "startSec": 152.68
+  },
+  {
+   "bar": 106,
+   "chord": "E",
+   "startSec": 154.15
+  },
+  {
+   "bar": 107,
+   "chord": "E",
+   "startSec": 155.61
+  },
+  {
+   "bar": 108,
+   "chord": "E",
+   "startSec": 157.07
+  },
+  {
+   "bar": 109,
+   "chord": "E",
+   "startSec": 158.51
+  },
+  {
+   "bar": 110,
+   "chord": "E",
+   "startSec": 159.97
+  },
+  {
+   "bar": 111,
+   "chord": "E",
+   "startSec": 161.42
+  },
+  {
+   "bar": 112,
+   "chord": "E",
+   "startSec": 162.86
+  },
+  {
+   "bar": 113,
+   "chord": "E",
+   "startSec": 164.3
+  },
+  {
+   "bar": 114,
+   "chord": "E",
+   "startSec": 165.74
+  },
+  {
+   "bar": 115,
+   "chord": "E",
+   "startSec": 167.19
+  },
+  {
+   "bar": 116,
+   "chord": "E",
+   "startSec": 168.63
+  },
+  {
+   "bar": 117,
+   "chord": "E",
+   "startSec": 170.06
+  },
+  {
+   "bar": 118,
+   "chord": "E",
+   "startSec": 171.5
+  },
+  {
+   "bar": 119,
+   "chord": "E",
+   "startSec": 172.92
+  }
+ ],
+ "chordDetails": {
+  "chorusBar7_walkdown": "Bass B2(1) A2(2) G2(3) F#2(4) -> E2; guitars hold B7 (or follow the walk). Treat as B7 on beat 1 with a descending bass line, not four chords.",
+  "prechorus_walkup": "Bar 2 of each pre-chorus: bass E2(1) E2(2) F#2(3) G#2(4) -> A2 (prechorus3 uses F2 F#2 G2 G#2 chromatic).",
+  "verseBar8_E7": "D natural added (E7) in the 8th bar of each verse to lead to A7.",
+  "turnaround_walkup": "Bar 2 of each B7 turnaround: bass B1(1) B1(2) C#2(3) D#2(4) -> E2."
+ },
+ "figures": {
+  "drums": {
+   "confidence": "high for kick/snare placement; medium for fills",
+   "groove": [
+    {
+     "beat": 1,
+     "hits": [
+      "kick"
+     ]
+    },
+    {
+     "beat": 2,
+     "hits": [
+      "snare"
+     ]
+    },
+    {
+     "beat": 3,
+     "hits": [
+      "kick"
+     ]
+    },
+    {
+     "beat": 4,
+     "hits": [
+      "snare"
+     ]
+    }
+   ],
+   "timekeeping": "quarter-note time (few swung 8th hits detected); a two-beat shuffle 'boom-chick'.",
+   "fill": "At the end of most 4-bar phrases (bars 4, 8, 12, 20, 30, 32-33 ...): accent on the swung '&' of 3 (beat 3.67) then kick+snare on beat 4."
+  },
+  "bass": {
+   "confidence": "high for chorus walk, walkdown, turnaround and verse-3 boogie; medium for verse pedal pickups",
+   "versePedal": {
+    "desc": "E2 on every quarter; every 2nd bar adds low B1 approach notes on the swung '&' of 3 and 4",
+    "notes": [
+     [
+      "E2",
+      1,
+      1
+     ],
+     [
+      "E2",
+      2,
+      1
+     ],
+     [
+      "E2",
+      3,
+      0.67
+     ],
+     [
+      "B1",
+      3.67,
+      0.33
+     ],
+     [
+      "E2",
+      4,
+      0.67
+     ],
+     [
+      "B1",
+      4.67,
+      0.33
+     ]
+    ]
+   },
+   "verseBoogie": {
+    "desc": "Verse 3 bars 63-70 (2-bar figure, repeats 4x). Signature boogie climb.",
+    "notes": [
+     [
+      "E2",
+      1,
+      1
+     ],
+     [
+      "E2",
+      2,
+      1
+     ],
+     [
+      "B1",
+      3,
+      1
+     ],
+     [
+      "B1",
+      4,
+      0.67
+     ],
+     [
+      "D#2",
+      4.67,
+      0.33
+     ],
+     [
+      "E2",
+      5,
+      1
+     ],
+     [
+      "E2",
+      6,
+      0.67
+     ],
+     [
+      "G#2",
+      6.67,
+      0.33
+     ],
+     [
+      "A2",
+      7,
+      0.67
+     ],
+     [
+      "A#2",
+      7.67,
+      0.33
+     ],
+     [
+      "B2",
+      8,
+      1
+     ]
+    ]
+   },
+   "chorusA7": {
+    "desc": "Each A7 bar in the chorus: octave drop then chromatic climb to E",
+    "notes": [
+     [
+      "A2",
+      1,
+      1
+     ],
+     [
+      "A1",
+      2,
+      0.67
+     ],
+     [
+      "C#2",
+      2.67,
+      0.33
+     ],
+     [
+      "D2",
+      3,
+      0.67
+     ],
+     [
+      "D#2",
+      3.67,
+      0.33
+     ],
+     [
+      "E2",
+      4,
+      1
+     ]
+    ]
+   },
+   "chorusE7": {
+    "desc": "E7 bar after an A7 bar (medium confidence)",
+    "notes": [
+     [
+      "E2",
+      1,
+      1
+     ],
+     [
+      "E2",
+      2,
+      0.67
+     ],
+     [
+      "G#2",
+      2.67,
+      0.33
+     ],
+     [
+      "B2",
+      3,
+      1
+     ],
+     [
+      "E2",
+      4,
+      0.67
+     ],
+     [
+      "G2",
+      4.67,
+      0.33
+     ]
+    ]
+   },
+   "hookWalkdown": {
+    "desc": "Chorus bar 7 -> 8: the title-hook bass line",
+    "notes": [
+     [
+      "B2",
+      1,
+      1
+     ],
+     [
+      "A2",
+      2,
+      1
+     ],
+     [
+      "G2",
+      3,
+      1
+     ],
+     [
+      "F#2",
+      4,
+      1
+     ],
+     [
+      "E2",
+      5,
+      1
+     ]
+    ]
+   },
+   "prechorusWalkup": {
+    "desc": "Pre-chorus bar 2",
+    "notes": [
+     [
+      "E2",
+      1,
+      1
+     ],
+     [
+      "E2",
+      2,
+      1
+     ],
+     [
+      "F#2",
+      3,
+      1
+     ],
+     [
+      "G#2",
+      4,
+      1
+     ],
+     [
+      "A2",
+      5,
+      1
+     ]
+    ]
+   },
+   "turnaroundB7": {
+    "desc": "2-bar B7 turnaround after each tag",
+    "notes": [
+     [
+      "B1",
+      1,
+      1
+     ],
+     [
+      "B1",
+      2,
+      1
+     ],
+     [
+      "B1",
+      3,
+      1
+     ],
+     [
+      "B1",
+      4,
+      1
+     ],
+     [
+      "B1",
+      5,
+      1
+     ],
+     [
+      "B1",
+      6,
+      1
+     ],
+     [
+      "C#2",
+      7,
+      1
+     ],
+     [
+      "D#2",
+      8,
+      1
+     ],
+     [
+      "E2",
+      9,
+      1
+     ]
+    ]
+   },
+   "breakdownPickup": {
+    "desc": "Breakdown/outro, every 2nd bar",
+    "notes": [
+     [
+      "E2",
+      1,
+      1
+     ],
+     [
+      "E2",
+      2,
+      1
+     ],
+     [
+      "E2",
+      3,
+      0.67
+     ],
+     [
+      "B1",
+      3.67,
+      0.33
+     ],
+     [
+      "C2",
+      4,
+      0.33
+     ],
+     [
+      "D2",
+      4.33,
+      0.33
+     ],
+     [
+      "D#2",
+      4.67,
+      0.33
+     ],
+     [
+      "E2",
+      5,
+      1
+     ]
+    ]
+   },
+   "stopTime": "Second half of each verse (A7/B7 bars) the bass mostly lays out, leaving drums + guitars."
+  },
+  "guitars": {
+   "confidence": "medium",
+   "desc": "Two strummed acoustic guitars, shuffle strum on open-position chords. No single-note guitar riff in the original; the 'riff identity' lives in the bass walks and the vocal hook.",
+   "voicings": {
+    "E": [
+     "E2",
+     "B2",
+     "E3",
+     "G#3",
+     "B3",
+     "E4"
+    ],
+    "E7": [
+     "E2",
+     "B2",
+     "D3",
+     "G#3",
+     "B3",
+     "E4"
+    ],
+    "A7": [
+     "A2",
+     "E3",
+     "G3",
+     "C#4",
+     "E4"
+    ],
+    "B7": [
+     "B2",
+     "D#3",
+     "A3",
+     "B3",
+     "F#4"
+    ]
+   }
+  },
+  "piano": {
+   "confidence": "medium-low (sparse, only from bar ~32)",
+   "desc": "Honky-tonk right hand: B-octave stabs (B2+B3+B4) on each beat of the B7 turnaround; short E7 fills (E4, G#4, B4, D5) and grace-note licks between vocal phrases in verses 2-3."
+  },
+  "derivedRiffsForArrangement": {
+   "note": "NOT literal parts of the original: suggested hard-rock riffs built from the original's own bass/vocal material.",
+   "stompRiffE": {
+    "desc": "From the verse-3 boogie bass; 2 bars, double with distorted guitar an octave up",
+    "notes": [
+     [
+      "E2",
+      1,
+      0.67
+     ],
+     [
+      "E2",
+      1.67,
+      0.33
+     ],
+     [
+      "E2",
+      2,
+      1
+     ],
+     [
+      "B1",
+      3,
+      0.67
+     ],
+     [
+      "D#2",
+      3.67,
+      0.33
+     ],
+     [
+      "E2",
+      4,
+      1
+     ],
+     [
+      "E2",
+      5,
+      0.67
+     ],
+     [
+      "G#2",
+      5.67,
+      0.33
+     ],
+     [
+      "A2",
+      6,
+      0.67
+     ],
+     [
+      "A#2",
+      6.67,
+      0.33
+     ],
+     [
+      "B2",
+      7,
+      1
+     ],
+     [
+      "D3",
+      8,
+      0.67
+     ],
+     [
+      "B2",
+      8.67,
+      0.33
+     ]
+    ]
+   },
+   "chorusClimbA": {
+    "desc": "A2 A1 C#2 D2 D#2 E2 as a unison band riff under the chorus A7 bars"
+   },
+   "hookWalkdownB": {
+    "desc": "B-A-G-F# -> E, the whole band in unison quarter-note hits on the title hook (Castle-Rock-style 'hit' moments)"
+   },
+   "turnaroundStabs": {
+    "desc": "B7 stabs on every beat for 2 bars + C#-D# pickup: natural jump/punch cue"
+   }
+  }
+ },
+ "melody": {
+  "chorusCanonical": {
+   "desc": "Hand-curated consensus of the 4 choruses (they agree closely). relBeat 0 = beat 1 of chorus bar 1. Use for every chorus.",
+   "notes": [
+    {
+     "relBeat": -1.0,
+     "note": "E3",
+     "midi": 52,
+     "dur": 0.67
+    },
+    {
+     "relBeat": -0.33,
+     "note": "G3",
+     "midi": 55,
+     "dur": 0.33,
+     "comment": "pickup"
+    },
+    {
+     "relBeat": 0.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 1.0,
+     "comment": "scoop from G3"
+    },
+    {
+     "relBeat": 1.0,
+     "note": "G3",
+     "midi": 55,
+     "dur": 0.67
+    },
+    {
+     "relBeat": 2.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 0.67
+    },
+    {
+     "relBeat": 2.67,
+     "note": "G3",
+     "midi": 55,
+     "dur": 0.33
+    },
+    {
+     "relBeat": 3.0,
+     "note": "B3",
+     "midi": 59,
+     "dur": 1.0,
+     "comment": "scoop from A3 (bend)"
+    },
+    {
+     "relBeat": 4.0,
+     "note": "F#3",
+     "midi": 54,
+     "dur": 0.67,
+     "comment": "phrase end"
+    },
+    {
+     "relBeat": 6.67,
+     "note": "G#3",
+     "midi": 56,
+     "dur": 0.33,
+     "comment": "pickup"
+    },
+    {
+     "relBeat": 7.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 1.0
+    },
+    {
+     "relBeat": 8.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 1.0,
+     "comment": "scoop from G3"
+    },
+    {
+     "relBeat": 9.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 1.0
+    },
+    {
+     "relBeat": 10.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 0.67
+    },
+    {
+     "relBeat": 10.67,
+     "note": "G3",
+     "midi": 55,
+     "dur": 0.33
+    },
+    {
+     "relBeat": 11.0,
+     "note": "B3",
+     "midi": 59,
+     "dur": 0.67
+    },
+    {
+     "relBeat": 11.67,
+     "note": "G3",
+     "midi": 55,
+     "dur": 0.33
+    },
+    {
+     "relBeat": 12.0,
+     "note": "E3",
+     "midi": 52,
+     "dur": 1.0,
+     "comment": "slide down from G3; phrase end"
+    },
+    {
+     "relBeat": 14.67,
+     "note": "G#3",
+     "midi": 56,
+     "dur": 0.33,
+     "comment": "pickup"
+    },
+    {
+     "relBeat": 15.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 1.0
+    },
+    {
+     "relBeat": 16.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 1.0,
+     "comment": "scoop"
+    },
+    {
+     "relBeat": 18.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 1.0,
+     "comment": "scoop"
+    },
+    {
+     "relBeat": 19.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 0.67
+    },
+    {
+     "relBeat": 19.67,
+     "note": "G3",
+     "midi": 55,
+     "dur": 0.33
+    },
+    {
+     "relBeat": 20.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 0.67
+    },
+    {
+     "relBeat": 21.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 0.67
+    },
+    {
+     "relBeat": 21.67,
+     "note": "G3",
+     "midi": 55,
+     "dur": 0.33
+    },
+    {
+     "relBeat": 22.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 0.67
+    },
+    {
+     "relBeat": 22.67,
+     "note": "G3",
+     "midi": 55,
+     "dur": 0.33
+    },
+    {
+     "relBeat": 23.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 0.67
+    },
+    {
+     "relBeat": 23.67,
+     "note": "G3",
+     "midi": 55,
+     "dur": 0.33
+    },
+    {
+     "relBeat": 24.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 0.67,
+     "comment": "HOOK A start"
+    },
+    {
+     "relBeat": 24.67,
+     "note": "B3",
+     "midi": 59,
+     "dur": 0.33,
+     "comment": "bend up from A#3"
+    },
+    {
+     "relBeat": 25.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 0.67
+    },
+    {
+     "relBeat": 25.67,
+     "note": "D#3",
+     "midi": 51,
+     "dur": 0.33,
+     "comment": "low confidence (could be E3)"
+    },
+    {
+     "relBeat": 26.0,
+     "note": "G3",
+     "midi": 55,
+     "dur": 0.67
+    },
+    {
+     "relBeat": 26.67,
+     "note": "D#3",
+     "midi": 51,
+     "dur": 0.33,
+     "comment": "fall from F#3; low confidence"
+    },
+    {
+     "relBeat": 27.0,
+     "note": "D3",
+     "midi": 50,
+     "dur": 0.67
+    },
+    {
+     "relBeat": 27.67,
+     "note": "E3",
+     "midi": 52,
+     "dur": 0.33
+    },
+    {
+     "relBeat": 28.0,
+     "note": "E3",
+     "midi": 52,
+     "dur": 0.67
+    },
+    {
+     "relBeat": 28.67,
+     "note": "D3",
+     "midi": 50,
+     "dur": 0.33,
+     "comment": "quick dip"
+    },
+    {
+     "relBeat": 29.0,
+     "note": "E3",
+     "midi": 52,
+     "dur": 1.0,
+     "comment": "HOOK A end"
+    },
+    {
+     "relBeat": 30.0,
+     "note": "G3",
+     "midi": 55,
+     "dur": 0.67,
+     "comment": "HOOK B (tag) pickup"
+    },
+    {
+     "relBeat": 30.67,
+     "note": "A3",
+     "midi": 57,
+     "dur": 0.33
+    },
+    {
+     "relBeat": 31.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 0.67
+    },
+    {
+     "relBeat": 31.67,
+     "note": "A#3",
+     "midi": 58,
+     "dur": 0.33,
+     "comment": "passing, bends into B3"
+    },
+    {
+     "relBeat": 32.0,
+     "note": "B3",
+     "midi": 59,
+     "dur": 1.0,
+     "comment": "scoop from G#3/A3"
+    },
+    {
+     "relBeat": 33.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 0.67
+    },
+    {
+     "relBeat": 33.67,
+     "note": "G3",
+     "midi": 55,
+     "dur": 0.33
+    },
+    {
+     "relBeat": 34.0,
+     "note": "A3",
+     "midi": 57,
+     "dur": 0.67
+    },
+    {
+     "relBeat": 34.67,
+     "note": "G3",
+     "midi": 55,
+     "dur": 0.33
+    },
+    {
+     "relBeat": 35.0,
+     "note": "G3",
+     "midi": 55,
+     "dur": 0.67
+    },
+    {
+     "relBeat": 35.67,
+     "note": "E3",
+     "midi": 52,
+     "dur": 0.33,
+     "comment": "tail, often dropped; HOOK B end"
+    }
+   ],
+   "phrases": [
+    {
+     "name": "line1",
+     "relBeats": [
+      -1.0,
+      4.67
+     ],
+     "chords": "A7 -> E7",
+     "desc": "reciting A3/G3, rises to B3, falls to F#3"
+    },
+    {
+     "name": "line2",
+     "relBeats": [
+      6.67,
+      13.0
+     ],
+     "chords": "A7 -> E7",
+     "desc": "same shape as line 1, ends lower on E3"
+    },
+    {
+     "name": "line3",
+     "relBeats": [
+      14.67,
+      24.0
+     ],
+     "chords": "A7 A7",
+     "desc": "longest line; swung A3-G3 alternation"
+    },
+    {
+     "name": "line4_hookA",
+     "relBeats": [
+      24.0,
+      30.0
+     ],
+     "chords": "B7 walkdown -> E",
+     "desc": "THE title-line hook: A3 B3 A3 . G3 . D3 E3 then E3, over bass B-A-G-F#-E"
+    },
+    {
+     "name": "tag_hookB",
+     "relBeats": [
+      30.0,
+      36.0
+     ],
+     "chords": "E",
+     "desc": "post-chorus tag: G3 A3 A3 then B3 A3 G3 A3 G3 G3; repeated every 2 bars in the outro"
+    }
+   ]
+  },
+  "verses": {
+   "verse1": {
+    "desc": "Auto-transcribed from the isolated vocal (CREPE pitch + onset segmentation, snapped to E-blues/mixolydian), octave outliers and scoops cleaned. Speech-like delivery: pitches are A3/B3 reciting tones with G3 neighbours and E3 cadences. relBeat 0 = beat 1 of the verse's first bar.",
+    "phrases": [
+     [
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 16.0,
+       "bar": 5,
+       "beatInBar": 1.0,
+       "relBeat": 0.0,
+       "dur": 0.333
+      },
+      {
+       "note": "A#3",
+       "midi": 58,
+       "songBeat": 16.333,
+       "bar": 5,
+       "beatInBar": 1.333,
+       "relBeat": 0.333,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 17.0,
+       "bar": 5,
+       "beatInBar": 2.0,
+       "relBeat": 1.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 17.333,
+       "bar": 5,
+       "beatInBar": 2.333,
+       "relBeat": 1.333,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 18.0,
+       "bar": 5,
+       "beatInBar": 3.0,
+       "relBeat": 2.0,
+       "dur": 0.667
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 18.667,
+       "bar": 5,
+       "beatInBar": 3.667,
+       "relBeat": 2.667,
+       "dur": 1.0
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 19.667,
+       "bar": 5,
+       "beatInBar": 4.667,
+       "relBeat": 3.667,
+       "dur": 1.0
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 20.667,
+       "bar": 6,
+       "beatInBar": 1.667,
+       "relBeat": 4.667,
+       "dur": 1.333
+      }
+     ],
+     [
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 24.0,
+       "bar": 7,
+       "beatInBar": 1.0,
+       "relBeat": 8.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 24.333,
+       "bar": 7,
+       "beatInBar": 1.333,
+       "relBeat": 8.333,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 25.0,
+       "bar": 7,
+       "beatInBar": 2.0,
+       "relBeat": 9.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 25.333,
+       "bar": 7,
+       "beatInBar": 2.333,
+       "relBeat": 9.333,
+       "dur": 0.667
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 26.0,
+       "bar": 7,
+       "beatInBar": 3.0,
+       "relBeat": 10.0,
+       "dur": 0.667
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 26.667,
+       "bar": 7,
+       "beatInBar": 3.667,
+       "relBeat": 10.667,
+       "dur": 1.0
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 27.667,
+       "bar": 7,
+       "beatInBar": 4.667,
+       "relBeat": 11.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 28.0,
+       "bar": 8,
+       "beatInBar": 1.0,
+       "relBeat": 12.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 28.333,
+       "bar": 8,
+       "beatInBar": 1.333,
+       "relBeat": 12.333,
+       "dur": 0.667
+      }
+     ],
+     [
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 32.0,
+       "bar": 9,
+       "beatInBar": 1.0,
+       "relBeat": 16.0,
+       "dur": 0.333
+      },
+      {
+       "note": "A#3",
+       "midi": 58,
+       "songBeat": 32.333,
+       "bar": 9,
+       "beatInBar": 1.333,
+       "relBeat": 16.333,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 33.0,
+       "bar": 9,
+       "beatInBar": 2.0,
+       "relBeat": 17.0,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 33.333,
+       "bar": 9,
+       "beatInBar": 2.333,
+       "relBeat": 17.333,
+       "dur": 1.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 34.667,
+       "bar": 9,
+       "beatInBar": 3.667,
+       "relBeat": 18.667,
+       "dur": 1.0
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 35.667,
+       "bar": 9,
+       "beatInBar": 4.667,
+       "relBeat": 19.667,
+       "dur": 1.0
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 36.667,
+       "bar": 10,
+       "beatInBar": 1.667,
+       "relBeat": 20.667,
+       "dur": 0.667
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 37.333,
+       "bar": 10,
+       "beatInBar": 2.333,
+       "relBeat": 21.333,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 37.667,
+       "bar": 10,
+       "beatInBar": 2.667,
+       "relBeat": 21.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 38.0,
+       "bar": 10,
+       "beatInBar": 3.0,
+       "relBeat": 22.0,
+       "dur": 0.667
+      },
+      {
+       "note": "F#3",
+       "midi": 54,
+       "songBeat": 38.667,
+       "bar": 10,
+       "beatInBar": 3.667,
+       "relBeat": 22.667,
+       "dur": 0.333
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 39.0,
+       "bar": 10,
+       "beatInBar": 4.0,
+       "relBeat": 23.0,
+       "dur": 0.333
+      },
+      {
+       "note": "D3",
+       "midi": 50,
+       "songBeat": 39.333,
+       "bar": 10,
+       "beatInBar": 4.333,
+       "relBeat": 23.333,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 40.0,
+       "bar": 11,
+       "beatInBar": 1.0,
+       "relBeat": 24.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 40.333,
+       "bar": 11,
+       "beatInBar": 1.333,
+       "relBeat": 24.333,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 41.0,
+       "bar": 11,
+       "beatInBar": 2.0,
+       "relBeat": 25.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 41.333,
+       "bar": 11,
+       "beatInBar": 2.333,
+       "relBeat": 25.333,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 42.0,
+       "bar": 11,
+       "beatInBar": 3.0,
+       "relBeat": 26.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 42.333,
+       "bar": 11,
+       "beatInBar": 3.333,
+       "relBeat": 26.333,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 42.667,
+       "bar": 11,
+       "beatInBar": 3.667,
+       "relBeat": 26.667,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 43.0,
+       "bar": 11,
+       "beatInBar": 4.0,
+       "relBeat": 27.0,
+       "dur": 0.667
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 43.667,
+       "bar": 11,
+       "beatInBar": 4.667,
+       "relBeat": 27.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 44.0,
+       "bar": 12,
+       "beatInBar": 1.0,
+       "relBeat": 28.0,
+       "dur": 0.333
+      },
+      {
+       "note": "A#3",
+       "midi": 58,
+       "songBeat": 44.333,
+       "bar": 12,
+       "beatInBar": 1.333,
+       "relBeat": 28.333,
+       "dur": 0.333
+      }
+     ],
+     [
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 46.667,
+       "bar": 12,
+       "beatInBar": 3.667,
+       "relBeat": 30.667,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 47.0,
+       "bar": 12,
+       "beatInBar": 4.0,
+       "relBeat": 31.0,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 47.667,
+       "bar": 12,
+       "beatInBar": 4.667,
+       "relBeat": 31.667,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 48.0,
+       "bar": 13,
+       "beatInBar": 1.0,
+       "relBeat": 32.0,
+       "dur": 0.667
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 48.667,
+       "bar": 13,
+       "beatInBar": 1.667,
+       "relBeat": 32.667,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 49.0,
+       "bar": 13,
+       "beatInBar": 2.0,
+       "relBeat": 33.0,
+       "dur": 0.667
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 49.667,
+       "bar": 13,
+       "beatInBar": 2.667,
+       "relBeat": 33.667,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 50.0,
+       "bar": 13,
+       "beatInBar": 3.0,
+       "relBeat": 34.0,
+       "dur": 0.667
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 50.667,
+       "bar": 13,
+       "beatInBar": 3.667,
+       "relBeat": 34.667,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 51.0,
+       "bar": 13,
+       "beatInBar": 4.0,
+       "relBeat": 35.0,
+       "dur": 0.667
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 51.667,
+       "bar": 13,
+       "beatInBar": 4.667,
+       "relBeat": 35.667,
+       "dur": 1.0
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 52.667,
+       "bar": 14,
+       "beatInBar": 1.667,
+       "relBeat": 36.667,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 53.0,
+       "bar": 14,
+       "beatInBar": 2.0,
+       "relBeat": 37.0,
+       "dur": 0.333
+      },
+      {
+       "note": "F#3",
+       "midi": 54,
+       "songBeat": 53.333,
+       "bar": 14,
+       "beatInBar": 2.333,
+       "relBeat": 37.333,
+       "dur": 0.333
+      },
+      {
+       "note": "F#3",
+       "midi": 54,
+       "songBeat": 53.667,
+       "bar": 14,
+       "beatInBar": 2.667,
+       "relBeat": 37.667,
+       "dur": 1.333
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 55.0,
+       "bar": 14,
+       "beatInBar": 4.0,
+       "relBeat": 39.0,
+       "dur": 0.333
+      },
+      {
+       "note": "C#3",
+       "midi": 49,
+       "songBeat": 55.333,
+       "bar": 14,
+       "beatInBar": 4.333,
+       "relBeat": 39.333,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 56.0,
+       "bar": 15,
+       "beatInBar": 1.0,
+       "relBeat": 40.0,
+       "dur": 0.667
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 56.667,
+       "bar": 15,
+       "beatInBar": 1.667,
+       "relBeat": 40.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 57.0,
+       "bar": 15,
+       "beatInBar": 2.0,
+       "relBeat": 41.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 57.333,
+       "bar": 15,
+       "beatInBar": 2.333,
+       "relBeat": 41.333,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 57.667,
+       "bar": 15,
+       "beatInBar": 2.667,
+       "relBeat": 41.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 58.0,
+       "bar": 15,
+       "beatInBar": 3.0,
+       "relBeat": 42.0,
+       "dur": 0.667
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 58.667,
+       "bar": 15,
+       "beatInBar": 3.667,
+       "relBeat": 42.667,
+       "dur": 1.0
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 59.667,
+       "bar": 15,
+       "beatInBar": 4.667,
+       "relBeat": 43.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 60.0,
+       "bar": 16,
+       "beatInBar": 1.0,
+       "relBeat": 44.0,
+       "dur": 0.333
+      }
+     ],
+     [
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 62.667,
+       "bar": 16,
+       "beatInBar": 3.667,
+       "relBeat": 46.667,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 63.0,
+       "bar": 16,
+       "beatInBar": 4.0,
+       "relBeat": 47.0,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 63.333,
+       "bar": 16,
+       "beatInBar": 4.333,
+       "relBeat": 47.333,
+       "dur": 0.333
+      },
+      {
+       "note": "D4",
+       "midi": 62,
+       "songBeat": 64.0,
+       "bar": 17,
+       "beatInBar": 1.0,
+       "relBeat": 48.0,
+       "dur": 1.0
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 65.0,
+       "bar": 17,
+       "beatInBar": 2.0,
+       "relBeat": 49.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 65.333,
+       "bar": 17,
+       "beatInBar": 2.333,
+       "relBeat": 49.333,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 66.0,
+       "bar": 17,
+       "beatInBar": 3.0,
+       "relBeat": 50.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 66.333,
+       "bar": 17,
+       "beatInBar": 3.333,
+       "relBeat": 50.333,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 67.0,
+       "bar": 17,
+       "beatInBar": 4.0,
+       "relBeat": 51.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 67.667,
+       "bar": 17,
+       "beatInBar": 4.667,
+       "relBeat": 51.667,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 68.0,
+       "bar": 18,
+       "beatInBar": 1.0,
+       "relBeat": 52.0,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 68.667,
+       "bar": 18,
+       "beatInBar": 1.667,
+       "relBeat": 52.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 69.0,
+       "bar": 18,
+       "beatInBar": 2.0,
+       "relBeat": 53.0,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 69.333,
+       "bar": 18,
+       "beatInBar": 2.333,
+       "relBeat": 53.333,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 69.667,
+       "bar": 18,
+       "beatInBar": 2.667,
+       "relBeat": 53.667,
+       "dur": 1.0
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 70.667,
+       "bar": 18,
+       "beatInBar": 3.667,
+       "relBeat": 54.667,
+       "dur": 0.333
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 71.0,
+       "bar": 18,
+       "beatInBar": 4.0,
+       "relBeat": 55.0,
+       "dur": 0.333
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 71.333,
+       "bar": 18,
+       "beatInBar": 4.333,
+       "relBeat": 55.333,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 72.0,
+       "bar": 19,
+       "beatInBar": 1.0,
+       "relBeat": 56.0,
+       "dur": 1.0,
+       "scoop": true
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 73.0,
+       "bar": 19,
+       "beatInBar": 2.0,
+       "relBeat": 57.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 73.333,
+       "bar": 19,
+       "beatInBar": 2.333,
+       "relBeat": 57.333,
+       "dur": 0.333
+      },
+      {
+       "note": "C#3",
+       "midi": 49,
+       "songBeat": 73.667,
+       "bar": 19,
+       "beatInBar": 2.667,
+       "relBeat": 57.667,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 74.0,
+       "bar": 19,
+       "beatInBar": 3.0,
+       "relBeat": 58.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 74.667,
+       "bar": 19,
+       "beatInBar": 3.667,
+       "relBeat": 58.667,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 75.0,
+       "bar": 19,
+       "beatInBar": 4.0,
+       "relBeat": 59.0,
+       "dur": 0.667
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 75.667,
+       "bar": 19,
+       "beatInBar": 4.667,
+       "relBeat": 59.667,
+       "dur": 0.333
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 76.0,
+       "bar": 20,
+       "beatInBar": 1.0,
+       "relBeat": 60.0,
+       "dur": 0.667
+      }
+     ],
+     [
+      {
+       "note": "F#3",
+       "midi": 54,
+       "songBeat": 77.667,
+       "bar": 20,
+       "beatInBar": 2.667,
+       "relBeat": 61.667,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 78.0,
+       "bar": 20,
+       "beatInBar": 3.0,
+       "relBeat": 62.0,
+       "dur": 0.667
+      },
+      {
+       "note": "D3",
+       "midi": 50,
+       "songBeat": 78.667,
+       "bar": 20,
+       "beatInBar": 3.667,
+       "relBeat": 62.667,
+       "dur": 1.0
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 79.667,
+       "bar": 20,
+       "beatInBar": 4.667,
+       "relBeat": 63.667,
+       "dur": 0.333
+      },
+      {
+       "note": "D#3",
+       "midi": 51,
+       "songBeat": 80.0,
+       "bar": 21,
+       "beatInBar": 1.0,
+       "relBeat": 64.0,
+       "dur": 0.333
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 80.667,
+       "bar": 21,
+       "beatInBar": 1.667,
+       "relBeat": 64.667,
+       "dur": 0.333
+      }
+     ]
+    ]
+   },
+   "verse2": {
+    "desc": "Auto-transcribed from the isolated vocal (CREPE pitch + onset segmentation, snapped to E-blues/mixolydian), octave outliers and scoops cleaned. Speech-like delivery: pitches are A3/B3 reciting tones with G3 neighbours and E3 cadences. relBeat 0 = beat 1 of the verse's first bar.",
+    "phrases": [
+     [
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 130.667,
+       "bar": 33,
+       "beatInBar": 3.667,
+       "relBeat": -1.333,
+       "dur": 1.0
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 132.0,
+       "bar": 34,
+       "beatInBar": 1.0,
+       "relBeat": 0.0,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 132.333,
+       "bar": 34,
+       "beatInBar": 1.333,
+       "relBeat": 0.333,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 132.667,
+       "bar": 34,
+       "beatInBar": 1.667,
+       "relBeat": 0.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 133.0,
+       "bar": 34,
+       "beatInBar": 2.0,
+       "relBeat": 1.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 133.333,
+       "bar": 34,
+       "beatInBar": 2.333,
+       "relBeat": 1.333,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 133.667,
+       "bar": 34,
+       "beatInBar": 2.667,
+       "relBeat": 1.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 134.0,
+       "bar": 34,
+       "beatInBar": 3.0,
+       "relBeat": 2.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 134.333,
+       "bar": 34,
+       "beatInBar": 3.333,
+       "relBeat": 2.333,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 134.667,
+       "bar": 34,
+       "beatInBar": 3.667,
+       "relBeat": 2.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 135.0,
+       "bar": 34,
+       "beatInBar": 4.0,
+       "relBeat": 3.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 135.333,
+       "bar": 34,
+       "beatInBar": 4.333,
+       "relBeat": 3.333,
+       "dur": 0.667
+      },
+      {
+       "note": "A#3",
+       "midi": 58,
+       "songBeat": 136.0,
+       "bar": 35,
+       "beatInBar": 1.0,
+       "relBeat": 4.0,
+       "dur": 0.667
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 136.667,
+       "bar": 35,
+       "beatInBar": 1.667,
+       "relBeat": 4.667,
+       "dur": 0.333
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 137.0,
+       "bar": 35,
+       "beatInBar": 2.0,
+       "relBeat": 5.0,
+       "dur": 0.333
+      }
+     ],
+     [
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 139.0,
+       "bar": 35,
+       "beatInBar": 4.0,
+       "relBeat": 7.0,
+       "dur": 0.333
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 139.333,
+       "bar": 35,
+       "beatInBar": 4.333,
+       "relBeat": 7.333,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 140.0,
+       "bar": 36,
+       "beatInBar": 1.0,
+       "relBeat": 8.0,
+       "dur": 0.667
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 140.667,
+       "bar": 36,
+       "beatInBar": 1.667,
+       "relBeat": 8.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 141.0,
+       "bar": 36,
+       "beatInBar": 2.0,
+       "relBeat": 9.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 141.333,
+       "bar": 36,
+       "beatInBar": 2.333,
+       "relBeat": 9.333,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 141.667,
+       "bar": 36,
+       "beatInBar": 2.667,
+       "relBeat": 9.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 142.0,
+       "bar": 36,
+       "beatInBar": 3.0,
+       "relBeat": 10.0,
+       "dur": 0.333
+      },
+      {
+       "note": "F#3",
+       "midi": 54,
+       "songBeat": 142.333,
+       "bar": 36,
+       "beatInBar": 3.333,
+       "relBeat": 10.333,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 142.667,
+       "bar": 36,
+       "beatInBar": 3.667,
+       "relBeat": 10.667,
+       "dur": 1.0
+      },
+      {
+       "note": "A#3",
+       "midi": 58,
+       "songBeat": 143.667,
+       "bar": 36,
+       "beatInBar": 4.667,
+       "relBeat": 11.667,
+       "dur": 0.667
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 144.333,
+       "bar": 37,
+       "beatInBar": 1.333,
+       "relBeat": 12.333,
+       "dur": 0.333
+      }
+     ],
+     [
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 147.0,
+       "bar": 37,
+       "beatInBar": 4.0,
+       "relBeat": 15.0,
+       "dur": 1.0
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 148.0,
+       "bar": 38,
+       "beatInBar": 1.0,
+       "relBeat": 16.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 148.333,
+       "bar": 38,
+       "beatInBar": 1.333,
+       "relBeat": 16.333,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 148.667,
+       "bar": 38,
+       "beatInBar": 1.667,
+       "relBeat": 16.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 149.0,
+       "bar": 38,
+       "beatInBar": 2.0,
+       "relBeat": 17.0,
+       "dur": 0.667
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 149.667,
+       "bar": 38,
+       "beatInBar": 2.667,
+       "relBeat": 17.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 150.0,
+       "bar": 38,
+       "beatInBar": 3.0,
+       "relBeat": 18.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 150.333,
+       "bar": 38,
+       "beatInBar": 3.333,
+       "relBeat": 18.333,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 150.667,
+       "bar": 38,
+       "beatInBar": 3.667,
+       "relBeat": 18.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 151.0,
+       "bar": 38,
+       "beatInBar": 4.0,
+       "relBeat": 19.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 151.333,
+       "bar": 38,
+       "beatInBar": 4.333,
+       "relBeat": 19.333,
+       "dur": 0.333
+      },
+      {
+       "note": "F#3",
+       "midi": 54,
+       "songBeat": 151.667,
+       "bar": 38,
+       "beatInBar": 4.667,
+       "relBeat": 19.667,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 152.0,
+       "bar": 39,
+       "beatInBar": 1.0,
+       "relBeat": 20.0,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 152.333,
+       "bar": 39,
+       "beatInBar": 1.333,
+       "relBeat": 20.333,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 152.667,
+       "bar": 39,
+       "beatInBar": 1.667,
+       "relBeat": 20.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A#3",
+       "midi": 58,
+       "songBeat": 153.0,
+       "bar": 39,
+       "beatInBar": 2.0,
+       "relBeat": 21.0,
+       "dur": 0.667
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 153.667,
+       "bar": 39,
+       "beatInBar": 2.667,
+       "relBeat": 21.667,
+       "dur": 1.0
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 154.667,
+       "bar": 39,
+       "beatInBar": 3.667,
+       "relBeat": 22.667,
+       "dur": 0.667,
+       "scoop": true
+      },
+      {
+       "note": "D#3",
+       "midi": 51,
+       "songBeat": 155.333,
+       "bar": 39,
+       "beatInBar": 4.333,
+       "relBeat": 23.333,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 156.0,
+       "bar": 40,
+       "beatInBar": 1.0,
+       "relBeat": 24.0,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 156.333,
+       "bar": 40,
+       "beatInBar": 1.333,
+       "relBeat": 24.333,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 156.667,
+       "bar": 40,
+       "beatInBar": 1.667,
+       "relBeat": 24.667,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 157.333,
+       "bar": 40,
+       "beatInBar": 2.333,
+       "relBeat": 25.333,
+       "dur": 0.667
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 158.0,
+       "bar": 40,
+       "beatInBar": 3.0,
+       "relBeat": 26.0,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 158.667,
+       "bar": 40,
+       "beatInBar": 3.667,
+       "relBeat": 26.667,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 159.0,
+       "bar": 40,
+       "beatInBar": 4.0,
+       "relBeat": 27.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 159.667,
+       "bar": 40,
+       "beatInBar": 4.667,
+       "relBeat": 27.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 160.0,
+       "bar": 41,
+       "beatInBar": 1.0,
+       "relBeat": 28.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 160.333,
+       "bar": 41,
+       "beatInBar": 1.333,
+       "relBeat": 28.333,
+       "dur": 0.333
+      }
+     ],
+     [
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 162.667,
+       "bar": 41,
+       "beatInBar": 3.667,
+       "relBeat": 30.667,
+       "dur": 0.667
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 163.333,
+       "bar": 41,
+       "beatInBar": 4.333,
+       "relBeat": 31.333,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 163.667,
+       "bar": 41,
+       "beatInBar": 4.667,
+       "relBeat": 31.667,
+       "dur": 1.0,
+       "scoop": true
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 165.0,
+       "bar": 42,
+       "beatInBar": 2.0,
+       "relBeat": 33.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 165.333,
+       "bar": 42,
+       "beatInBar": 2.333,
+       "relBeat": 33.333,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 166.0,
+       "bar": 42,
+       "beatInBar": 3.0,
+       "relBeat": 34.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 166.333,
+       "bar": 42,
+       "beatInBar": 3.333,
+       "relBeat": 34.333,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 166.667,
+       "bar": 42,
+       "beatInBar": 3.667,
+       "relBeat": 34.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 167.0,
+       "bar": 42,
+       "beatInBar": 4.0,
+       "relBeat": 35.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 167.333,
+       "bar": 42,
+       "beatInBar": 4.333,
+       "relBeat": 35.333,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 167.667,
+       "bar": 42,
+       "beatInBar": 4.667,
+       "relBeat": 35.667,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 168.0,
+       "bar": 43,
+       "beatInBar": 1.0,
+       "relBeat": 36.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 168.333,
+       "bar": 43,
+       "beatInBar": 1.333,
+       "relBeat": 36.333,
+       "dur": 0.333
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 168.667,
+       "bar": 43,
+       "beatInBar": 1.667,
+       "relBeat": 36.667,
+       "dur": 0.667
+      },
+      {
+       "note": "D3",
+       "midi": 50,
+       "songBeat": 169.333,
+       "bar": 43,
+       "beatInBar": 2.333,
+       "relBeat": 37.333,
+       "dur": 0.667
+      },
+      {
+       "note": "D#3",
+       "midi": 51,
+       "songBeat": 170.0,
+       "bar": 43,
+       "beatInBar": 3.0,
+       "relBeat": 38.0,
+       "dur": 0.667
+      },
+      {
+       "note": "D3",
+       "midi": 50,
+       "songBeat": 170.667,
+       "bar": 43,
+       "beatInBar": 3.667,
+       "relBeat": 38.667,
+       "dur": 0.333
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 171.0,
+       "bar": 43,
+       "beatInBar": 4.0,
+       "relBeat": 39.0,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 171.667,
+       "bar": 43,
+       "beatInBar": 4.667,
+       "relBeat": 39.667,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 172.0,
+       "bar": 44,
+       "beatInBar": 1.0,
+       "relBeat": 40.0,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 172.667,
+       "bar": 44,
+       "beatInBar": 1.667,
+       "relBeat": 40.667,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 173.0,
+       "bar": 44,
+       "beatInBar": 2.0,
+       "relBeat": 41.0,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 174.0,
+       "bar": 44,
+       "beatInBar": 3.0,
+       "relBeat": 42.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 174.333,
+       "bar": 44,
+       "beatInBar": 3.333,
+       "relBeat": 42.333,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 174.667,
+       "bar": 44,
+       "beatInBar": 3.667,
+       "relBeat": 42.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 175.0,
+       "bar": 44,
+       "beatInBar": 4.0,
+       "relBeat": 43.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 175.333,
+       "bar": 44,
+       "beatInBar": 4.333,
+       "relBeat": 43.333,
+       "dur": 0.333
+      }
+     ],
+     [
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 178.0,
+       "bar": 45,
+       "beatInBar": 3.0,
+       "relBeat": 46.0,
+       "dur": 1.667
+      },
+      {
+       "note": "D4",
+       "midi": 62,
+       "songBeat": 179.667,
+       "bar": 45,
+       "beatInBar": 4.667,
+       "relBeat": 47.667,
+       "dur": 1.0
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 180.667,
+       "bar": 46,
+       "beatInBar": 1.667,
+       "relBeat": 48.667,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 181.0,
+       "bar": 46,
+       "beatInBar": 2.0,
+       "relBeat": 49.0,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 181.667,
+       "bar": 46,
+       "beatInBar": 2.667,
+       "relBeat": 49.667,
+       "dur": 1.0
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 182.667,
+       "bar": 46,
+       "beatInBar": 3.667,
+       "relBeat": 50.667,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 183.0,
+       "bar": 46,
+       "beatInBar": 4.0,
+       "relBeat": 51.0,
+       "dur": 0.667
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 183.667,
+       "bar": 46,
+       "beatInBar": 4.667,
+       "relBeat": 51.667,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 184.0,
+       "bar": 47,
+       "beatInBar": 1.0,
+       "relBeat": 52.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 184.333,
+       "bar": 47,
+       "beatInBar": 1.333,
+       "relBeat": 52.333,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 184.667,
+       "bar": 47,
+       "beatInBar": 1.667,
+       "relBeat": 52.667,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 185.0,
+       "bar": 47,
+       "beatInBar": 2.0,
+       "relBeat": 53.0,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 185.667,
+       "bar": 47,
+       "beatInBar": 2.667,
+       "relBeat": 53.667,
+       "dur": 0.667
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 186.333,
+       "bar": 47,
+       "beatInBar": 3.333,
+       "relBeat": 54.333,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 186.667,
+       "bar": 47,
+       "beatInBar": 3.667,
+       "relBeat": 54.667,
+       "dur": 0.333
+      },
+      {
+       "note": "D#3",
+       "midi": 51,
+       "songBeat": 187.0,
+       "bar": 47,
+       "beatInBar": 4.0,
+       "relBeat": 55.0,
+       "dur": 0.667
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 188.0,
+       "bar": 48,
+       "beatInBar": 1.0,
+       "relBeat": 56.0,
+       "dur": 0.333
+      },
+      {
+       "note": "A#3",
+       "midi": 58,
+       "songBeat": 188.333,
+       "bar": 48,
+       "beatInBar": 1.333,
+       "relBeat": 56.333,
+       "dur": 0.333
+      },
+      {
+       "note": "F#3",
+       "midi": 54,
+       "songBeat": 188.667,
+       "bar": 48,
+       "beatInBar": 1.667,
+       "relBeat": 56.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 189.0,
+       "bar": 48,
+       "beatInBar": 2.0,
+       "relBeat": 57.0,
+       "dur": 0.667
+      },
+      {
+       "note": "D3",
+       "midi": 50,
+       "songBeat": 189.667,
+       "bar": 48,
+       "beatInBar": 2.667,
+       "relBeat": 57.667,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 190.0,
+       "bar": 48,
+       "beatInBar": 3.0,
+       "relBeat": 58.0,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 190.667,
+       "bar": 48,
+       "beatInBar": 3.667,
+       "relBeat": 58.667,
+       "dur": 1.0
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 191.667,
+       "bar": 48,
+       "beatInBar": 4.667,
+       "relBeat": 59.667,
+       "dur": 0.333
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 192.0,
+       "bar": 49,
+       "beatInBar": 1.0,
+       "relBeat": 60.0,
+       "dur": 0.667
+      }
+     ],
+     [
+      {
+       "note": "F#3",
+       "midi": 54,
+       "songBeat": 194.0,
+       "bar": 49,
+       "beatInBar": 3.0,
+       "relBeat": 62.0,
+       "dur": 0.667
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 195.0,
+       "bar": 49,
+       "beatInBar": 4.0,
+       "relBeat": 63.0,
+       "dur": 0.667
+      }
+     ]
+    ]
+   },
+   "verse3": {
+    "desc": "Auto-transcribed from the isolated vocal (CREPE pitch + onset segmentation, snapped to E-blues/mixolydian), octave outliers and scoops cleaned. Speech-like delivery: pitches are A3/B3 reciting tones with G3 neighbours and E3 cadences. relBeat 0 = beat 1 of the verse's first bar.",
+    "phrases": [
+     [
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 246.667,
+       "bar": 62,
+       "beatInBar": 3.667,
+       "relBeat": -1.333,
+       "dur": 0.667
+      },
+      {
+       "note": "F#3",
+       "midi": 54,
+       "songBeat": 247.333,
+       "bar": 62,
+       "beatInBar": 4.333,
+       "relBeat": -0.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 247.667,
+       "bar": 62,
+       "beatInBar": 4.667,
+       "relBeat": -0.333,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 248.0,
+       "bar": 63,
+       "beatInBar": 1.0,
+       "relBeat": 0.0,
+       "dur": 0.333
+      }
+     ],
+     [
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 249.0,
+       "bar": 63,
+       "beatInBar": 2.0,
+       "relBeat": 1.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 249.333,
+       "bar": 63,
+       "beatInBar": 2.333,
+       "relBeat": 1.333,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 250.0,
+       "bar": 63,
+       "beatInBar": 3.0,
+       "relBeat": 2.0,
+       "dur": 0.667
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 250.667,
+       "bar": 63,
+       "beatInBar": 3.667,
+       "relBeat": 2.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A#3",
+       "midi": 58,
+       "songBeat": 251.0,
+       "bar": 63,
+       "beatInBar": 4.0,
+       "relBeat": 3.0,
+       "dur": 1.0
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 252.0,
+       "bar": 64,
+       "beatInBar": 1.0,
+       "relBeat": 4.0,
+       "dur": 0.333
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 252.667,
+       "bar": 64,
+       "beatInBar": 1.667,
+       "relBeat": 4.667,
+       "dur": 0.333
+      }
+     ],
+     [
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 254.0,
+       "bar": 64,
+       "beatInBar": 3.0,
+       "relBeat": 6.0,
+       "dur": 0.333
+      },
+      {
+       "note": "D3",
+       "midi": 50,
+       "songBeat": 254.333,
+       "bar": 64,
+       "beatInBar": 3.333,
+       "relBeat": 6.333,
+       "dur": 0.333
+      },
+      {
+       "note": "C#3",
+       "midi": 49,
+       "songBeat": 254.667,
+       "bar": 64,
+       "beatInBar": 3.667,
+       "relBeat": 6.667,
+       "dur": 0.333
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 255.0,
+       "bar": 64,
+       "beatInBar": 4.0,
+       "relBeat": 7.0,
+       "dur": 0.667
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 256.0,
+       "bar": 65,
+       "beatInBar": 1.0,
+       "relBeat": 8.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 256.667,
+       "bar": 65,
+       "beatInBar": 1.667,
+       "relBeat": 8.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 257.0,
+       "bar": 65,
+       "beatInBar": 2.0,
+       "relBeat": 9.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 257.333,
+       "bar": 65,
+       "beatInBar": 2.333,
+       "relBeat": 9.333,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 257.667,
+       "bar": 65,
+       "beatInBar": 2.667,
+       "relBeat": 9.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 258.0,
+       "bar": 65,
+       "beatInBar": 3.0,
+       "relBeat": 10.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 258.667,
+       "bar": 65,
+       "beatInBar": 3.667,
+       "relBeat": 10.667,
+       "dur": 0.333
+      },
+      {
+       "note": "C#3",
+       "midi": 49,
+       "songBeat": 259.0,
+       "bar": 65,
+       "beatInBar": 4.0,
+       "relBeat": 11.0,
+       "dur": 0.333
+      },
+      {
+       "note": "A#3",
+       "midi": 58,
+       "songBeat": 259.667,
+       "bar": 65,
+       "beatInBar": 4.667,
+       "relBeat": 11.667,
+       "dur": 0.333
+      },
+      {
+       "note": "D4",
+       "midi": 62,
+       "songBeat": 260.0,
+       "bar": 66,
+       "beatInBar": 1.0,
+       "relBeat": 12.0,
+       "dur": 0.667
+      },
+      {
+       "note": "D4",
+       "midi": 62,
+       "songBeat": 261.0,
+       "bar": 66,
+       "beatInBar": 2.0,
+       "relBeat": 13.0,
+       "dur": 0.333
+      },
+      {
+       "note": "D4",
+       "midi": 62,
+       "songBeat": 261.333,
+       "bar": 66,
+       "beatInBar": 2.333,
+       "relBeat": 13.333,
+       "dur": 0.333
+      }
+     ],
+     [
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 262.667,
+       "bar": 66,
+       "beatInBar": 3.667,
+       "relBeat": 14.667,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 263.0,
+       "bar": 66,
+       "beatInBar": 4.0,
+       "relBeat": 15.0,
+       "dur": 0.667
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 264.0,
+       "bar": 67,
+       "beatInBar": 1.0,
+       "relBeat": 16.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 264.333,
+       "bar": 67,
+       "beatInBar": 1.333,
+       "relBeat": 16.333,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 264.667,
+       "bar": 67,
+       "beatInBar": 1.667,
+       "relBeat": 16.667,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 265.0,
+       "bar": 67,
+       "beatInBar": 2.0,
+       "relBeat": 17.0,
+       "dur": 0.667,
+       "scoop": true
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 265.667,
+       "bar": 67,
+       "beatInBar": 2.667,
+       "relBeat": 17.667,
+       "dur": 0.667
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 266.333,
+       "bar": 67,
+       "beatInBar": 3.333,
+       "relBeat": 18.333,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 266.667,
+       "bar": 67,
+       "beatInBar": 3.667,
+       "relBeat": 18.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 267.0,
+       "bar": 67,
+       "beatInBar": 4.0,
+       "relBeat": 19.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 267.333,
+       "bar": 67,
+       "beatInBar": 4.333,
+       "relBeat": 19.333,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 268.0,
+       "bar": 68,
+       "beatInBar": 1.0,
+       "relBeat": 20.0,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 268.333,
+       "bar": 68,
+       "beatInBar": 1.333,
+       "relBeat": 20.333,
+       "dur": 0.333
+      },
+      {
+       "note": "A#3",
+       "midi": 58,
+       "songBeat": 268.667,
+       "bar": 68,
+       "beatInBar": 1.667,
+       "relBeat": 20.667,
+       "dur": 1.0
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 269.667,
+       "bar": 68,
+       "beatInBar": 2.667,
+       "relBeat": 21.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 270.0,
+       "bar": 68,
+       "beatInBar": 3.0,
+       "relBeat": 22.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 270.333,
+       "bar": 68,
+       "beatInBar": 3.333,
+       "relBeat": 22.333,
+       "dur": 0.333
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 270.667,
+       "bar": 68,
+       "beatInBar": 3.667,
+       "relBeat": 22.667,
+       "dur": 0.667
+      }
+     ],
+     [
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 272.0,
+       "bar": 69,
+       "beatInBar": 1.0,
+       "relBeat": 24.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 272.333,
+       "bar": 69,
+       "beatInBar": 1.333,
+       "relBeat": 24.333,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 273.0,
+       "bar": 69,
+       "beatInBar": 2.0,
+       "relBeat": 25.0,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 274.0,
+       "bar": 69,
+       "beatInBar": 3.0,
+       "relBeat": 26.0,
+       "dur": 0.333
+      },
+      {
+       "note": "F#3",
+       "midi": 54,
+       "songBeat": 274.667,
+       "bar": 69,
+       "beatInBar": 3.667,
+       "relBeat": 26.667,
+       "dur": 0.333
+      },
+      {
+       "note": "F#3",
+       "midi": 54,
+       "songBeat": 275.0,
+       "bar": 69,
+       "beatInBar": 4.0,
+       "relBeat": 27.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 275.667,
+       "bar": 69,
+       "beatInBar": 4.667,
+       "relBeat": 27.667,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 276.0,
+       "bar": 70,
+       "beatInBar": 1.0,
+       "relBeat": 28.0,
+       "dur": 0.333
+      }
+     ],
+     [
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 278.667,
+       "bar": 70,
+       "beatInBar": 3.667,
+       "relBeat": 30.667,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 279.0,
+       "bar": 70,
+       "beatInBar": 4.0,
+       "relBeat": 31.0,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 279.333,
+       "bar": 70,
+       "beatInBar": 4.333,
+       "relBeat": 31.333,
+       "dur": 0.333
+      },
+      {
+       "note": "F#3",
+       "midi": 54,
+       "songBeat": 279.667,
+       "bar": 70,
+       "beatInBar": 4.667,
+       "relBeat": 31.667,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 280.0,
+       "bar": 71,
+       "beatInBar": 1.0,
+       "relBeat": 32.0,
+       "dur": 0.667
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 280.667,
+       "bar": 71,
+       "beatInBar": 1.667,
+       "relBeat": 32.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 281.0,
+       "bar": 71,
+       "beatInBar": 2.0,
+       "relBeat": 33.0,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 281.333,
+       "bar": 71,
+       "beatInBar": 2.333,
+       "relBeat": 33.333,
+       "dur": 0.333
+      },
+      {
+       "note": "F#3",
+       "midi": 54,
+       "songBeat": 281.667,
+       "bar": 71,
+       "beatInBar": 2.667,
+       "relBeat": 33.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 282.0,
+       "bar": 71,
+       "beatInBar": 3.0,
+       "relBeat": 34.0,
+       "dur": 0.667
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 282.667,
+       "bar": 71,
+       "beatInBar": 3.667,
+       "relBeat": 34.667,
+       "dur": 0.667
+      },
+      {
+       "note": "A#3",
+       "midi": 58,
+       "songBeat": 283.667,
+       "bar": 71,
+       "beatInBar": 4.667,
+       "relBeat": 35.667,
+       "dur": 0.333
+      }
+     ],
+     [
+      {
+       "note": "D#3",
+       "midi": 51,
+       "songBeat": 284.667,
+       "bar": 72,
+       "beatInBar": 1.667,
+       "relBeat": 36.667,
+       "dur": 0.333
+      },
+      {
+       "note": "D3",
+       "midi": 50,
+       "songBeat": 285.0,
+       "bar": 72,
+       "beatInBar": 2.0,
+       "relBeat": 37.0,
+       "dur": 0.333
+      }
+     ],
+     [
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 288.0,
+       "bar": 73,
+       "beatInBar": 1.0,
+       "relBeat": 40.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 288.333,
+       "bar": 73,
+       "beatInBar": 1.333,
+       "relBeat": 40.333,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 289.0,
+       "bar": 73,
+       "beatInBar": 2.0,
+       "relBeat": 41.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G#3",
+       "midi": 56,
+       "songBeat": 289.333,
+       "bar": 73,
+       "beatInBar": 2.333,
+       "relBeat": 41.333,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 289.667,
+       "bar": 73,
+       "beatInBar": 2.667,
+       "relBeat": 41.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 290.0,
+       "bar": 73,
+       "beatInBar": 3.0,
+       "relBeat": 42.0,
+       "dur": 0.667
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 290.667,
+       "bar": 73,
+       "beatInBar": 3.667,
+       "relBeat": 42.667,
+       "dur": 1.0
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 291.667,
+       "bar": 73,
+       "beatInBar": 4.667,
+       "relBeat": 43.667,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 292.0,
+       "bar": 74,
+       "beatInBar": 1.0,
+       "relBeat": 44.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 292.333,
+       "bar": 74,
+       "beatInBar": 1.333,
+       "relBeat": 44.333,
+       "dur": 0.333
+      }
+     ],
+     [
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 294.667,
+       "bar": 74,
+       "beatInBar": 3.667,
+       "relBeat": 46.667,
+       "dur": 1.333
+      },
+      {
+       "note": "D4",
+       "midi": 62,
+       "songBeat": 296.0,
+       "bar": 75,
+       "beatInBar": 1.0,
+       "relBeat": 48.0,
+       "dur": 0.333
+      },
+      {
+       "note": "C#4",
+       "midi": 61,
+       "songBeat": 296.333,
+       "bar": 75,
+       "beatInBar": 1.333,
+       "relBeat": 48.333,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 296.667,
+       "bar": 75,
+       "beatInBar": 1.667,
+       "relBeat": 48.667,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 297.333,
+       "bar": 75,
+       "beatInBar": 2.333,
+       "relBeat": 49.333,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 297.667,
+       "bar": 75,
+       "beatInBar": 2.667,
+       "relBeat": 49.667,
+       "dur": 0.667
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 298.333,
+       "bar": 75,
+       "beatInBar": 3.333,
+       "relBeat": 50.333,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 299.0,
+       "bar": 75,
+       "beatInBar": 4.0,
+       "relBeat": 51.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 299.333,
+       "bar": 75,
+       "beatInBar": 4.333,
+       "relBeat": 51.333,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 300.0,
+       "bar": 76,
+       "beatInBar": 1.0,
+       "relBeat": 52.0,
+       "dur": 0.667
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 300.667,
+       "bar": 76,
+       "beatInBar": 1.667,
+       "relBeat": 52.667,
+       "dur": 1.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 302.0,
+       "bar": 76,
+       "beatInBar": 3.0,
+       "relBeat": 54.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 302.333,
+       "bar": 76,
+       "beatInBar": 3.333,
+       "relBeat": 54.333,
+       "dur": 0.333
+      },
+      {
+       "note": "F#3",
+       "midi": 54,
+       "songBeat": 302.667,
+       "bar": 76,
+       "beatInBar": 3.667,
+       "relBeat": 54.667,
+       "dur": 0.333
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 303.0,
+       "bar": 76,
+       "beatInBar": 4.0,
+       "relBeat": 55.0,
+       "dur": 0.333
+      },
+      {
+       "note": "D#3",
+       "midi": 51,
+       "songBeat": 303.333,
+       "bar": 76,
+       "beatInBar": 4.333,
+       "relBeat": 55.333,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 304.0,
+       "bar": 77,
+       "beatInBar": 1.0,
+       "relBeat": 56.0,
+       "dur": 0.333
+      },
+      {
+       "note": "B3",
+       "midi": 59,
+       "songBeat": 304.333,
+       "bar": 77,
+       "beatInBar": 1.333,
+       "relBeat": 56.333,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 305.0,
+       "bar": 77,
+       "beatInBar": 2.0,
+       "relBeat": 57.0,
+       "dur": 0.667
+      },
+      {
+       "note": "D3",
+       "midi": 50,
+       "songBeat": 305.667,
+       "bar": 77,
+       "beatInBar": 2.667,
+       "relBeat": 57.667,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 306.0,
+       "bar": 77,
+       "beatInBar": 3.0,
+       "relBeat": 58.0,
+       "dur": 0.333
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 306.333,
+       "bar": 77,
+       "beatInBar": 3.333,
+       "relBeat": 58.333,
+       "dur": 0.333
+      },
+      {
+       "note": "A3",
+       "midi": 57,
+       "songBeat": 306.667,
+       "bar": 77,
+       "beatInBar": 3.667,
+       "relBeat": 58.667,
+       "dur": 1.0
+      },
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 307.667,
+       "bar": 77,
+       "beatInBar": 4.667,
+       "relBeat": 59.667,
+       "dur": 0.333
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 308.0,
+       "bar": 78,
+       "beatInBar": 1.0,
+       "relBeat": 60.0,
+       "dur": 0.333
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 308.333,
+       "bar": 78,
+       "beatInBar": 1.333,
+       "relBeat": 60.333,
+       "dur": 0.333
+      }
+     ],
+     [
+      {
+       "note": "G3",
+       "midi": 55,
+       "songBeat": 309.667,
+       "bar": 78,
+       "beatInBar": 2.667,
+       "relBeat": 61.667,
+       "dur": 1.0
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 310.667,
+       "bar": 78,
+       "beatInBar": 3.667,
+       "relBeat": 62.667,
+       "dur": 0.333
+      },
+      {
+       "note": "D3",
+       "midi": 50,
+       "songBeat": 311.0,
+       "bar": 78,
+       "beatInBar": 4.0,
+       "relBeat": 63.0,
+       "dur": 0.667
+      },
+      {
+       "note": "E3",
+       "midi": 52,
+       "songBeat": 311.667,
+       "bar": 78,
+       "beatInBar": 4.667,
+       "relBeat": 63.667,
+       "dur": 1.0
+      }
+     ]
+    ]
+   }
+  },
+  "hooks": [
+   {
+    "name": "Hook A - title line",
+    "where": "every chorus, bars 7-8 (song bars 29-30, 58-59, 87-88, 104-105)",
+    "relBeats": [
+     24,
+     30
+    ],
+    "priority": 1
+   },
+   {
+    "name": "Hook B - tag",
+    "where": "chorus bar 8 beat 3 -> bar 9 (song bars 30-31, 59-60, 88-89, 105-106) and 6 more times in the outro (bars 107-118)",
+    "relBeats": [
+     30,
+     36
+    ],
+    "priority": 1
+   },
+   {
+    "name": "Chorus line 1 (A7 -> E7)",
+    "where": "chorus bars 1-2",
+    "relBeats": [
+     -1,
+     5
+    ],
+    "priority": 2
+   },
+   {
+    "name": "Verse peak D4",
+    "where": "verse bar 13 (B7), e.g. bar 17 / 46 / 75",
+    "priority": 3
+   }
+  ]
+ },
+ "confidence": {
+  "high": [
+   "tempo/shuffle/meter",
+   "key E",
+   "section form and bar counts",
+   "chord progression (audio + backing track + published charts agree)",
+   "bass walks (chorus climb, walkdown, turnaround, verse-3 boogie)",
+   "kick/snare placement",
+   "chorus melody contour and hook rhythms"
+  ],
+  "medium": [
+   "exact chorus pitches on quick passing notes (D#3 vs E3 in hook A)",
+   "verse melody note-by-note (speech-like, varies per verse)",
+   "guitar voicings",
+   "drum fills"
+  ],
+  "low": [
+   "piano parts",
+   "breakdown vocal (speech-like, not a melody)",
+   "anything in the fade after bar 116"
+  ]
+ }
+}
