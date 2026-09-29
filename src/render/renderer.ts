@@ -468,7 +468,7 @@ export class Renderer {
       if (hold <= 0) drawEndScreen(ctx, g, b, slimState, this.clock, this.clock - this.endAt - (Number.isFinite(T) ? Math.max(0, ENDING.poster - (this.endAt - this.act3.hitClock)) : 0));
     } else this.endAt = -1;
     this.endingCues(g, hitT);
-    if (g.paused && !g.calib.active) drawCenterText(ctx, 'INTERMISSION', 'Enter / Space: resume  ·  X: re-sync the projector (audio lag)');
+    if (g.paused && !g.calib.active) drawCenterText(ctx, 'INTERMISSION', 'Enter / Space: resume  ·  X: re-sync the projector (audio lag)  ·  [ / ]: nudge latency');
     drawCalibration(ctx, g);
 
     // (the finale owns its own light: no game flash over the final hit's burst / freeze)

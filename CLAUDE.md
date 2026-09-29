@@ -47,8 +47,8 @@ World y grows DOWN; the base ground top is y = 0.
   **Latency calibration** (iteration 4, `game/calibrate.ts`, `Tun.calib` / `Tun.autoLatency`): the cold open's
   "SYNC THE PROJECTOR" — 8 stick clicks at the song's tempo, tap STRIKE on each; offset = median error of the last 6
   taps vs the click's audible time (the SFX bus is late by the limiter look-ahead only), stored like `[`/`]`. It runs
-  on the first STRIKE of a first-ever run (nothing stored; SPACE skips, a skip is stored too), on ↓ in the cold open,
-  on X in the pause screen, and with `?calib=1`. In the run, an **auto-drift** nudges the offset by 0.35 × the median
+  OPTIONALLY (iteration 8: no longer forced on a first-ever run — fun first) on ↓ in the cold open, on X in the pause
+  screen, and with `?calib=1` (a SPACE · SKIP button on the card; a skip is stored too). In the run, an **auto-drift** nudges the offset by 0.35 × the median
   error of every 16 graded presses (only a clear bias: ≥ 18 ms and ≥ 2 standard errors of the median, so sloppy noise
   doesn't random-walk it; ≤ 8 ms per bar line, ±40 ms around the calibrated value). When 16 presses average ≥ 45 ms off, or
   the drift is PINNED at that clamp for 2 steps (iteration 5), the sync is RE-OFFERED: a toast at the next checkpoint / respawn count-in (never
@@ -105,9 +105,11 @@ World y grows DOWN; the base ground top is y = 0.
   canister is an A). No in-run falls/stumbles counter (the poster has it). Iteration 7: Good counts 0.4 in the timing
   part (was 0.25); a FINISHER floors at C (`rank.finisher` / `floored`: D is for walking out, never for the one who
   struggled to the end); `rank.next` = the next billing up, the points short and the cheapest source (`hint`: canisters
-  while any are unfound) for the poster's replay pointer.
+  while any are unfound) — iteration 8: the poster draws it ("NEXT BILLING: A · CRITICS' PICK — 9.9 pts to go" + how:
+  "N film canisters still in the can — try HOLDING a jump where the song asks for a tap").
 - **Crowd = skill meter** (`Tun.crowd`): wakes at **14** (iteration 6: the booth's open point — the record plays FULL
-  from beat 0), Perfect +1 · Great +0.5 · Good +0.25 · Miss −2 · stumble −4 · death −6; it RESTS at 14 (`restAt`):
+  from beat 0), Perfect +1 · Great +0.5 · Good +0.25 · Miss −2 · stumble −4 · death −6 (from the checkpoint's value,
+  never below `restAt` on a respawn — iteration 8: every retry plays the full record); it RESTS at 14 (`restAt`):
   above it decays 0.3/beat (+0.04 per member over 14), below it recovers 0.12/beat — thin sound is the COST of misses
   for a few bars, not the default. Section caps (`crowd` items, ≥ 16 everywhere). FULL HOUSE (≥ 20) needs a near-clean chorus. A cap BELOW
   the meter (a new act's verse) never clamps: the excess glides down 1/beat (no FULL HOUSE → 16 cliff at a seam).
@@ -402,7 +404,7 @@ Presentation cues on beats: `{type:'fx', beat, fx:'flash'|'shake'|'zoom'|'bgPuls
   Esc pause, `[`/`]` latency offset, `` ` `` / F1 debug overlay.
   Gamepad: A hop, X/B/RT strike, stick/dpad.
 - URL params: `?debug=1` overlay (fps, song/beat, clock, hitboxes, beat grid, green dashed *music line*,
-  intended-action markers) · `?start=<beat>` start mid-level (checkpoints: 32, 64, 80, 96, 112, 120; act 2: 132, 164, 196, 220, 236; act 3: 256, 272, 284, 304, 320) · `?coldopen=0` ·
+  intended-action markers) · `?start=<beat>` start mid-level (checkpoints: 32, 64, 80, 96, 112, 120; act 2: 132, 164, 196, 220, 236; act 3: 256, 272, 285, 304, 320) · `?coldopen=0` ·
   `?autoplay=1` bot plays via the controller · `?jitter=<ms>` / `?late=<p>` / `?sloppy=1` sloppy bot ·
   `?judge=1` timing-grade popups · `?mute=1` · `?latency=<ms>` · `?song=edit|full|placeholder` · `?miss=37,28` bot deliberately skips those
   actions once (stumble/death/respawn test) · `?skip=none|stumble` bot ALWAYS skips rewards (lazy) / stumble

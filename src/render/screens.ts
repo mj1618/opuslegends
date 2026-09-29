@@ -143,9 +143,11 @@ export function drawTitleScreen(ctx: CanvasRenderingContext2D, g: Game, b: BeatI
     outlineText(ctx, 'PRESS ANY KEY TO ROLL THE FILM', VIEW_W / 2 + 170, VIEW_H * 0.66, CF.cream, 8);
     ctx.globalAlpha = 1;
   }
-  ctx.font = `26px ${FONT}`;
-  outlineText(ctx, 'Hold → run · Space/Z: tap = HOP, hold = JUMP · X/J: CUE SWING · Pad: A hop, X/B swing', VIEW_W / 2 + 170, VIEW_H * 0.74, '#EDE2C8', 5);
-  outlineText(ctx, '[ / ] audio latency · Esc pause · ` debug overlay', VIEW_W / 2 + 170, VIEW_H * 0.78, '#BFB09A', 5);
+  // (iteration 8, review iter7 fix 5: player-facing only — the latency / debug keys live in the pause screen)
+  ctx.font = `28px ${FONT}`;
+  outlineText(ctx, 'HOLD →  run      SPACE  tap = hop · hold = jump      X  swing', VIEW_W / 2 + 170, VIEW_H * 0.74, '#EDE2C8', 5);
+  ctx.font = `22px ${FONT}`;
+  outlineText(ctx, 'Esc  pause   ·   gamepad: A hop · X swing', VIEW_W / 2 + 170, VIEW_H * 0.78, '#BFB09A', 4);
   stage.film.draw(ctx, b);
   drawTheatre(ctx, b, { standing: 4 + Math.floor(4 * (0.5 + 0.5 * Math.sin(t * 0.5))), light: stage.streetLight.current });
   ctx.textAlign = 'left';
@@ -163,35 +165,37 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo, A =
   const gr = g.groove;
   ctx.globalAlpha = A;
   const pop = 1 + 0.12 * gr.pulse(1, 0.2);
-  // soft dark backing so the counters stay legible over neon signs
-  hudPlate(ctx, 28, 26, g.crowd.awake && g.crowd.bigCatch ? 620 : 420, 220, 1);
+  // soft dark backing so the counters stay legible over neon signs. Iteration 8 (review iter7 fix 5, first contact): no
+  // totals ("/ 1048"), the targets row only once one has cracked, the crowd as a meter without its raw count
+  const showTargets = g.stats.pendulums > 0;
+  hudPlate(ctx, 28, 26, g.crowd.awake && g.crowd.bigCatch ? 620 : 420, showTargets ? 220 : 160, 1);
   hudPlate(ctx, VIEW_W - 330, 26, 302, 180, -1);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   // tokens
   drawToken(ctx, 76, 70, -0.25, 1.4 * pop, gr.pulse(1, 0.3));
   ctx.font = `54px ${MARQUEE}`;
-  const wN = ctx.measureText(`${g.stats.lums}`).width;
   outlineText(ctx, `${g.stats.lums}`, 118, 74, REWARD.gold, 7);
-  ctx.font = `30px ${MARQUEE}`;
-  outlineText(ctx, `/ ${g.stats.lumsTotal}`, 118 + wN + 12, 82, CF.filmHi, 6);
-  // targets cracked (an 8-ball)
-  ctx.fillStyle = '#15110F';
-  ctx.beginPath();
-  ctx.arc(76, 138, 17, 0, TAU);
-  ctx.fill();
-  ctx.strokeStyle = REWARD.gold;
-  ctx.lineWidth = 3;
-  ctx.stroke();
-  ctx.fillStyle = CF.cream;
-  ctx.beginPath();
-  ctx.arc(79, 135, 7, 0, TAU);
-  ctx.fill();
-  ctx.font = `32px ${MARQUEE}`;
-  outlineText(ctx, `${g.stats.pendulums} / ${g.stats.pendulumsTotal}`, 104, 140, CF.filmHi, 6);
+  // targets cracked (an 8-ball), under the audience meter once the first one cracks
+  if (showTargets) {
+    const ty = 200;
+    ctx.fillStyle = '#15110F';
+    ctx.beginPath();
+    ctx.arc(76, ty - 2, 17, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = REWARD.gold;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = CF.cream;
+    ctx.beginPath();
+    ctx.arc(79, ty - 5, 7, 0, TAU);
+    ctx.fill();
+    ctx.font = `32px ${MARQUEE}`;
+    outlineText(ctx, `${g.stats.pendulums}`, 104, ty, CF.filmHi, 6);
+  }
   // the audience meter
   if (g.crowd.awake) {
-    const cy = 200;
+    const cy = 138;
     const cp = 1 + 0.35 * g.crowd.flash;
     const full = g.crowd.bigCatch;
     ctx.fillStyle = '#0D0A08';
@@ -203,17 +207,16 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo, A =
     ctx.strokeStyle = CF.filmHi;
     ctx.lineWidth = 2;
     ctx.stroke();
-    ctx.font = `${Math.round(40 * cp)}px ${MARQUEE}`;
-    outlineText(ctx, `${g.crowd.count}`, 104, cy, full ? REWARD.gold : CF.filmHi, 6);
-    const w = 230;
+    const w = 290;
+    const bh = Math.round(22 * cp);
     ctx.fillStyle = 'rgba(13,10,8,0.6)';
-    roundRect(ctx, 168, cy - 10, w, 20, 10);
+    roundRect(ctx, 108, cy - bh / 2 - 2, w, bh + 4, (bh + 4) / 2);
     ctx.fill();
     ctx.fillStyle = full ? REWARD.gold : CF.filmHi;
-    roundRect(ctx, 170, cy - 8, Math.max(8, ((w - 4) * g.crowd.count) / Tun.crowd.max), 16, 8);
+    roundRect(ctx, 110, cy - bh / 2, Math.max(8, ((w - 4) * g.crowd.count) / Tun.crowd.max), bh, bh / 2);
     ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.fillRect(170 + ((w - 4) * Tun.crowd.bigCatchAt) / Tun.crowd.max - 1, cy - 13, 3, 26);
+    ctx.fillRect(110 + ((w - 4) * Tun.crowd.bigCatchAt) / Tun.crowd.max - 1, cy - 15, 3, 30);
     if (full) {
       ctx.font = `${Math.round(38 + 6 * gr.pulse(1, 0.3))}px ${MARQUEE}`;
       outlineText(ctx, 'FULL HOUSE!', 414, cy, REWARD.gold, 7);
@@ -251,8 +254,9 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo, A =
     ctx.globalAlpha = (a * k) * A;
     ctx.font = `44px ${MARQUEE}`;
     outlineText(ctx, 'PRESS  X  (CUE SWING)  TO ROLL THE FILM', VIEW_W / 2, VIEW_H * 0.35, CF.cream, 8);
-    ctx.font = `26px ${FONT}`;
-    outlineText(ctx, '↓  sync the projector first (audio lag test)', VIEW_W / 2, VIEW_H * 0.35 + 50, 'rgba(233,216,180,0.8)', 4);
+    ctx.font = `22px ${FONT}`;
+    ctx.globalAlpha = a * 0.75 * A;
+    outlineText(ctx, 'optional:  ↓  sync the projector (if the beat feels late)', VIEW_W / 2, VIEW_H * 0.35 + 50, 'rgba(233,216,180,0.8)', 4);
     ctx.globalAlpha = 1 * A;
   }
   // count-in: the film's countdown leader
@@ -415,6 +419,21 @@ export function drawCenterText(ctx: CanvasRenderingContext2D, title: string, sub
 /** seconds after the poster starts that its rank stamp LANDS (= ENDING.stamp in render/act3Draw.ts) */
 export const POSTER_STAMP_AT = 0.55;
 
+/** greedy word wrap to `max` px in the current font */
+function wrapLines(ctx: CanvasRenderingContext2D, text: string, max: number): string[] {
+  const out: string[] = [];
+  let cur = '';
+  for (const w of text.split(' ')) {
+    const t = cur ? `${cur} ${w}` : w;
+    if (cur && ctx.measureText(t).width > max) {
+      out.push(cur);
+      cur = w;
+    } else cur = t;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
 export function drawEndScreen(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo, slim: SlimState, t: number, appear: number): void {
   const k = easeOut(clamp01(appear / 0.45));
   ctx.fillStyle = `rgba(13,10,8,${0.82 * k})`;
@@ -495,22 +514,47 @@ export function drawEndScreen(ctx: CanvasRenderingContext2D, g: Game, b: BeatInf
     ['best combo · heaves', `${g.comboPeak} · ${g.stats.heaves} / ${r.phrases}`],
     ['falls · stumbles', `${g.stats.deaths} · ${g.stats.stumbles}`],
   ];
+  // iteration 8 (review iter7 fix 3): THE REPLAY POINTER — the next billing up and where its points are cheapest
+  const nx = r.rank.next;
+  const step = nx ? 44 : 52;
+  const top = py + (nx ? 336 : 350);
   lines.forEach(([kk, v], i) => {
-    const y = py + 350 + i * 52;
+    const y = top + i * step;
     ctx.fillStyle = '#5A4A3A';
     ctx.font = `bold 26px ${FONT}`;
     ctx.fillText(kk.toUpperCase(), tx, y);
     ctx.fillStyle = INK;
-    ctx.font = `40px ${MARQUEE}`;
+    ctx.font = `${nx ? 36 : 40}px ${MARQUEE}`;
     ctx.textAlign = 'right';
     ctx.fillText(v, tx + tw - 10, y + 2);
     ctx.textAlign = 'left';
     ctx.fillStyle = 'rgba(90,60,40,0.25)';
     ctx.fillRect(tx, y + 14, tw - 10, 2);
   });
-  ctx.fillStyle = '#5A4A3A';
-  ctx.font = `italic 22px ${FONT}`;
-  ctx.fillText('also starring BIG JIM (briefly)', tx, py + ph - 150);
+  if (nx) {
+    const left = r.canistersTotal - r.canisters;
+    const how =
+      nx.hint === 'canisters' && left > 0
+        ? `${left} film canister${left === 1 ? '' : 's'} still in the can — try HOLDING a jump where the song asks for a tap`
+        : nx.hint === 'crowd'
+          ? 'keep the house on its feet — play the choruses clean'
+          : nx.hint === 'timing'
+            ? 'land more presses right ON the beat'
+            : nx.hint === 'tokens'
+              ? 'grab more brass tokens — they sing the tune'
+              : 'fewer falls — a red glow means hop ON the beat';
+    const ny = top + lines.length * step + 12;
+    ctx.fillStyle = '#8A2E5E';
+    ctx.font = `bold 26px ${FONT}`;
+    ctx.fillText(`NEXT BILLING:  ${nx.letter} · ${nx.tier}  —  ${nx.need.toFixed(1)} pts to go`, tx, ny);
+    ctx.fillStyle = '#5A4A3A';
+    ctx.font = `italic 23px ${FONT}`;
+    wrapLines(ctx, how, tw - 150).forEach((ln, i) => ctx.fillText(ln, tx, ny + 32 + i * 28));
+  } else {
+    ctx.fillStyle = '#5A4A3A';
+    ctx.font = `italic 22px ${FONT}`;
+    ctx.fillText('also starring BIG JIM (briefly)', tx, py + ph - 150);
+  }
   // rating stamp (gold = reward): the RANK (iteration 6, game/rank.ts — crowd time, timing, tokens, deaths, canisters)
   const rank = r.rank;
   const cup = rank.tier;

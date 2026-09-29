@@ -196,10 +196,12 @@ export function foregroundMusician(
 }
 
 function drawForegroundMusician(g: CanvasRenderingContext2D, f: ForegroundBand, botTop: number, zoom: number, b: BeatInfo): void {
-  const s = 1.85 * Math.max(0.8, zoom);
-  // his head sits just under the floor line; the feet are far below the frame
+  const s = 2.1 * Math.max(0.8, zoom);
+  // his head sits just under the floor line. Iteration 8 (review iter7: "no foreground goon reads in stills"): the rig's
+  // head is ~155 units over its feet — at 205 his head sat ~95 px down, the rest behind the theatre's front row; now head,
+  // torso and instrument fill the apron band above the audience
   const headTop = botTop + 10;
-  const feet = headTop + 205 * s;
+  const feet = headTop + 156 * s;
   if (VIEW_H - headTop < 110) return;
   const m = f.timing;
   g.save();

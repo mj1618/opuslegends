@@ -21,6 +21,7 @@
  *      echoing — a chord tone >= a minor third from the note and the singer, alternating between the two nearest on
  *      consecutive tokens (a fill under the held note). Never his note late: measured, 39 % of the singing tokens were
  *      a 120 ms (triplet) or 1/3+ beat echo of the syllable before (src/audio/lab/tokenprobe.mjs)
+ *   (iteration 8) in tag 4 + the outro (ANSWER_ONLY) a syllable is never doubled: his ad-libs get a chord tone
  *   3. between phrases / in the singer's rests: CHORD TONES of the bar's chord in the token register, stepping up one
  *      chord tone per token and turning at the top (ping-pong), starting from the chord tone nearest the last note —
  *      an arpeggio of what the band plays, never a random pitch
@@ -56,6 +57,14 @@ const EARLY = 1 / 6;
 const ON_LATE = 1 / 12;
 /** a token sounding up to this far after a syllable's onset (a triplet 8th) ANSWERS it (also any time it is held) */
 const LATE = 1 / 3;
+/**
+ * iteration 8 (review iter7 fix 4): sections where the tokens ANSWER ONLY — never double the singer, even ON a syllable.
+ * Croce's tag 4 + outro (edit beats 304-344) are scooped, speech-like ad-libs: a syllable the lane would double sings a
+ * chord tone >= a minor third from him instead (`ornament`); the lane's harmony notes (already a third off him) and the
+ * late answers stay. (Measured, feel_lvltok_act3: outro doubles 25 % → 12 % of act 3's tokens; the remaining 12 % rubs
+ * are ad-libs the lane doesn't hold — he sings where it has a rest or a different note: a lane re-measure, not a rule.)
+ */
+const ANSWER_ONLY = new Set(['tag4', 'outro']);
 
 export class TokenMelody {
   readonly song: SongDef;
@@ -98,6 +107,13 @@ export class TokenMelody {
       this.lastNote = n;
       if (after) {
         const midi = this.answer(n, this.repeat, beat);
+        this.last = midi;
+        return { midi, source: 'melody', beat, note: n, role: 'answer' };
+      }
+      // ad-libs (ANSWER_ONLY): never his note — a syllable the lane doubles gets a chord tone clear of him instead (the
+      // lane's own harmony notes already sit a third off him)
+      if (n.mode !== 'harmony' && ANSWER_ONLY.has(this.song.sectionAt(beat)?.name ?? '')) {
+        const midi = this.ornament(n);
         this.last = midi;
         return { midi, source: 'melody', beat, note: n, role: 'answer' };
       }

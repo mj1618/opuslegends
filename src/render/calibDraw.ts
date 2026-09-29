@@ -156,6 +156,15 @@ export function drawCalibration(ctx: CanvasRenderingContext2D, g: Game): void {
     }
   }
   ctx.font = `24px ${FONT}`;
-  outlineText(ctx, 'the first two are a warm-up  ·  SPACE skips', cx, VIEW_H - 60, 'rgba(233,216,180,0.75)', 4);
+  outlineText(ctx, 'the first two are a warm-up', cx, VIEW_H - 60, 'rgba(233,216,180,0.75)', 4);
+  // iteration 8 (review iter7 fix 5): the way out is a visible button, top right
+  ctx.fillStyle = 'rgba(13,10,8,0.7)';
+  roundRect(ctx, VIEW_W - 330, 40, 280, 64, 14);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(233,216,180,0.6)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.font = `bold 30px ${FONT}`;
+  outlineText(ctx, 'SPACE  ·  SKIP  ▸', VIEW_W - 190, 72, CF.cream, 4);
   ctx.restore();
 }

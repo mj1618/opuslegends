@@ -196,7 +196,7 @@ export const Tun = {
     perMiss: 2,
     /** members lost per stumble */
     stumbleLoss: 4,
-    /** members lost on a death (from the checkpoint's value) */
+    /** members lost on a death (from the checkpoint's value; iteration 8: a respawn never starts below `restAt`) */
     deathLoss: 6,
     /** the meter cools by this many members per beat while above `restAt` (iteration 6: was `min`) */
     /** iteration 6: 0.3 (was 0.4) with the slope 0.04 — a ±85 player holds FULL HOUSE through most of a chorus */

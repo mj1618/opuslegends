@@ -3,7 +3,8 @@
  * lattice behind the roof reads "BIG JIM'S" (rose tubes, "BIG" in script over four steel box letters J I M 'S). Each
  * stop-time strike REWRITES one box letter: the old tube pops dead (sparks, a zap from the strike to the cell), and the new
  * letter BUZZES to life — stutter, catch, steady — in warm gold neon, until it spells S L I M and the frame's bulbs chase.
- * A missed hit leaves that letter as it was (BIG JIM's). On Big Jim's glint (the verse peak) the sign is RIPPED DOWN: a
+ * Iteration 8: the first rewrite kills the whole old sign (BIG + JIM'S pop dead and fall off the board), so the board
+ * reads S · SL · SLI · SLIM; a missed hit leaves its cell dark. On Big Jim's glint (the verse peak) the sign is RIPPED DOWN: a
  * cable snaps, it swings, and drops out of the frame — payback comes at the marquee swap.
  *
  * Data: the level's `signLetters` (beat, index, letter, word) + the `slimSign` set-piece; a letter is rewritten when the
@@ -102,9 +103,13 @@ export class SlimSign {
     // letters
     const hits = this.letters.map((l) => this.state(game, l, wb));
     const done = hits.length >= 4 && hits.every((h) => h.lit && h.k >= 1);
-    // "BIG" in script over the cells: dies with the first rewrite
-    const bigOn = !dead && !hits.some((h) => h.lit && h.k > 0.2);
-    this.tube(g, "BIG", x0 + 70, y0 - 12, `italic 64px ${MARQUEE}`, bigOn ? 1 : 0, ROSE, ROSE_CORE, t, 1);
+    // iteration 8 (review iter7 fix 6: SIM'S / SLM'S / SLIS read as gibberish): the FIRST rewrite kills the whole old sign —
+    // BIG and every old box letter pop dead and FALL OFF the board — so each hit reads as progress: S · SL · SLI · SLIM
+    // (a missed hit leaves its cell dark: S·IM)
+    const firstLit = hits.reduce((m, h, j) => (h.lit && h.k > 0 ? Math.min(m, this.letters[j].beat) : m), Infinity);
+    const fall = Number.isFinite(firstLit) ? Math.max(0, Math.min(1, (wb - firstLit - 0.12) / 0.8)) : 0;
+    const popping = Number.isFinite(firstLit) && wb - firstLit < 0.12;
+    this.oldTube(g, "BIG", x0 + 70, y0 - 12, `italic 64px ${MARQUEE}`, dead || fall > 0 ? 0 : popping ? 0.5 : 1, t, 1, fall, 9);
     for (let i = 0; i < 4; i++) {
       const cx = x0 + 45 + CELL_W * (i + 0.5);
       const cy = sy + 14;
@@ -119,10 +124,10 @@ export class SlimSign {
         this.tube(g, h.letter, cx, cy + 56, font, on, GOLD, GOLD_CORE, t, 0);
         if (h.k < 0.25) this.sparks(g, cx, cy - 20, h.k / 0.25, i);
       } else {
-        // the old letter: rose, or popping dead as it is replaced
-        const on = dead ? (rd < 0.5 && hash(Math.floor(t * 30) + i * 7) > 0.4 ? 0.8 : 0) : h && h.lit ? 0 : 1;
-        this.tube(g, OLD[i], cx, cy + 56, font, on, ROSE, ROSE_CORE, t, 0);
-        if (i === 2 && on > 0) this.tube(g, '’', cx + CELL_W / 2 - 4, cy - 30, `bold 90px ${MARQUEE}`, on, ROSE, ROSE_CORE, t, 0);
+        // the old letter: rose until the first rewrite, then it pops dead and falls off (its cell stays dark)
+        const on = dead ? (rd < 0.5 && hash(Math.floor(t * 30) + i * 7) > 0.4 ? 0.8 : 0) : fall > 0 ? 0 : popping ? (hash(Math.floor(t * 40) + i) > 0.5 ? 1 : 0) : 1;
+        this.oldTube(g, OLD[i], cx, cy + 56, font, on, t, 0, fall, i);
+        if (i === 2) this.oldTube(g, '’', cx + CELL_W / 2 - 4, cy - 30, `bold 90px ${MARQUEE}`, on, t, 0, fall, 5);
       }
     }
     // SLIM complete: the frame's bulbs chase in gold
@@ -169,6 +174,19 @@ export class SlimSign {
     return { index: l.index, letter: l.letter, lit, k, buzz };
   }
 
+  /** an OLD (rose) tube letter; `fall` 0..1 = it drops off the board (tumbling, fading) after the first rewrite */
+  private oldTube(g: CanvasRenderingContext2D, txt: string, x: number, y: number, font: string, on: number, t: number, align: 0 | 1, fall: number, seed: number): void {
+    if (fall >= 1) return;
+    if (fall <= 0) return this.tube(g, txt, x, y, font, on, ROSE, ROSE_CORE, t, align);
+    g.save();
+    g.globalAlpha *= 1 - fall;
+    const spin = (hash(seed * 5 + 1) - 0.5) * 1.2 * fall;
+    g.translate(x + (hash(seed * 3) - 0.5) * 80 * fall, y - 60 + 520 * fall * fall);
+    g.rotate(spin);
+    this.tube(g, txt, 0, 60, font, 0, ROSE, ROSE_CORE, t, align);
+    g.restore();
+  }
+
   /** a neon tube letter: the dead glass always, the glow + a hot core when on */
   private tube(g: CanvasRenderingContext2D, txt: string, x: number, y: number, font: string, on: number, col: string, core: string, t: number, align: 0 | 1): void {
     g.font = font;
@@ -182,14 +200,15 @@ export class SlimSign {
     const hum = 0.92 + 0.08 * Math.sin(t * 50 + x);
     const m = g.measureText(txt);
     drawGlow(g, align ? x + m.width / 2 : x, y - 55, col, 150, 0.55 * on * hum);
-    g.globalAlpha = on;
+    const a0 = g.globalAlpha;
+    g.globalAlpha = a0 * on;
     g.lineWidth = 11;
     g.strokeStyle = col;
     g.strokeText(txt, x, y);
     g.lineWidth = 4;
     g.strokeStyle = core;
     g.strokeText(txt, x, y);
-    g.globalAlpha = 1;
+    g.globalAlpha = a0;
   }
 
   private sparks(g: CanvasRenderingContext2D, x: number, y: number, u: number, seed: number): void {

@@ -14,7 +14,7 @@
  *               (B 272 · I 276 · G 280 · J 284 · I 288 · M 292) and land as bridges on the backbeat, the HEY HEY Bluffer,
  *               a bottle batted into the G, the J-hook see-saw, your shot topples the second I (role reversal), a
  *               post run over the light-well, the lethal combination on the M, then the THIRD WALKDOWN as four blows
- *               ON BIG JIM (fist, fist, lapel, jaw) and the crash through his glass wall.            ◆ 272, ◆ 284
+ *               ON BIG JIM (fist, fist, lapel, jaw) and the crash through his glass wall.            ◆ 272, ◆ 285
  *   bars 77-83  THE REVEAL (the bluff display on the held B, 0 threats) and THE GAUNTLET: climb Big Jim himself, no
  *               chalk marks — his fists slam (lethal lifts), up the velvet sleeve (knee-slide), lapels (ledges, gaps
  *               UP), medallions (pendulums), and the HEY answers crack his lenses (317 left, 325 right). ◆ 304, ◆ 320
@@ -26,7 +26,8 @@
  *
  * GRID: bar n starts on beat 4(n-1); "&" = the swung and (+0.66). Heights = px above the street, relative to `h0`
  * (act 2's Lanes deck, 950 px). FAIRNESS (docs/reviews/iter3.md, non-negotiable): every lethal window ≥ −85 / +150 ms
- * (iteration 6: chorus 4's light-wells 276 / 280 / 284 are the exam at −80, review iter5 fix 5)
+ * (iteration 6: chorus 4's light-wells 276 / 280 / 284 were the exam at −80, review iter5 fix 5; now 284 only: iteration 7-8
+ * eased 280 / 276 to −95)
  * (measured with `node playtest/slack.mjs --level=src/level/act3.ts#act3Level --from=240`), ≤ 1 stumble per bar,
  * checkpoints ≤ 5 bars apart, a breather after every peak.
  */
@@ -177,7 +178,9 @@ const FIT = {
    * 275 (a +95 ms late 275 hop landed in the well — a hidden lethal, the 277 loop): X X X ∪, its early side is real */
   /** iteration 6 (review iter5 fix 5, chorus 4 = the exam): 276 / 280 / 284 tightened to −80 (was −85 / −90 / −95; the
    * physics quantises these windows in 10 ms steps: one step tighter is −70, under the −75 the review allowed) */
-  well: [0.13, 0.871] as const,
+  /** iteration 8 (review iter7 fix 2): 276 −80 → −95 (0.871 → 0.82) — the first pit after the ◆272 respawn's launch
+   * (4 beats in) was where stuck weak players replayed the same 4 s; 284 stays the −80 exam */
+  well: [0.13, 0.82] as const,
   wellStd: [0.09, 0.8] as const,
   /** 284 (iteration 5): the light-well past the G, after the G's neon (282.66): no buffer */
   wellG: [0.13, 0.858] as const,
@@ -381,11 +384,15 @@ export function act3Items(h0 = 950): LevelItem[] {
     smash(and(bar(71, 3)), 'letterNeon'),
     // (iteration 5: no hop on 283 — the 284 well's early side is real; tokens along the G)
     lumRowSwung(bar(71, 4), bar(72, 1) - 0.1, 50),
-    // ---- bar 72 (.72, the dip, HEY 286): the light-well past the G on the kick (284, lethal), the J's neon on the snare, a Bluffer riding the J on the HEY,
+    // ---- bar 72 (.72, the dip, HEY 286): the light-well past the G on the kick (284, lethal), the J's neon on the snare, its hook's neon on the HEY (iteration 8: was a Bluffer),
     // the J-HOOK SEE-SAW on 4 flings you up ON 289
     topple(bar(72), 3, 'J', 286.0, 287.3, ROOF + 50),
+    // iteration 8 (review iter7 fix 2, the ◆272 wall: 8 lethal presses in one segment held 35 % of weak-bot deaths): a
+    // checkpoint on the fallen G right after the 284 well splits chorus 4 in two (276-284 · 290-294); the HEY on 286 is a
+    // neon tube now (was a Bluffer: 0 threats in the re-entry's first 2 beats)
+    { type: 'checkpoint', beat: bar(72, 2) },
     smash(bar(72, 2), 'letterNeon'),
-    jabber(bar(72, 3)),
+    smash(bar(72, 3), 'letterNeon'),
     fx(bar(72, 3), 'flash', 0.45),
     launch(bar(72, 4), 2, ROOF + 140),
     mode(bar(72, 4), 'launch'),

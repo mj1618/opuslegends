@@ -1,7 +1,8 @@
 /**
  * The crowd (DESIGN §4 "choir"): the SKILL meter and the music reward (iteration 3: it measures how well
  * you play, not how much).
- *   Perfect +1 · Great +0.5 · Good +0.25 · Miss −2 · stumble −4 · death −6 (from the checkpoint's value) ·
+ *   Perfect +1 · Great +0.5 · Good +0.25 · Miss −2 · stumble −4 · death −6 (from the checkpoint's value, never below
+ *   restAt: iteration 8) ·
  *   a complete on-grid Hup-Hup-HEY +3 · and it RESTS at Tun.crowd.restAt (14, the booth's open point; iteration 6):
  *   above it it DECAYS back down (decayPerBeat, faster the fuller the house: decaySlope above decayKnee), below it it
  *   RECOVERS (recoverPerBeat) — the full record is the default, thin sound the cost of misses.

@@ -636,3 +636,55 @@ User playtested the deployed build (iter 7) and asked for:
    polish in-game.
 Resume: read this handoff + the latest review, check `git log`, run the playtest, then do 2-4 (+ finish 1), deploy
 (`npm run deploy`), push main.
+
+## Iteration 8 — outcome (small polish batch from docs/reviews/iter7.md)
+Shipped:
+- **Respawns start the crowd at 14 or higher.** It is now max(snapshot − 6, `restAt` 14), so every retry plays the full record.
+- **Chorus 4 is split.** New checkpoint ◆285 on the fallen G after the 284 well. The 286 Bluffer became a neon strike on
+  the HEY, so a respawn meets no threat in its first 2 beats. The 276 well is eased from −80 to −95 (the first pit after
+  the ◆272 launch). 284 stays the −80 exam.
+- **The poster points to the replay.** It shows the next billing, the points still needed, and how to get them (the
+  canister hint: "try HOLDING a jump where the song asks for a tap").
+- **The outro tokens never double Croce** (tag4 + outro, `ANSWER_ONLY` in `tokenMelody.ts`).
+- **First-contact cleanup.**
+  - The title shows player-facing controls only. The latency keys moved to the pause screen.
+  - The HUD drops "/1048" and the raw crowd number (the crowd is a meter now). The targets row appears only after the
+    first target cracks.
+  - The projector sync is no longer forced on a first-ever run: ↓ opens it (optional), and the card has a visible
+    SPACE · SKIP button.
+- **The roof sign spells as it goes.** The first hit kills and drops BIG JIM'S, and the sign then reads S · SL · SLI · SLIM.
+- **The foreground band goon is visible in stills.** He is raised and larger, and his full torso sits above the theatre's
+  front row.
+- **Docs.** The `CLAUDE.md` checkpoint list and `act3_plan.md` now show ◆285 (there was never a ◆284).
+
+Validation:
+- **Autoplay gate:** PASS, 0 deaths, 304/304 actions, hidden gate included.
+- **Rubric:** 11/11 for bars 1-33, 34-60, 61-86 and 1-86.
+
+**Bots (deaths act 1/2/3):**
+
+| Profile | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| Sloppy | 1/0/0 | 0/0/0 | 0/0/0 |
+| ±130 | 1/1/3 | 2/1/1 | 2/1/5 |
+| ±160 + 20 % late | 3/5/11 | 2/2/3 | 3/4/5 |
+
+The ±160 s1 run had 16 act-3 deaths before this change.
+
+**The chorus-4 segment across the six weak runs:**
+- Before: ◆272 held 20 of 60 deaths (33 %).
+- After: ◆272 holds 8 of 55 (15 %) and ◆285 holds 6 (11 %).
+- No segment is above 20 %. ◆196 is now the top one (10 deaths).
+
+**±160 booth time:** 71/46/36 % → 48/38/30 %.
+
+**slack expected deaths:**
+- ±160: 15.1 → 13.8, with ◆272 3.71 → 1.76 (+ ◆285 0.62).
+- ±130: 6.45 → 5.97.
+- Act 3 is still the hardest act.
+
+Not done:
+- **Act-3 token rubs are still 11.8 %.** The outro doubles are gone (doubled 25 % → 12 %), but the remaining rubs are
+  ad-libs the `tokenMelody` lane doesn't hold. That needs a lane re-measure in `tools/music`.
+- ±160 booth time is still above the ≤ 20 % target (misses within an attempt). `recoverPerBeat` is unchanged.
+- The "colour burst by your hand" and ◆196 items from the review were not attempted.

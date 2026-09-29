@@ -117,13 +117,13 @@ Legend: **∪** tap hop · **–** held jump · **X** strike · **═** slide ·
 | 67 | **.36, the inhale** | land 264 · X 265 **S** (goon jab) · ∪ 266 R (ledge UP) · X 267 R (**chandelier 3**: the last light) | 1180 → 1235 | the rack frame's shadow slides over; only the gold head goon glows |
 | 68 | **1.00**, fill &2 &3 &4 | ∪ 268 **L** (gap UP onto the apex tier, 'tight': the frame SLAMS on the downbeat) · *269: the audience inhales* · ∪ 269.70 R (HUP, ledge UP) · ∪ 270.70 R (HUP, ledge UP) · **X 271.65 the BREAK** (the head goon: `giant`, 90 ms hitstop repaid) | 1235 → 1350 | burns flare on 269.70 / 270.70 / 271.65, **the hush 270.95–271.95**; KRAK: goons scatter into the pockets; the Burn lunges on 269.70 (so both HUPs are ledges, never stumbles) |
 
-### Block 3: SIGN FALLS on the roof at sunset (69–75, beats 272–300). Follows: the A7 climb + shouts. ◆ 272, ◆ 284. Cap 24.
+### Block 3: SIGN FALLS on the roof at sunset (69–75, beats 272–300). Follows: the A7 climb + shouts. ◆ 272, ◆ 285 (iteration 8; the plan had ◆ 284, never shipped until then). Cap 24.
 | Bar | Music | Actions | Letter | World |
 |---|---|---|---|---|
 | 69 | **THE DROP**, A octave | **launch 272** (the rack's recoil) → lands 274 · X 273 R (the skylight, high) · X 274.66 R (the B's neon, D#) · ∪ 275 R | **B** (the flying frame hits it) | camera **0.72, the widest of the level**; sunset; everything a silhouette except Slim; 0 threats |
 | 70 | HEY 277, 278 | ∪ 276 **L** (light-well, 'tight') · X 277 **S** · X 278 **S** (**the Bluffer pair** leaps off the falling I) · ∪ 279 R · X 279.66 R (swung pair) | **I** | flash on each HEY |
 | 71 | **.90**, A7 climb | ∪ 280 R (ledge UP onto the fallen I) · X 281 **S** (**bat a bottle** from the crown's window into the G) · ∪ 282 **L** ('std') · X 282.66 R (mid-air neon, D#) | **G** | the crown's windows light 1 beat early |
-| 72 | .72 dip, HEY 286 | ∪ 284 R · X 285 R (neon) · X 286 **S** (a Bluffer riding the J) · **the J-hook see-saw 287** (launch → 289) | **J** | ◆ 284 (284–285 clean) |
+| 72 | .72 dip, HEY 286 | ∪ 284 R · X 285 R (neon) · X 286 R (the J's hook neon; iteration 8 — was a Bluffer, **S**) · **the J-hook see-saw 287** (launch → 289) | **J** | ◆ 285 (iteration 8) |
 | 73 | .76 | **X 288 R: in the air, smash the I's cap ON the downbeat, and your shot topples it** · land 289 · **post run** ∪ 290 · ∪ 291 · ∪ 292 **L** (the fallen letters' steel legs over the light-well; isochronous, counts once) | **I** | role reversal: now *you* knock them down |
 | 74 | **.85, the chorus peak** | (∪ 292 = the run's end) · X 293 **S** (a Bluffer on the M's hump) · – 294 **L** (held jump UP to the terrace, 'peak' −60/+150) · X 295 R (the M's big neon, mid-jump) | **M** | **the lethal combination** (bar 16's shape: ∪ X – X); the M falls into the terrace as a ramp |
 | 75 | **hook A walkdown** | X 296 · X 297 · X 298 · X 299 R: **four GIANT gold Big Jim busts** (2x, `smash` 0–3) | — | setPiece `walkdown`; camera 0.74 + punches; the last sun dips on 299 |

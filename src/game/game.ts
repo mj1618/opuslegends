@@ -599,8 +599,9 @@ export class Game {
   private respawn(): void {
     const cp = this.level.checkpoints[this.checkpointIndex];
     const beat = cp ? cp.beat : (params.start ?? this.level.def.startBeat);
-    // back to the checkpoint's crowd, minus a death's worth
-    this.crowd.set(this.snap.crowd - Tun.crowd.deathLoss);
+    // back to the checkpoint's crowd, minus a death's worth — but never below the rest (iteration 8, review iter7 fix 1:
+    // the house roots for you on a retry, the record plays full on every attempt; the booth is the cost WITHIN an attempt)
+    this.crowd.set(Math.max(this.snap.crowd - Tun.crowd.deathLoss, Tun.crowd.restAt));
     this.spawnAt(beat);
     // the Burn restarts at rest (respawnMinGap) and ignores the first stumble: it can't catch you twice in a row
     this.burnGrace = Tun.chaser.respawnGraceStumbles;
@@ -766,10 +767,13 @@ export class Game {
     if (store) safeSetLocal(LATENCY_KEY, String(Math.round(ms)));
   }
 
-  /** the cold open offers the sync on the first run (nothing stored, no ?latency) or when asked (?calib=1) */
+  /**
+   * The cold open runs the sync on X only when asked (?calib=1). Iteration 8 (review iter7 fix 5: "a small quiz before
+   * any fun"): the first run no longer forces it — the film rolls on X, the sync is an optional ↓ (cold open) / X (pause),
+   * and the in-run drift + the resync offer look after a late speaker.
+   */
   private wantsCalibration(): boolean {
-    if (params.calib) return true;
-    return !params.autoplay && params.latencyMs === null && safeGetLocal(LATENCY_KEY) === null;
+    return !!params.calib;
   }
 
   private startCalibration(origin: 'coldOpen' | 'pause'): void {
@@ -930,7 +934,7 @@ export class Game {
       this.player.step(dt, this.controls, this.level.world);
       this.controls.clearEdges();
       if (this.calib.active) return;
-      // first run (no stored offset), ?calib=1 or ↓: the projector sync first, then the film rolls by itself
+      // ?calib=1 or ↓ (optional): the projector sync first, then the film rolls by itself
       if ((strike && this.wantsCalibration()) || (down && !params.autoplay)) this.startCalibration('coldOpen');
       else if (strike) this.beginFromColdOpen();
       return;
