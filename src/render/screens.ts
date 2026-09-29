@@ -267,16 +267,17 @@ export function drawHud(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo, A =
     if (d < -0.5 || d > h.beats) continue;
     const a = Math.min(1, (d + 0.5) / 0.5, (h.beats - d) / 1);
     ctx.globalAlpha = (Math.max(0, a)) * A;
-    ctx.font = `bold 36px ${FONT}`;
+    // (iteration 7: a quieter card — smaller, higher; the act-2 teaches moved onto the objects as glyphs)
+    ctx.font = `bold 27px ${FONT}`;
     ctx.textAlign = 'center';
-    const w = ctx.measureText(h.text).width + 70;
-    ctx.fillStyle = 'rgba(13,10,8,0.72)';
-    roundRect(ctx, VIEW_W / 2 - w / 2, VIEW_H * 0.12 - 34, w, 68, 8);
+    const w = ctx.measureText(h.text).width + 48;
+    ctx.fillStyle = 'rgba(13,10,8,0.62)';
+    roundRect(ctx, VIEW_W / 2 - w / 2, VIEW_H * 0.075 - 25, w, 50, 8);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(233,216,180,0.5)';
+    ctx.strokeStyle = 'rgba(233,216,180,0.4)';
     ctx.lineWidth = 2;
     ctx.stroke();
-    outlineText(ctx, h.text, VIEW_W / 2, VIEW_H * 0.12, CF.cream, 5);
+    outlineText(ctx, h.text, VIEW_W / 2, VIEW_H * 0.075 + 9, CF.cream, 4);
     ctx.globalAlpha = 1 * A;
     break;
   }
@@ -411,8 +412,11 @@ export function drawCenterText(ctx: CanvasRenderingContext2D, title: string, sub
 // ------------------------------------------------------------------------------ end: the one-sheet
 
 /** End of reel: a lurid one-sheet printed from your run — Slim in his victory flex, the stats as billing, a rating stamp. */
+/** seconds after the poster starts that its rank stamp LANDS (= ENDING.stamp in render/act3Draw.ts) */
+export const POSTER_STAMP_AT = 0.55;
+
 export function drawEndScreen(ctx: CanvasRenderingContext2D, g: Game, b: BeatInfo, slim: SlimState, t: number, appear: number): void {
-  const k = easeOut(clamp01(appear / 0.6));
+  const k = easeOut(clamp01(appear / 0.45));
   ctx.fillStyle = `rgba(13,10,8,${0.82 * k})`;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   // poster sheet
@@ -510,7 +514,7 @@ export function drawEndScreen(ctx: CanvasRenderingContext2D, g: Game, b: BeatInf
   // rating stamp (gold = reward): the RANK (iteration 6, game/rank.ts — crowd time, timing, tokens, deaths, canisters)
   const rank = r.rank;
   const cup = rank.tier;
-  const sk = easeOut(clamp01((appear - 0.5) / 0.25));
+  const sk = easeOut(clamp01((appear - (POSTER_STAMP_AT - 0.2)) / 0.2)); // lands at POSTER_STAMP_AT (the 'posterStamp' cue)
   if (sk > 0) {
     // (iteration 6, art: each billing tier has its own stamp — render/rankStamp.ts)
     ctx.save();
@@ -529,7 +533,7 @@ export function drawEndScreen(ctx: CanvasRenderingContext2D, g: Game, b: BeatInf
     if (A.bigJim.present) snipes.push(`LENSES CRACKED ${L2}/2`);
   }
   snipes.forEach((sn, i) => {
-    const sk2 = easeOut(clamp01((appear - 0.8 - i * 0.18) / 0.2));
+    const sk2 = easeOut(clamp01((appear - POSTER_STAMP_AT - 0.2 - i * 0.16) / 0.18));
     if (sk2 <= 0) return;
     ctx.save();
     ctx.translate(ax + aw * 0.5, ay + 70 + i * 86);

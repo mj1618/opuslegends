@@ -39,9 +39,16 @@ const PART_OF_LOOK: Record<string, keyof typeof JIM_PARTS> = { lens: 'lensL', ch
 
 /**
  * the ending's timeline (seconds after the final hit): the frame FREEZES on the strike at `freeze`, the iris slams shut
- * on Slim by `shut`, THE END burns in, the victory iris opens at `victory`; the renderer holds the poster until `poster`
+ * on Slim by `shut`, THE END burns in (`endSpeed` × the card's own clock), the victory iris opens at `victory`; the
+ * renderer holds the poster until `poster`; its RANK stamp lands screens.ts POSTER_STAMP_AT s after that.
+ * (iteration 7, review iter6 fix 4: trimmed 7.6 s → 4.9 s from the hit to the stamp — THE END 1.4 s, the victory 2 s)
+ *
+ * AUDIO HOOKS (game.events, emitted by the renderer — render/renderer.ts endingCues): 'theEnd' when the iris has shut and
+ * THE END card starts (hit + `shut`), 'posterStamp' when the rank stamp slams onto the poster. Both fire up to
+ * `ENDING_LEAD` s early with `inS` = seconds until the moment, so a listener can schedule on the audio clock.
  */
-export const ENDING = { freeze: 0.04, hold: 0.3, shut: 1.05, victory: 3.55, poster: 7.0 } as const;
+export const ENDING = { freeze: 0.04, hold: 0.3, shut: 0.9, endSpeed: 1.5, victory: 2.35, poster: 4.3 } as const;
+export const ENDING_LEAD = 0.05;
 
 /**
  * THE FINAL HIT's staging (iteration 6, review iter5 fix 2): from `loomFrom` Big Jim LOOMS in — big, roaring, fists up —
@@ -49,7 +56,7 @@ export const ENDING = { freeze: 0.04, hold: 0.3, shut: 1.05, victory: 3.55, post
  * flattens AFTER the hit: the hitstop freeze (ENDING.freeze → hold), then his head snaps back (`snap`), he squashes into a
  * pancake (`flat`) and is sucked away into a tiny film frame (`cut`), seconds after the hit.
  */
-export const FINALE = { loomFrom: 335.5, loomBeats: 3.8, scale: 0.8, faceY: -930, faceDX: 70, snap: [0.3, 0.46], flat: [0.42, 0.68], cut: [0.62, 1.0] } as const;
+export const FINALE = { loomFrom: 335.5, loomBeats: 3.8, scale: 0.8, faceY: -930, faceDX: 70, snap: [0.3, 0.44], flat: [0.4, 0.62], cut: [0.58, 0.88] } as const;
 
 const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 
@@ -672,7 +679,7 @@ export class Act3Art {
   /** the ending: t = seconds since the iris shut (black -> the film snaps -> THE END), then a clean cut to the victory */
   private ending(g: CanvasRenderingContext2D, t: number, T: number, b: BeatInfo, clock: number, L: Lighting): void {
     if (T < ENDING.victory) {
-      drawTheEnd(g, t, b);
+      drawTheEnd(g, t * ENDING.endSpeed, b);
       // THE END dips to black just before the victory iris opens (no double exposure)
       const out = Math.max(0, Math.min(1, (T - (ENDING.victory - 0.25)) / 0.25));
       if (out > 0) {

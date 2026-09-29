@@ -25,7 +25,7 @@ import type { Camera } from './camera';
 import type { MusicFeed } from './music';
 
 const F = 0.92;
-const LANE: Record<MusicianKind, string> = { cowbell: 'cowbell', stomp: 'stomps', piano: 'piano', sax: 'hooks' };
+export const LANE: Record<MusicianKind, string> = { cowbell: 'cowbell', stomp: 'stomps', piano: 'piano', sax: 'hooks' };
 const VEST: Record<MusicianKind, string> = { cowbell: '#3E5A5E', stomp: '#5E2B4E', piano: '#6B4A34', sax: '#8A7A5A' };
 const NO_BAND = new Set(['facade', 'penthouse', 'theatre']);
 
@@ -34,7 +34,7 @@ const NO_BAND = new Set(['facade', 'penthouse', 'theatre']);
  * the piano plays, the cowbell where the cowbell overlay plays, the sax on a hook, stomps otherwise) — so the goon you see
  * is the part you hear. (Same idea as audio/goonParts.ts goonPartAt.)
  */
-function kindFor(feed: MusicFeed, beat: number, k: number): MusicianKind | null {
+export function kindFor(feed: MusicFeed, beat: number, k: number): MusicianKind | null {
   if (hash(k * 13 + 7) < 0.2) return null;
   const a = beat - 4;
   const b = beat + 4;
@@ -62,6 +62,8 @@ export class GoonBand {
     envAt: (x: number) => string,
     lightFor: (env: string) => Lighting,
     dt: number,
+    /** false = the band only stands and mimes (the silent-film intro before the colour burst, render/intro.ts) */
+    playing = true,
   ): void {
     const L = game.level;
     const z = cam.rzoom;
@@ -100,7 +102,9 @@ export class GoonBand {
       // an overlay part the crowd hasn't earned yet is only mimed (audio/goonParts.ts partAudible: the cowbell is silent
       // under crowd 12) — the goon swings, but the pop behind him waits for the sound
       const heard = kind === 'sax' || kind === 'piano' || partAudible(kind === 'stomp' ? 'stomps' : 'cowbell', game.crowd.value);
-      const m: MusicianTiming = { hit: (Number.isFinite(t.since) ? Math.exp(-(t.since * b.spb) / 0.12) : 0) * (heard ? 1 : 0.3), since: t.since, gap: t.gap, active: t.active };
+      const m: MusicianTiming = playing
+        ? { hit: (Number.isFinite(t.since) ? Math.exp(-(t.since * b.spb) / 0.12) : 0) * (heard ? 1 : 0.3), since: t.since, gap: t.gap, active: t.active }
+        : { hit: 0, since: 99, gap: 99, active: 0 };
       this.drawn++;
       const dir = kind === 'piano' ? 1 : hash(k + 5) < 0.5 ? 1 : -1;
       const sc = z * (kind === 'piano' ? 1.1 : 1.15);

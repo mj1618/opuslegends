@@ -54,21 +54,23 @@ import {
 } from './entityDraw';
 import { applyBeatReact } from './groove';
 import { drawMech } from './mechDraw';
-import { Act3Art, ENDING } from './act3Draw';
+import { Act3Art, ENDING, ENDING_LEAD } from './act3Draw';
 import { drawJimFist } from '../art/grindhouse/bigjim';
 import { drawBench } from '../art/grindhouse/poolroom';
 import { MusicFeed } from './music';
-import { FONT, MARQUEE, drawCenterText, drawEndScreen, drawHud, drawRewind, drawTitleScreen, outlineText } from './screens';
+import { FONT, MARQUEE, POSTER_STAMP_AT, drawCenterText, drawEndScreen, drawHud, drawRewind, drawTitleScreen, outlineText } from './screens';
 import { drawCalibration } from './calibDraw';
 import { SlimDriver } from './slimDriver';
 import { HeroPass } from './heroPass';
-import { drawSpeedLayer } from './speedLayer';
+import { drawSpeedLayer, foregroundMusician } from './speedLayer';
 import { GoonBand } from './band';
 import { goonPartAt } from '../audio/goonParts';
 import { drawCanister } from './canisterDraw';
 import type { SpriteSet } from './sprites';
 import { Stage } from './stage';
 import { VisualBeats } from './beats';
+import { ColourReel, VIVID_BEATS } from './intro';
+import { SlimSign } from './slimSign';
 
 export { outlineText, roundRect } from './screens';
 
@@ -94,6 +96,10 @@ export class Renderer {
   readonly act3 = new Act3Art();
   /** the long rooms' mid-act visual beats (render/beats.ts) */
   readonly beats = new VisualBeats();
+  /** the silent-film intro that floods to colour on the first HEY (render/intro.ts) */
+  readonly colour = new ColourReel();
+  /** the roof's neon sign rewritten BIG JIM'S → SLIM by the stop-time strikes (render/slimSign.ts) */
+  readonly sign = new SlimSign();
   readonly moments: Moments;
   /** level design tags ('mode' items: street, rooftops, launch, ...) sorted by beat — picks breakable families */
   private modes: { beat: number; mode: string }[] = [];
@@ -227,6 +233,14 @@ export class Renderer {
       slimState.poseTime = Lk.pt + 0.22 * Math.max(0, hitT - ENDING.hold);
     }
     const acam: ArtCamera = { x: cam.rx, y: cam.ry, zoom: cam.rzoom };
+    // THE COLOUR REEL: where the colour floods out of (the struck target on the burst beat, else Slim)
+    const colBeat = this.colour.burstBeat(L);
+    const sepia = !Number.isNaN(colBeat) && wbNow < colBeat + VIVID_BEATS;
+    if (sepia) {
+      const o = this.colour.originWorld() ?? { x: px, y: py - 80 };
+      this.colour.ox = VIEW_W / 2 + (o.x - cam.rx) * cam.rzoom;
+      this.colour.oy = VIEW_H / 2 + (o.y - cam.ry) * cam.rzoom;
+    }
     this.syncAct3(envHere);
     const w = this.stage.film.weave(b);
     ctx.save();
@@ -251,7 +265,17 @@ export class Renderer {
       (e) => this.stage.sceneCam(L, e as EnvKind, acam),
     );
     // THE GOON BAND: goons playing the record's parts just behind the play band (render/band.ts)
-    if (!cold) this.band.draw(ctx, g, cam, this.feed, b, (x) => this.stage.envAt(L, x), (e) => this.stage.light(e as EnvKind), dt);
+    if (!cold) this.band.draw(ctx, g, cam, this.feed, b, (x) => this.stage.envAt(L, x), (e) => this.stage.light(e as EnvKind), dt, this.colour.bandOn(wbNow));
+    // the silent film: the background in heavy sepia until the colour burst
+    if (sepia) {
+      this.colour.grade(ctx, wbNow, 0.92);
+      this.colour.vivid(ctx, wbNow, 0.5);
+    }
+    // CHORUS CONTRAST (iteration 7, review iter6 fix 10: chorus 1 and the Lanes read muddy): in the honky-tonk and the
+    // Lanes the chorus SHOT darkens the room behind the play band (a multiply grade, heaviest at the top and under the
+    // floor line), the floors get a key light and the rewards a halo (drawLevel: this.keyK)
+    this.keyK = envHere === 'bar' || envHere === 'lanes' ? Math.max(0, Math.min(1, this.moments.shotK)) : 0;
+    if (this.keyK > 0.01) this.chorusGrade(ctx, this.keyK, envHere, VIEW_H / 2 + (py - cam.ry) * cam.rzoom, cam.rzoom);
     this.moments.gelScale = envHere === 'roof' ? 0.15 : envHere === 'theatre' ? 0 : 1;
     this.moments.drawBehind(ctx, b);
     this.beats.drawBehind(ctx, b, cam.rx);
@@ -265,6 +289,11 @@ export class Renderer {
     this.sc.wb = cold ? L.def.startBeat : g.worldBeat;
     this.act3.behind(ctx, g, cam, v.x0, v.x1, this.stage.light(envHere), b, this.clock); // act 3: Big Jim (render/act3Draw.ts)
     this.beats.drawWorld(ctx, g, b, v.x0, v.x1); // the facade's window chase / tenants (render/beats.ts)
+    // THE ROOF SIGN (screen space, over the facade's lit windows): a far rooftop neon rewritten by the stop-time strikes
+    ctx.restore();
+    this.sign.draw(ctx, g, b, wbNow, px, cam.rzoom, VIEW_W / 2 + (px - cam.rx) * cam.rzoom, VIEW_H / 2 + (py - cam.ry) * cam.rzoom);
+    ctx.save();
+    cam.apply(ctx);
     this.drawLevel(ctx, v.x0, v.x1, v.y0, v.y1, b);
     ctx.restore();
     // screen-space: hero position for the replay burst / audience ripple / the light layer
@@ -272,6 +301,8 @@ export class Renderer {
     const hsy = VIEW_H / 2 + (py - cam.ry) * cam.rzoom;
     this.moments.heroSx = hsx;
     this.moments.heroSy = hsy;
+    // the silent film's play layer: lighter sepia (the rewards keep a glint of gold; Slim, drawn after, stays in colour)
+    if (sepia) this.colour.grade(ctx, wbNow, 0.62);
     // THE LIGHT LAYER (iteration 6): spotlights, follow-spots, flashes, blooms — all UNDER the star, so they light the
     // scene around Slim and never bleach his tangerine
     this.moments.drawLight(ctx);
@@ -328,13 +359,18 @@ export class Renderer {
           L: this.stage.light(envHere),
           ppb: L.ppb,
           speedK: p.mode === 'dead' || !g.conductor.playing ? 0 : Math.min(1, Math.max(0, p.vx / Math.max(1, p.runSpeed))),
-          boost: Math.max(this.feed.chorus ? 1 : 0, Math.min(1, Math.max(0, p.vx / Math.max(1, p.runSpeed) - 1) / 0.12)),
+          boost: Math.max(this.feed.chorus ? 1 : 0, this.moments.launchK, Math.min(1, Math.max(0, p.vx / Math.max(1, p.runSpeed) - 1) / 0.12)),
         },
         b,
+        (this.colour.bandOn(wbNow) ? foregroundMusician(cam.rx, cam.rzoom, L.ppb, envHere, this.feed, b, this.stage.light(envHere), true, (x) => !Number.isNaN(L.floorYAt(x))) : null) ?? undefined,
       );
     }
     this.drawRevealCurtain(ctx, cam, g.worldBeat);
     ctx.restore();
+    if (sepia) {
+      this.colour.drawBurst(ctx, wbNow, b);
+      if (wbNow >= colBeat && wbNow < colBeat + 0.12) this.director.punch = Math.max(this.director.punch, 0.06);
+    }
     this.drawWhew(ctx, this.feedback.whewT, hsx, hsy, cam.rzoom);
     this.moments.drawScreen(ctx, b, (x, y) => [VIEW_W / 2 + (x - cam.rx) * cam.rzoom, VIEW_H / 2 + (y - cam.ry) * cam.rzoom]);
     this.director.draw(ctx, b);
@@ -431,6 +467,7 @@ export class Renderer {
       const hold = Number.isFinite(T) && T < ENDING.poster ? ENDING.poster - T : 0;
       if (hold <= 0) drawEndScreen(ctx, g, b, slimState, this.clock, this.clock - this.endAt - (Number.isFinite(T) ? Math.max(0, ENDING.poster - (this.endAt - this.act3.hitClock)) : 0));
     } else this.endAt = -1;
+    this.endingCues(g, hitT);
     if (g.paused && !g.calib.active) drawCenterText(ctx, 'INTERMISSION', 'Enter / Space: resume  ·  X: re-sync the projector (audio lag)');
     drawCalibration(ctx, g);
 
@@ -448,6 +485,59 @@ export class Renderer {
       ctx.globalAlpha = 1;
     }
     g.debug.drawScreen(ctx);
+  }
+
+  private cueFired = { theEnd: false, stamp: false };
+  /** 0..1 the chorus contrast pass (key light on the floors, halos on the rewards) */
+  private keyK = 0;
+
+  /** the chorus contrast grade over the background (screen space): multiply, lightest around the play band */
+  private chorusGrade(g: CanvasRenderingContext2D, k: number, env: string, heroY: number, z: number): void {
+    const dark = env === 'lanes' ? [52, 40, 78] : [58, 44, 38];
+    const band = [236, 226, 216];
+    const c = (rgb: number[], w: number) => `rgb(${rgb.map((v) => Math.round(255 + (v - 255) * w * k)).join(',')})`;
+    const top = heroY - 260 * z;
+    const floor = heroY + 40 * z;
+    const gr = g.createLinearGradient(0, 0, 0, VIEW_H);
+    gr.addColorStop(0, c(dark, 1));
+    gr.addColorStop(Math.max(0.01, Math.min(0.9, top / VIEW_H)), c(band, 1));
+    gr.addColorStop(Math.max(0.02, Math.min(0.95, floor / VIEW_H)), c(band, 1));
+    gr.addColorStop(Math.max(0.03, Math.min(0.99, (floor + 120 * z) / VIEW_H)), c(dark, 1));
+    gr.addColorStop(1, c(dark, 1));
+    g.save();
+    g.globalCompositeOperation = 'multiply';
+    g.fillStyle = gr;
+    g.fillRect(0, 0, VIEW_W, VIEW_H);
+    g.restore();
+  }
+
+  /**
+   * THE ENDING's audio hooks (iteration 7): the renderer owns the ending's clock, so it tells the audio when its two
+   * picture beats land, on `game.events` (payloads documented in render/act3Draw.ts ENDING):
+   *   'theEnd'      { inS, beat }          the iris has shut, THE END card starts (hit + ENDING.shut)
+   *   'posterStamp' { inS, letter, tier }  the poster's RANK stamp slams down (poster start + POSTER_STAMP_AT)
+   * Each fires once per run, ENDING_LEAD s early at most (`inS` = seconds until the moment: schedule on the audio clock).
+   */
+  private endingCues(g: Game, hitT: number): void {
+    const F = this.cueFired;
+    if (!(hitT >= 0) && g.scene !== 'end') {
+      F.theEnd = F.stamp = false;
+      return;
+    }
+    const emit = (type: string, e: unknown) => (g.events as unknown as { emit(t: string, e: unknown): void }).emit(type, e);
+    if (!F.theEnd && hitT >= ENDING.shut - ENDING_LEAD) {
+      F.theEnd = true;
+      emit('theEnd', { inS: Math.max(0, ENDING.shut - hitT), beat: g.worldBeat });
+    }
+    if (F.stamp || g.scene !== 'end' || this.endAt < 0) return;
+    const posterAt = Number.isFinite(this.act3.hitClock) ? Math.max(this.act3.hitClock + ENDING.poster, this.endAt) : this.endAt;
+    const at = posterAt + POSTER_STAMP_AT;
+    if (this.clock >= at - ENDING_LEAD) {
+      F.stamp = true;
+      // the finisher's billing (game.finalRank, floored at C) when the game exposes it, else the live rank
+      const r = (g as unknown as { finalRank?: { letter: string; tier: string } }).finalRank ?? g.rank();
+      emit('posterStamp', { inS: Math.max(0, at - this.clock), letter: r.letter, tier: r.tier });
+    }
   }
 
   /**
@@ -632,6 +722,20 @@ export class Renderer {
     // ground, puddles, lethal pits, the bar's front door
     this.stage.drawDoorways(ctx, L, x0, x1, b);
     this.stage.drawGround(ctx, L, x0, x1, y1, b);
+    // the chorus KEY LIGHT: a warm wash across every floor top in view (the lane separates from the room)
+    if (this.keyK > 0.01) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const f of L.floors) {
+        if (f.x1 < x0 || f.x0 > x1) continue;
+        const gr = ctx.createLinearGradient(0, f.y - 10, 0, f.y + 70);
+        gr.addColorStop(0, `rgba(255,226,170,${0.26 * this.keyK})`);
+        gr.addColorStop(1, 'rgba(255,226,170,0)');
+        ctx.fillStyle = gr;
+        ctx.fillRect(Math.max(f.x0, x0), f.y - 10, Math.min(f.x1, x1) - Math.max(f.x0, x0), 80);
+      }
+      ctx.restore();
+    }
 
     // awnings / shelves, crates
     for (const s of L.platforms) {
@@ -795,6 +899,8 @@ export class Renderer {
       const e = this.env(bp.x);
       if (e === 'poolroom' || e === 'roof') drawBench(ctx, bp.x, bp.y, Math.max(bp.w, 200), bp.kick, this.stage.light(e));
       else drawBouncePad(ctx, bp.x, bp.y, bp.w, bp.kick, e, b);
+      // THE POP (iteration 7): a bounce is a comic beat — shock ring, rays, a BOING! on the street's mini-launch
+      if (bp.kick > 0.01 && bp.kick < 0.999) drawBouncePop(ctx, bp.x, bp.y, bp.w, 1 - bp.kick, e === 'street' && bp.landBeat - bp.beat <= 2.6);
     }
     for (const sg of L.signs) {
       const r = sg.rect;
@@ -815,6 +921,7 @@ export class Renderer {
       }
       const own = gr.pulse(1, 0.18, l.beat % 1);
       const bob = -8 * (1 - gr.bounce(1, l.beat % 1));
+      if (this.keyK > 0.01) drawGlow(ctx, l.x, l.y + bob, '#FFD878', 58, (0.3 + 0.25 * own) * this.keyK);
       drawToken(ctx, l.x, l.y + bob, l.angle + Math.sin(gr.beat * Math.PI + l.x) * 0.12, 1 + 0.18 * own, own);
     }
     for (const h of g.loose) {
@@ -823,7 +930,10 @@ export class Renderer {
       drawToken(ctx, h.x, h.y, Math.sin(h.t * 6) * 0.4, 1, 0.5, blink);
     }
     // hidden film canisters (iteration 6, gameplay placeholder: render/canisterDraw.ts)
-    for (const c of L.canisters ?? []) if (c.x > x0 - 100 && c.x < x1 + 100) drawCanister(ctx, c, wb, this.clock);
+    for (const c of L.canisters ?? []) if (c.x > x0 - 100 && c.x < x1 + 100) drawCanister(ctx, c, wb, this.clock, y0, L.floorYAt(c.from * L.ppb));
+
+    // ON-OBJECT GLYPHS (iteration 7: the teaches that used to be banners): a gold glyph pops over the thing to hit
+    this.drawGlyphs(ctx, wb, x0, x1);
 
     // act-2 mechanics (thrown bottles, firebombs, rolling balls, Big Jim's glint): placeholder draws, render/mechDraw.ts
     drawMech(ctx, g.mech, wb, x0, x1, this.clock, this.stage.light(this.env(g.player.x)), b, { x: g.player.x, y: g.player.y });
@@ -888,6 +998,60 @@ export class Renderer {
 
   }
 
+  /**
+   * an on-object tutorial glyph (level `hint` items with `glyph`: RuntimeLevel.glyphs): over the target at its beat, a
+   * gold-rimmed ink badge with the verb ("X", "HOP") that swings in `beats` before, ticks on each beat and flashes gold
+   * on the beat itself — the teach lives ON the thing, not in a banner
+   */
+  private drawGlyphs(ctx: CanvasRenderingContext2D, wb: number, x0: number, x1: number): void {
+    const L = this.game.level;
+    const gl = (L as unknown as { glyphs?: { beat: number; beats: number; text: string; icon?: string }[] }).glyphs;
+    if (!gl || !gl.length) return;
+    for (const h of gl) {
+      const d = wb - h.beat;
+      if (d < -h.beats - 0.3 || d > 0.4) continue;
+      let x = h.beat * L.ppb;
+      if (x < x0 - 200 || x > x1 + 200) continue;
+      // the thing at that beat: a breakable, a pendulum target, else the floor there
+      const bk = L.breakables.find((k) => Math.abs(k.beat - h.beat) < 0.3);
+      const pd = bk ? undefined : L.pendulums.find((p) => Math.abs(p.beat - h.beat) < 0.3);
+      const fy = L.floorYAt(x);
+      let y = (Number.isNaN(fy) ? 0 : fy) - 250;
+      if (bk) [x, y] = [bk.x, bk.y - bk.r - 90];
+      else if (pd) [x, y] = [pd.x, pd.y - pd.r - 90];
+      const inK = Math.min(1, (d + h.beats + 0.3) / 0.3);
+      const outK = d > 0.1 ? Math.max(0, 1 - (d - 0.1) / 0.3) : 1;
+      const now = Math.max(0, 1 - Math.abs(d) / 0.3);
+      const tick = Math.exp(-(((wb % 1) + 1) % 1) * 6);
+      const s = (0.6 + 0.4 * inK) * (1 + 0.1 * tick + 0.35 * now);
+      ctx.save();
+      ctx.globalAlpha = inK * outK;
+      ctx.translate(x, y + 8 * (1 - inK));
+      ctx.scale(s, s);
+      if (now > 0.05) drawGlow(ctx, 0, 0, '#FFD878', 110, 0.6 * now);
+      ctx.beginPath();
+      ctx.arc(0, 0, 38, 0, Math.PI * 2);
+      ctx.fillStyle = CF.filmBlack;
+      ctx.fill();
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = now > 0.3 ? '#FFE08A' : '#E0B64A';
+      ctx.stroke();
+      // a pointer to the thing below
+      ctx.beginPath();
+      ctx.moveTo(-10, 34);
+      ctx.lineTo(0, 54);
+      ctx.lineTo(10, 34);
+      ctx.fillStyle = '#E0B64A';
+      ctx.fill();
+      ctx.font = `${h.text.length > 1 ? 30 : 44}px ${MARQUEE}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = now > 0.3 ? '#FFF6E0' : '#FFE08A';
+      ctx.fillText(h.text, 0, 2);
+      ctx.restore();
+    }
+  }
+
   // (act 3 skins that live here: small enough not to need a module)
   private drawPopups(ctx: CanvasRenderingContext2D): void {
     const g = this.game;
@@ -902,6 +1066,40 @@ export class Renderer {
     ctx.textAlign = 'left';
     void FONT;
   }
+}
+
+/** a bounce pad's POP (u 0..1 over the pad's 0.33 s kick): cream shock ring, rays, dust, a comic BOING! */
+function drawBouncePop(g: CanvasRenderingContext2D, x: number, y: number, w: number, u: number, word: boolean): void {
+  const e = 1 - (1 - u) * (1 - u);
+  g.save();
+  g.globalAlpha = 1 - u;
+  g.strokeStyle = CF.cream;
+  g.lineWidth = 10 * (1 - u) + 2;
+  g.beginPath();
+  g.ellipse(x, y - 10, w * (0.5 + 0.9 * e), 30 + 50 * e, 0, 0, Math.PI * 2);
+  g.stroke();
+  g.lineCap = 'round';
+  g.lineWidth = 7;
+  for (let i = 0; i < 9; i++) {
+    const a = -Math.PI * (0.1 + 0.8 * (i / 8));
+    const r0 = 60 + 120 * e;
+    const r1 = r0 + 70 * (1 - u);
+    g.beginPath();
+    g.moveTo(x + Math.cos(a) * r0 * 1.4, y - 30 + Math.sin(a) * r0);
+    g.lineTo(x + Math.cos(a) * r1 * 1.4, y - 30 + Math.sin(a) * r1);
+    g.stroke();
+  }
+  if (word) {
+    const s = 0.6 + 0.6 * Math.min(1, u / 0.2) - 0.1 * u;
+    g.globalAlpha = Math.min(1, (1 - u) * 2.2);
+    g.translate(x + w * 0.45, y - 150 - 80 * e);
+    g.rotate(-0.12);
+    g.scale(s, s);
+    g.font = `italic 64px ${MARQUEE}`;
+    g.textAlign = 'center';
+    outlineText(g, 'BOING!', 0, 0, CF.cream, 10);
+  }
+  g.restore();
 }
 
 /**

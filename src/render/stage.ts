@@ -444,9 +444,13 @@ export class Stage {
  * a red furnace glow boiling up from below, hot-edge rims on both lips and red/black hazard chevrons on
  * the curb faces. Reads as "death" in greyscale too: the only pure-black void with bright jagged rims.
  */
-export function drawLethalPit(ctx: CanvasRenderingContext2D, xa: number, xb: number, top: number, pitY: number, yBottom: number, b: BeatInfo): void {
+export function drawLethalPit(ctx: CanvasRenderingContext2D, xa: number, xb: number, top: number, pitYIn: number, yBottom: number, b: BeatInfo): void {
   const w = xb - xa;
   const t = b.time;
+  // (iteration 7, review iter6 fix 3: a pit in a RAISED scene — the gauntlet under Big Jim, the roof, the lanes — sits
+  // hundreds of px above the kill line, so its furnace + teeth were drawn far off screen: a black void. The furnace now
+  // boils at most 260 px under the lip, so every lethal gap reads red-hot)
+  const pitY = Math.min(pitYIn, top + 260);
   ctx.fillStyle = DANGER.void;
   ctx.fillRect(xa - 2, top - 2, w + 4, yBottom - top + 4);
   // furnace glow from below (pulses on the kick)

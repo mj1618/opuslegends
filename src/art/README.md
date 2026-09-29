@@ -232,6 +232,43 @@ DPR 1 and 2 with everything on; renderer JS avg 0.9–1.7 ms, p95 ≤ 2.4 ms.
 - Measured (M5 Pro, GPU, 1920×1080 DPR 1, beat-exact capture tool): 60 fps everywhere (p50 16.7 ms, p95 ≤ 18.4 ms);
   renderer JS avg 1.2–1.7 ms, p95 ≤ 2.8 ms (the hero pass + band + speed layer add ~0.3 ms).
 
+## Iteration 7 ("HEARD AND SEEN": review iter6 fixes 3, 4, 5, 6, 7-visual, 8, 9, 10)
+- **LETHAL PITS EVERYWHERE** (`stage.ts drawLethalPit`): in a raised scene (the gauntlet on Big Jim, the Lanes, the roof)
+  the furnace glow, embers and teeth sat at the kill line hundreds of px under the lip — off screen, a black void. They now
+  boil at most 260 px under the lip: every lethal gap reads lacquer red + hot rim + teeth.
+- **THE ENDING, TRIMMED** (`act3Draw.ts ENDING`): iris shut 0.9 s → THE END (its card clock ×1.5) → victory 2.35 s →
+  poster 4.3 s, the rank stamp lands 0.55 s later (`screens.ts POSTER_STAMP_AT`): hit → stamp 7.6 s → **4.85 s**. Audio
+  hooks on `game.events` (emitted by the renderer, which owns the ending's clock; up to `ENDING_LEAD` 50 ms early with
+  `inS` = seconds to the moment): **`theEnd` `{ inS, beat }`** when the iris has shut and THE END starts, **`posterStamp`
+  `{ inS, letter, tier }`** when the stamp slams (uses `game.finalRank` when present). Measured: 0.85 s + 0.05, 4.82 s + 0.03.
+- **THE COLOUR REEL** (`render/intro.ts`): bars 1-4 are a silent film — the background graded heavy sepia, the play layer
+  lighter (Slim, drawn after, stays tangerine; tokens keep a gold glint), the band only mimes. On the `colorBurst`
+  set-piece (15, the first HEY; fallback 15) a Technicolor wipe (cyan / magenta / yellow fringes + sparkles) floods out
+  of the struck pendulum in 0.7 beat with a cream flash and a camera punch, then the saturation is pushed up and eases back
+  over 16 beats. **BOING!** (`renderer.ts drawBouncePop`): every bounce pad pops (shock ring, rays); the street's short
+  mini-bounce (31) gets the comic word.
+- **THE ROOF SIGN** (`render/slimSign.ts`): a rooftop neon on a steel lattice ("BIG" script over J I M 'S box letters,
+  rose) drifts across the stop-time at parallax 0.22, over the facade's lit windows. Each hit on a `signLetters` beat
+  (judge grade ≠ miss) zaps from the strike to its cell: the rose tube dies, the new letter STUTTERS to life in gold
+  (dead tick, on/off slices, steady) with sparks — S L I M; complete = gold bulbs chasing the frame. A miss leaves BIG
+  JIM's letter. After Big Jim's glint (+0.5) a cable snaps, the sign swings and drops. Fallback: the stop-time 'neon' crates.
+- **SPEED** (`speedLayer.ts`): one slot per beat; a third filled at a cruise, up to 80 % in a sprint (chorus, surge,
+  launch: `boost`, fading per slot — no pops), props closer (×1.3 → 1.6), a hot rim on their top edge (they vanished on
+  the dark apron), a rim-lit motion-blur streak + 2 ghosts, more/brighter margin lines. **THE FOREGROUND MUSICIAN**: one
+  big goon (parallax 1.25, every 24 beats of layer space; not in the penthouse / theatre) rising from the frame's bottom to
+  just under the floor line, playing the part that's busiest there on its own lane (`band.ts kindFor` / `LANE`), with a
+  footlight glow and the cream pop on each hit; he fades to 0.3 while a pit passes behind him and sits out the sepia.
+- **LESS HUD**: the combo title card half again (26-36 px) at 40 % opacity, up full for 1.5 s on streak milestones
+  (10 / 25 / 50 / 100 / +50); hint cards smaller and higher; **on-object glyphs** (`RuntimeLevel.glyphs`: an ink badge
+  with a gold rim over the breakable / pendulum at its beat, ticking on the beat, flashing gold on it).
+- **CHORUS CONTRAST** (bar + Lanes, weighted by the chorus shot): a multiply grade on the background (dark at the top and
+  under the floor line, clear around the play band), a warm key light across every floor top, a gold halo under each token.
+- **CANISTER TEASE** (`canisterDraw.ts`): from 4 beats before the takeoff to 3 after the pass the canister glints on
+  every beat — a gold shaft down to the takeoff spot, a ring breathing out, the star — and above the frame a glinting reel
+  badge with an up-arrow hangs at the top edge. 'tease' / 'rally' stamps use the canister / heave cards (tease under it).
+- Measured (M5 Pro, GPU, 1920×1080 DPR 1, whole run): 60 fps (p50 16.7, p95 18.3, max 23.6 ms, 0 frames > 25 ms);
+  renderer JS avg 1.42 ms, p95 2.1 ms.
+
 ## Integration recipe (per frame)
 ```ts
 import { BeatInfo } from './core/beat';                    // fill from the conductor (tempo-map aware), see below
@@ -328,4 +365,5 @@ by layer x (not aligned to level beats); window-pane breakables stand on a glazi
 split at the doorway is a hard clip (fine behind the door frame, visible if the camera lingers); flying debris is
 screen-space (does not parallax); scene splits between act-3 environments are hard clips (hidden by the KRAK flash / launch,
 the drop's curtain); the mid-act beats' background figures are screen-space (no true parallax); the victory throne still
-carries Big Jim's BJ crest under the marquee.
+carries Big Jim's BJ crest under the marquee; the roof sign's rip-down happens while the glint holds the camera (mostly
+off screen); the chorus grade sits under the light layer, so the bar's beams still haze the room.

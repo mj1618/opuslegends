@@ -132,7 +132,8 @@ interface StampEvent {
 }
 type LooseEvents = { on(type: string, fn: (e: never) => void): () => void };
 
-const STYLE_OF: Record<string, StampStyle> = { firstPerfect: 'perfect', streak: 'streak', heave: 'heave', whew: 'whew', canister: 'canister' };
+// (iteration 7: 'rally' = the crowd forgives → the gold heave card; 'tease' = a canister passed overhead → the canister card)
+const STYLE_OF: Record<string, StampStyle> = { firstPerfect: 'perfect', streak: 'streak', heave: 'heave', whew: 'whew', canister: 'canister', rally: 'heave', tease: 'canister' };
 
 /** combo heat ramp (never tangerine = hero, never lacquer red = danger) */
 const HEAT: [number, string][] = [
@@ -156,6 +157,10 @@ export class Feedback {
   private combo = 0;
   private best = 0;
   private bump = 0;
+  /** the counter's full-opacity window after a streak milestone */
+  private milestoneT = 99;
+  private milestoneK = 0;
+  private lastMilestone = 0;
   /** the broken combo number falling away */
   private broke = { n: 0, t: 9 };
   private lastStumbles = 0;
@@ -217,7 +222,9 @@ export class Feedback {
     for (const o of this.stamps) if (Number.isNaN(o.gone)) o.gone = 0;
     while (this.stamps.length > 1) this.stamps.shift();
     const big = style === 'whew' || style === 'canister' || style === 'heave' ? 1.12 : 1;
-    this.stamps.push({ grade: style, text: text.toUpperCase(), x: e.x - 70 + this.rand() * 30, y: e.y - 215 - this.rand() * 20, t: 0, rot: -0.14 + this.rand() * 0.12, s: big, gone: NaN });
+    // a tease sits UNDER the canister (it hangs high: a card above it would be off the frame)
+    const sy = e.kind === 'tease' ? e.y + 150 : e.y - 215 - this.rand() * 20;
+    this.stamps.push({ grade: style, text: text.toUpperCase(), x: e.x - 70 + this.rand() * 30, y: sy, t: 0, rot: -0.14 + this.rand() * 0.12, s: big, gone: NaN });
   }
 
   update(g: Game, dt: number): void {
@@ -280,6 +287,12 @@ export class Feedback {
     for (const s of this.scratches) s.t += dt;
     while (this.scratches.length && this.scratches[0].t > 0.3) this.scratches.shift();
     this.bump *= Math.exp(-dt / 0.12);
+    // a streak milestone brings the counter up full (10 / 25 / 50 / 100 / every 50 after)
+    const ms = this.combo >= 100 ? 100 + Math.floor((this.combo - 100) / 50) * 50 : this.combo >= 50 ? 50 : this.combo >= 25 ? 25 : this.combo >= 10 ? 10 : 0;
+    if (ms > this.lastMilestone) this.milestoneT = 0;
+    this.lastMilestone = ms;
+    this.milestoneT += dt;
+    this.milestoneK = this.milestoneT < 1.5 ? 1 : Math.max(0, 1 - (this.milestoneT - 1.5) / 0.6);
     this.broke.t += dt;
     this.sinceMiss += dt;
     this.sinceStumble += dt;
@@ -408,12 +421,15 @@ export class Feedback {
   /** HUD: the combo title card (under the metronome) */
   drawCombo(ctx: Ctx, beatPulse: number): void {
     const n = this.combo;
-    const X = VIEW_W - 170;
-    const Y = 158;
+    const X = VIEW_W - 150;
+    const Y = 146;
     if (n >= 3) {
       const heat = Math.min(1, n / 48);
-      // (iteration 6: half the old growth — the streak reads, it doesn't shout over the picture)
-      const size = Math.round(40 + 18 * Math.min(1, Math.log2(n / 2) / 4.6) + 8 * this.bump);
+      // (iteration 7, review iter6 fix 7: HALF the size again, and it rests at low opacity between milestones — it comes
+      // up full for ~1.5 s when the streak hits 10 / 25 / 50 / 100 / every 50, then fades back)
+      const size = Math.round(26 + 10 * Math.min(1, Math.log2(n / 2) / 4.6) + 8 * this.bump + 10 * this.milestoneK);
+      ctx.save();
+      ctx.globalAlpha *= 0.4 + 0.6 * this.milestoneK;
       const col = heatCol(n);
       ctx.save();
       ctx.translate(X, Y);
@@ -443,11 +459,12 @@ export class Feedback {
         ctx.fillText(txt, 0, 0);
         ctx.restore();
       }
-      ctx.font = `italic ${Math.round(20 + 6 * heat)}px ${MARQUEE}`;
-      ctx.lineWidth = 5;
-      ctx.strokeText('COMBO', 0, 26 + 4 * heat);
+      ctx.font = `italic ${Math.round(14 + 3 * heat)}px ${MARQUEE}`;
+      ctx.lineWidth = 4;
+      ctx.strokeText('COMBO', 0, 18 + 3 * heat);
       ctx.fillStyle = CF.filmHi;
-      ctx.fillText('COMBO', 0, 26 + 4 * heat);
+      ctx.fillText('COMBO', 0, 18 + 3 * heat);
+      ctx.restore();
       ctx.restore();
     }
     // the broken streak drops off the title card and greys out
@@ -458,8 +475,8 @@ export class Feedback {
       ctx.translate(X + 30 * k, Y + 160 * k * k);
       ctx.rotate(-0.06 + 0.6 * k);
       ctx.textAlign = 'center';
-      ctx.font = `italic 56px ${MARQUEE}`;
-      ctx.lineWidth = 7;
+      ctx.font = `italic 34px ${MARQUEE}`;
+      ctx.lineWidth = 6;
       ctx.strokeStyle = CF.filmBlack;
       ctx.strokeText(`x${this.broke.n}`, 0, 0);
       ctx.fillStyle = '#8F8A80';
