@@ -71,8 +71,7 @@ export class SlimSign {
   draw(g: CanvasRenderingContext2D, game: Game, b: BeatInfo, wb: number, px: number, z: number, hx: number, hy: number): void {
     this.setup(game);
     if (Number.isNaN(this.from) || wb < this.from || wb > this.to + 3) return;
-    const ppb = game.level.ppb;
-    const sx = VIEW_W / 2 + (this.centre * ppb - px) * P * z;
+    const sx = VIEW_W / 2 + (game.level.xAt(this.centre) - px) * P * z;
     if (sx < -700 || sx > VIEW_W + 700) return;
     let sy = 290;
     let rot = 0;

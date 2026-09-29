@@ -74,12 +74,11 @@ export class Act3 {
     this.breakIdx = brk ? L.breakables.findIndex((b) => b.giant && Math.abs(b.beat - brk.from) < 0.05) : -1;
     this.chandeliers = this.rackWin ? L.pendulums.map((p, i) => ({ p, i })).filter(({ p }) => p.beat >= this.rackWin!.from && p.beat < this.rackWin!.to).map(({ i }) => i) : [];
     if (this.rackWin) {
-      const ppb = L.ppb;
-      const a = this.rackWin.from * ppb;
-      const b = this.rackWin.to * ppb;
+      const b = L.xAt(this.rackWin.to);
+      const a2 = L.xAt(this.rackWin.from - 2);
       for (const f of L.floors) {
-        if (f.x1 <= a - 2 * ppb || f.x0 >= b) continue;
-        const beat0 = f.x0 / ppb;
+        if (f.x1 <= a2 || f.x0 >= b) continue;
+        const beat0 = L.beatAt(f.x0);
         this.state.rack.tiers.push({ x0: f.x0, x1: f.x1, y: f.y, pileBeat: Math.floor((beat0 - 4) / 4) * 4, k: 0 });
       }
     }

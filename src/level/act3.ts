@@ -31,7 +31,7 @@
  * (measured with `node playtest/slack.mjs --level=src/level/act3.ts#act3Level --from=240`), ≤ 1 stumble per bar,
  * checkpoints ≤ 5 bars apart, a breather after every peak.
  */
-import { and, bottle, bottleHigh, crate, jabber, launch, lumArcHop, lumArcJump, lumRowSwung, melodyTokens, pendulum, slideUnder, spikeHop, tokenHop } from './dsl';
+import { and, bottle, chorusSpeed, bottleHigh, crate, jabber, launch, lumArcHop, lumArcJump, lumRowSwung, melodyTokens, pendulum, slideUnder, spikeHop, tokenHop } from './dsl';
 import type { BigJimPose, BreakableLook, FxKind, LevelDef, LevelItem, SetPieceName, SkyPreset } from './types';
 
 /** beat of bar n (1-based, the edit's numbering), beat k (1-based) */
@@ -71,11 +71,11 @@ const pendulumHigh = (beat: number, big = false): LevelItem => ({ type: 'pendulu
  */
 const UP_EDGE = 0.55;
 /** post tops [from, to] relative to their beat: narrow enough that the gaps can't be walked (the 26 px ledge assist) */
-const POST_TOP = [-0.27, 0.28] as const;
+const POST_TOP = [-0.3, 0.3] as const; // iteration 9 ease: was [-0.27, 0.28]
 /** Big Jim's fists: slam-lift press tops, narrower than the dsl default (build.ts SLAM -0.42..0.36). Iteration 7 (review
  * iter6 fix 3, the 310.8 hotspot: 3 of 5 struggling runs died there): the early side −0.30 → −0.35, so the 309 hop from
  * fist to fist is −120/+150 ms (was −105); 312 / 318 / 326 / 330 keep the gauntlet's teeth */
-const SLAM_TOP = [-0.35, 0.26] as const;
+const SLAM_TOP = [-0.35, 0.3] as const; // iteration 9: late edge 0.26 → 0.3 (the 309 hop's +140 ms → ~+155)
 /** the knee's solid lip after the first fist (beats after its slam) */
 const KNEE = 0.42;
 class Terrain {
@@ -169,23 +169,23 @@ class Terrain {
  */
 const FIT = {
   /** 262: held jump UP +90 over the rack's hole (the kick) */
-  rackHole: [0.08, 1.63] as const,
+  rackHole: [0.1, 1.58] as const, // iteration 9 ease (all FIT: ~+15 ms late, ~+15 ms early; user: "a tad too hard"): was [0.08, 1.63]
   /** 266 / 270.70: tap hop UP +50-55 across a hole in the rack */
-  rackStep: [0.1, 0.65] as const,
+  rackStep: [0.12, 0.62] as const, // was [0.1, 0.65]
   /** 268: tap hop UP +40 onto the apex tier as the frame slams (the kick) */
-  rackGap: [0.1, 0.7] as const,
+  rackGap: [0.12, 0.66] as const, // was [0.1, 0.7]
   /** 276 / 282: light-wells between the letters (tap hop, flat). Iteration 5: 276 is no longer led by a reward hop on
    * 275 (a +95 ms late 275 hop landed in the well — a hidden lethal, the 277 loop): X X X ∪, its early side is real */
   /** iteration 6 (review iter5 fix 5, chorus 4 = the exam): 276 / 280 / 284 tightened to −80 (was −85 / −90 / −95; the
    * physics quantises these windows in 10 ms steps: one step tighter is −70, under the −75 the review allowed) */
   /** iteration 8 (review iter7 fix 2): 276 −80 → −95 (0.871 → 0.82) — the first pit after the ◆272 respawn's launch
    * (4 beats in) was where stuck weak players replayed the same 4 s; 284 stays the −80 exam */
-  well: [0.13, 0.82] as const,
-  wellStd: [0.09, 0.8] as const,
+  well: [0.14, 0.78] as const, // iteration 9: was [0.13, 0.82]
+  wellStd: [0.13, 0.76] as const, // iteration 9: was [0.09, 0.8]
   /** 284 (iteration 5): the light-well past the G, after the G's neon (282.66): no buffer */
-  wellG: [0.13, 0.858] as const,
+  wellG: [0.14, 0.8] as const, // iteration 9: was [0.13, 0.858] (−75 → the exam at ~−95)
   /** 294: held jump UP +150 from the M's hump to the terrace */
-  terrace: [0.2, 1.5] as const,
+  terrace: [0.2, 1.46] as const, // iteration 9: was [0.2, 1.5]
   /** (316 / 324 were `lapel` / `lapelHup` gaps: each followed a hop within half a beat, so the jump buffer hid their early
    * side (−255 / −190 ms): lethal on paper, never in play. Iteration 6 made them reward ledges and spent that intensity on
    * real stakes at 326 / 330 — the outro must stay calmer than the breakdown, rubric C1) */
@@ -194,15 +194,15 @@ const FIT = {
    * (no jump buffer to hide an early press): 312 cuff -> sleeve, 318 lapel -> tie pin, 326 collar -> lens rim.
    * ~-90/+150 ms: fair to the rule, but a ±130 press misses them early
    */
-  climb: [0.1, 0.66] as const,
+  climb: [0.11, 0.65] as const, // iteration 9: was [0.1, 0.66] (half-eased: act 3 keeps the teeth)
   /** 318: the same across a FLAT notch (the landing comes sooner than going up, so the pit runs further) */
-  notch: [0.1, 0.84] as const,
+  notch: [0.11, 0.82] as const, // iteration 9: was [0.1, 0.84] (half-eased)
   /** 280: up onto the fallen I after the strikes (was `lapel`, measured −80 once 275 stopped being a hop). Iteration 7:
    * −80 → −95 (0.695 → 0.65) — two −80 exams one bar apart (276, 280) killed a ±85 sloppy bot twice in one chorus-4 pass
    * (rubric A9: ≤ 1 per block); 276 and 284 stay the −80 exam */
-  ontoI: [0.1, 0.65] as const,
+  ontoI: [0.11, 0.64] as const, // iteration 9: was [0.1, 0.65] (half-eased)
   /** 330 (iteration 6): flat, over the gap the snapped gold chain tore, after the medallion strike on 329 */
-  chain: [0.09, 0.8] as const,
+  chain: [0.12, 0.76] as const, // iteration 9: was [0.09, 0.8]
 };
 
 /** Act 3's items, starting on a floor `h0` px above the street (act 2's last height). */
@@ -342,6 +342,7 @@ export function act3Items(h0 = 950): LevelItem[] {
     // ================================================================ BLOCK 3 — SIGN FALLS (69-76). Follows: the shouts
     { type: 'checkpoint', beat: bar(69) },
     { type: 'crowd', beat: bar(69), cap: 24, earn: [271.65] }, // FULL HOUSE lands on the drop for a clean break shot
+    chorusSpeed(bar(69), bar(77)), // iteration 9: the chorus speed-up (the drop's launch is the ramp; back to 1 on the reveal)
     // iteration 7 (review iter6 fix 2): chorus 4 + tag 4 SING — a token on every sung note along the letters, the walkdown
     // on Big Jim and the reveal (arc tokens that only echoed the singer are dropped)
     { type: 'lumSing', from: bar(69), to: bar(78) },
@@ -361,29 +362,29 @@ export function act3Items(h0 = 950): LevelItem[] {
     fx(bar(69, 1), 'shot', 1),
     bottleHigh(bar(69, 2), 'glass', undefined, true), // the casino's skylight, burst from below mid-launch
     mode(bar(69, 3), 'roof'),
-    crate(bar(69, 3), 'letterNeon'), // land ON 274 on the fallen B: its big neon SLAMS
-    // iteration 5: X · X then the well — the B's last tube on 4 (was a reward hop on 275 whose late landing fell into the
-    // 276 well: a hidden lethal). Tokens run along the B to the lip
-    smash(bar(69, 4), 'letterNeon'),
+    // iteration 9 (the chorus groove, docs/level/chorus_alignment.md: strikes on the snare 2 / 4): land ON 274 (the kick)
+    // on the fallen B, and its BIG neon on 4 (275: the bar's loudest hit) — was a strike on the landing too (X · X · X)
+    ...tokenHop(bar(69, 3)), // the landing's kick: a hop along the B
+    crate(bar(69, 4), 'letterNeon'),
     lumRowSwung(and(bar(69, 3)), bar(70, 1) - 0.1, 50),
     topple(bar(69), 0, 'B', 274.3, 276.09, ROOF, 'frame'),
     // ---- bar 70 (.80, HEY 277 · 278): the light-well on the kick (276, tight), the BLUFFER PAIR leaps off the falling I
     // on the two HEYs, neon tubes on 4 and its "and"
     mode(bar(70, 1), 'letters'),
     topple(bar(70), 1, 'I', 278.0, 280.55, ROOF),
+    // THE BIG HIT (277, the first HEY on the snare): the Bluffer leaps off the falling I. Iteration 9: the second Bluffer
+    // (278, the kick) is a hop now and the I's "and" tube is gone — ∪ X ∪ X, the chorus groove
     jabber(bar(70, 2)),
-    jabber(bar(70, 3)), // iteration 5: the BLUFFER PAIR — a second one leaps off the I on the second HEY (miss both = the Burn)
-    fx(bar(70, 2), 'flash', 0.45),
-    fx(bar(70, 3), 'flash', 0.45),
+    fx(bar(70, 2), 'flash', 0.55),
+    ...tokenHop(bar(70, 3)),
     smash(bar(70, 4), 'letterNeon'),
-    smash(and(bar(70, 4)), 'letterNeon'), // the I's last tube on the "and" of 4
     // ---- bar 71 (.90, the A7 climb): up onto the fallen I (280), bat a bottle from the crown's window into the G on
     // the snare (281), the light-well on the kick (282), the G's neon mid-hop on the D# (282.66)
     topple(bar(71), 2, 'G', 282.75, 284.13, ROOF + 50),
     batBottle(bar(71, 2)),
-    smash(and(bar(71, 3)), 'letterNeon'),
+    smash(bar(71, 4), 'letterNeon'), // (iteration 9: the G's neon on the snare, was mid-hop on the "and")
     // (iteration 5: no hop on 283 — the 284 well's early side is real; tokens along the G)
-    lumRowSwung(bar(71, 4), bar(72, 1) - 0.1, 50),
+    lumRowSwung(and(bar(71, 4)), bar(72, 1) - 0.1, 50),
     // ---- bar 72 (.72, the dip, HEY 286): the light-well past the G on the kick (284, lethal), the J's neon on the snare, its hook's neon on the HEY (iteration 8: was a Bluffer),
     // the J-HOOK SEE-SAW on 4 flings you up ON 289
     topple(bar(72), 3, 'J', 286.0, 287.3, ROOF + 50),
@@ -392,8 +393,11 @@ export function act3Items(h0 = 950): LevelItem[] {
     // neon tube now (was a Bluffer: 0 threats in the re-entry's first 2 beats)
     { type: 'checkpoint', beat: bar(72, 2) },
     smash(bar(72, 2), 'letterNeon'),
-    smash(bar(72, 3), 'letterNeon'),
+    // (iteration 9: the J's hook neon on the kick (286) is a hop now — hop on the gang's HEY, the J's hook neon on the snare
+    // as the see-saw fires)
+    ...tokenHop(bar(72, 3)),
     fx(bar(72, 3), 'flash', 0.45),
+    smash(bar(72, 4), 'letterNeon'),
     launch(bar(72, 4), 2, ROOF + 140),
     mode(bar(72, 4), 'launch'),
     cam(bar(72, 4), 0.74, 1),
@@ -401,7 +405,7 @@ export function act3Items(h0 = 950): LevelItem[] {
     // land 289, then the POST RUN over the light-well on its steel legs: 290 · 291 · 292 (isochronous, counts once)
     bottleHigh(bar(73, 1), 'letterNeon', undefined, true),
     topple(bar(73), 4, 'I', 290.28, 292.7, ROOF + 140, 'shot'),
-    smash(bar(73, 2), 'letterNeon'), // land ON 289: its neon shatters under you
+    crate(bar(73, 2), 'letterNeon'), // land ON 289 (THE BIG HIT of bar 5): its big neon shatters under you
     mode(bar(73, 3), 'posts'),
     follows(bar(73, 3), 'kick'),
     // ---- bar 74 (.85, THE CHORUS PEAK): the lethal combination — a Bluffer on the M's hump (293), the held jump UP to the
@@ -426,17 +430,21 @@ export function act3Items(h0 = 950): LevelItem[] {
     fx(bar(75, 3), 'shake', 0.4),
     fx(bar(75, 4), 'zoom', 0.9),
     // ---- bar 76 (.59, E lands): the breath — you crash IN through his penthouse's glass wall, token hops, a decanter
-    setPiece(bar(76), 'penthouse', 8),
+    // iteration 9: the crash IN lands on THE BIG HIT (301, the chorus's loudest beat: 2.6 × its median) — a hop on the
+    // E's kick (300), the glass wall on the snare, a hop, the decanter on 4 (the whisky glass on the "and" is gone)
+    setPiece(bar(76, 2), 'penthouse', 7),
     sky(bar(76), 'penthouse'),
-    { type: 'ground', beat: bar(76) + 0.5, style: 'penthouse' },
+    { type: 'ground', beat: bar(76, 2) + 0.5, style: 'penthouse' },
     cam(bar(76), 0.9, 2),
-    fx(bar(76), 'flash', 0.7),
-    giant(bar(76, 1), 'glass'), // his penthouse's glass wall: crash IN
-    mode(bar(76, 1), 'penthouse'),
-    ...tokenHop(bar(76, 2)),
+    ...tokenHop(bar(76, 1)),
+    fx(bar(76, 2), 'flash', 0.8),
+    giant(bar(76, 2), 'glass'), // his penthouse's glass wall: crash IN
+    mode(bar(76, 2), 'penthouse'),
     ...tokenHop(bar(76, 3)),
     smash(bar(76, 4), 'decanter'),
-    smash(and(bar(76, 4)), 'glass'), // (iteration 5) his whisky glass on the "and" — the chorus keeps ≥ 1 action per beat
+    // his whisky glass on the &4 — the band's push into the tag (measured: bar 8's &4 is an accent in every chorus, 1.0-1.2
+    // × the median; the one "and" chorus 4 keeps, docs/level/chorus_alignment.md)
+    smash(and(bar(76, 4)), 'glass'),
 
     // ================================================================ BLOCK 4 — THE REVEAL + THE GAUNTLET (77-83). No chalk marks
     { type: 'checkpoint', beat: bar(77) },

@@ -110,7 +110,7 @@ export class RunStats {
    * Match intended actions to executed actions (same type, nearest within half a beat).
    * Only the LAST attempt at each action counts (after deaths, earlier attempts are superseded).
    */
-  timings(actions: readonly ActionMarker[], tempo: TempoMap, ppb: number, fromBeat: number, toBeat: number): ActionTiming[] {
+  timings(actions: readonly ActionMarker[], tempo: TempoMap, beatAt: (x: number) => number, fromBeat: number, toBeat: number): ActionTiming[] {
     const out: ActionTiming[] = [];
     for (const a of actions) {
       if (a.beat < fromBeat || a.beat > toBeat) continue;
@@ -136,7 +136,7 @@ export class RunStats {
         matched: true,
         execErrMs: (best.simTime - bt) * 1000,
         pressErrMs: (best.pressTime - bt) * 1000,
-        posErrMs: (best.x / ppb - a.beat) * spb * 1000,
+        posErrMs: (beatAt(best.x) - a.beat) * spb * 1000,
       });
     }
     return out;

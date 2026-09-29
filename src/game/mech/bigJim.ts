@@ -9,7 +9,7 @@
  * breakables' `broken` flags, so checkpoint rewinds replay him exactly.
  *
  *   pose / prev / k   the current pose key, the one it blends from, blend 0..1 (level `bigJim` items, `beats` long)
- *   x, y, scale       world anchor: the middle of his seat (a fixed beat × ppb, or tracking the music line `ahead`
+ *   x, y, scale       world anchor: the middle of his seat (a fixed beat's X, or tracking the music line `ahead`
  *                     beats in front during the gauntlet), `scale` 1 ≈ 1150 px tall
  *   visible           0..1 (hidden before the rise, fades in behind the letters)
  *   rise              0..1 during 'rise' (he climbs up behind the sign from below the roof line)
@@ -109,7 +109,6 @@ export class BigJim {
 
   constructor(L: RuntimeLevel, swings: number[]) {
     this.L = L;
-    const ppb = L.ppb;
     let x = 0;
     let ahead = 0;
     let y = 0;
@@ -118,7 +117,7 @@ export class BigJim {
     for (const it of items) {
       if (it.type !== 'bigJim') continue;
       if (it.x !== undefined) {
-        x = it.x * ppb;
+        x = L.xAt(it.x);
         ahead = 0;
       } else if (it.ahead !== undefined) {
         x = NaN;
@@ -157,7 +156,7 @@ export class BigJim {
     s.pose = i >= 0 ? cur.pose : 'hidden';
     s.prev = prev.pose;
     s.k = k;
-    const ax = (q: PoseKey) => (Number.isNaN(q.x) ? (wb + q.ahead) * this.L.ppb : q.x);
+    const ax = (q: PoseKey) => (Number.isNaN(q.x) ? this.L.xAt(wb + q.ahead) : q.x);
     s.x = ax(prev) + (ax(cur) - ax(prev)) * e;
     s.y = prev.y + (cur.y - prev.y) * e;
     s.scale = prev.scale + (cur.scale - prev.scale) * e;

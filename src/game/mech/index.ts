@@ -38,7 +38,7 @@ export interface SetPieceCue {
   beat: number;
   name: SetPieceName;
   beats: number;
-  /** world anchor: x = (beat + ahead) * ppb, y = `h` px above the floor there */
+  /** world anchor: x = X(beat + ahead), y = `h` px above the floor there */
   x: number;
   y: number;
   floorY: number;
@@ -83,7 +83,7 @@ export class Mechanics {
     this.L = level;
     this.host = host;
     this.act3 = new Act3(level, song);
-    const ppb = level.ppb;
+    const X = level.xAt;
     const floorAt = (x: number) => {
       const y = level.floorYAt(x);
       return Number.isNaN(y) ? level.surfaceYNear(x) : y;
@@ -92,7 +92,7 @@ export class Mechanics {
     for (const it of level.def.items) {
       if (it.type === 'thrown') {
         const bottle = it.style === 'bottle';
-        const tx = it.beat * ppb + (bottle ? BAT.ahead : FIRE.at * ppb);
+        const tx = bottle ? X(it.beat) + BAT.ahead : X(it.beat + FIRE.at);
         const floorY = floorAt(tx);
         const ty = bottle ? floorY - BAT.h : floorY;
         const from = it.from ?? it.beat - BAT.beats;
@@ -120,12 +120,13 @@ export class Mechanics {
           fire: { x: tx - FIRE.w / 2, y: floorY - FIRE.h, w: FIRE.w, h: FIRE.h },
         });
       } else if (it.type === 'ball') {
-        const meetX = (it.beat + BALL.at) * ppb;
+        const meetX = X(it.beat + BALL.at);
         this.balls.push({
           id: id++,
           beat: it.beat,
           from: it.from ?? it.beat - BALL.lead,
-          speed: it.speed ?? BALL.speed,
+          // (iteration 9: in a chorus speed zone the ball rolls faster by the same factor — its window stays in beats)
+          speed: (it.speed ?? BALL.speed) * level.speedMulAt(it.beat + BALL.at),
           r: BALL.r,
           meetX,
           floorY: floorAt(meetX),
@@ -138,10 +139,10 @@ export class Mechanics {
           t: 0,
         });
       } else if (it.type === 'hook') {
-        const pts = it.path.map(([b, h]) => [b * ppb, -h] as [number, number]);
+        const pts = it.path.map(([b, h]) => [X(b), -h] as [number, number]);
         this.hooks.push({ id: id++, beat: it.beat, style: it.style, pts, x0: pts[0][0], x1: pts[pts.length - 1][0], state: 'idle', k: 0, t: 0 });
       } else if (it.type === 'setPiece') {
-        const x = (it.beat + (it.ahead ?? 0)) * ppb;
+        const x = X(it.beat + (it.ahead ?? 0));
         const floorY = floorAt(x);
         this.setPieces.push({ beat: it.beat, name: it.name, beats: it.beats ?? 4, x, y: floorY - (it.h ?? 0), floorY });
       }
@@ -298,11 +299,11 @@ export class Mechanics {
       // iteration 5: a hero BEHIND the grid (a stumble's knockback, still surging back) grabs by where he IS — the rope
       // hangs at its beat's x, so the window follows his position (a player who stumbled right before the zip used to
       // press on reaching the cable, past the +0.5 beat window, and fall every retry: reckless bot 26× at 206)
-      const lag = Math.min(1.5, Math.max(0, (p.musicX - p.x) / this.L.ppb));
+      const lag = Math.min(1.5, Math.max(0, this.L.beatAt(p.musicX) - this.L.beatAt(p.x)));
       const pressBeat = wb - Tun.strike.startup / p.spb - (Number.isFinite(lag) ? lag : 0);
       for (const h of this.hooks) {
         if (h.state !== 'idle' || pressBeat < h.beat - HOOK.early || pressBeat > h.beat + HOOK.late) continue;
-        if (p.x > h.x1 - 8 || p.x < h.x0 - 1.2 * this.L.ppb) continue;
+        if (p.x > h.x1 - 8 || p.x < this.L.xAt(this.L.beatAt(h.x0) - 1.2)) continue;
         h.state = 'riding';
         h.t = 0;
         this.hook = h;

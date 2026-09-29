@@ -104,7 +104,6 @@ export class Renderer {
   /** level design tags ('mode' items: street, rooftops, launch, ...) sorted by beat — picks breakable families */
   private modes: { beat: number; mode: string }[] = [];
   private burnFlare = 0;
-  private lastStumbles = 0;
   private last = NaN;
   /** presentation clock (s): runs through pauses in the music (deaths, menus) */
   private clock = 0;
@@ -199,8 +198,7 @@ export class Renderer {
     this.beats.update(g, cam, this.director, this.director.active ? this.stage.envAt(L, g.player.x) : '', wbNow);
     this.director.brawl = this.beats.brawling;
     this.feedback.update(g, g.paused ? 0 : dt);
-    if (g.stats.stumbles > this.lastStumbles) this.burnFlare = 1;
-    this.lastStumbles = g.stats.stumbles;
+    // (iteration 9: the Burn is a calm lower boundary — a stumble no longer flares it; only a real stall does)
     this.burnFlare *= Math.exp(-dt / 0.6);
     if (g.freezeFx > this.lastFreeze + 1e-4) this.perfectAt = this.clock;
     this.lastFreeze = g.freezeFx;
@@ -362,7 +360,7 @@ export class Renderer {
           boost: Math.max(this.feed.chorus ? 1 : 0, this.moments.launchK, Math.min(1, Math.max(0, p.vx / Math.max(1, p.runSpeed) - 1) / 0.12)),
         },
         b,
-        (this.colour.bandOn(wbNow) ? foregroundMusician(cam.rx, cam.rzoom, L.ppb, envHere, this.feed, b, this.stage.light(envHere), true, (x) => !Number.isNaN(L.floorYAt(x))) : null) ?? undefined,
+        (this.colour.bandOn(wbNow) ? foregroundMusician(cam.rx, cam.rzoom, L.ppb, envHere, this.feed, b, this.stage.light(envHere), true, (x) => !Number.isNaN(L.floorYAt(x)), L.beatAt) : null) ?? undefined,
       );
     }
     this.drawRevealCurtain(ctx, cam, g.worldBeat);
@@ -380,13 +378,10 @@ export class Renderer {
     ctx.restore();
 
     // (the Perfect replay burst is drawn by the Slim rig itself: s.perfect)
-    const ppb = L.ppb;
-    const damage = g.chaser.active ? Math.max(0, Math.min(1, 1 - (g.player.x - g.chaser.x) / (3.5 * ppb))) : 0;
+    const damage = g.chaser.active ? Math.max(0, Math.min(1, 1 - (L.beatAt(g.player.x) - L.beatAt(g.chaser.x)) / 3.5)) : 0;
     this.stage.film.draw(ctx, b, { amount: 1, damage });
     // THE BURN: the print melting in from the left edge (always on screen once risen)
     if (g.chaser.active) {
-      const th = (g.chaser as { threat?: number }).threat;
-      const burnThreat = typeof th === 'number' ? th : Math.max(0, Math.min(1, (Tun.chaser.restGap - g.chaser.gap) / 0.75));
       const riseK = Math.max(0, Math.min(1, (this.sc.wb - g.chaser.riseBeat) / Tun.chaser.riseBeats));
       const last = g.stats.deathLog[g.stats.deathLog.length - 1];
       const eat = g.phase === 'dying' && last?.cause === 'chaser' ? Math.min(1, g.deathProgress * 1.6) : 0;
@@ -396,10 +391,9 @@ export class Renderer {
           realX: VIEW_W / 2 + (g.chaser.x - cam.rx) * cam.rzoom,
           heroX: hsx,
           rise: riseK,
-          // (iteration 6: it only surges / flares when it is actually pulled in from its rest — `threat`; at rest a drum
-          // fill is a small pulse, so the one real threat never cries wolf)
-          lunge: this.director.active ? Math.max(g.chaser.lunge ?? 0, this.feed.fill * (0.6 + 0.4 * this.feed.fillStrength) * (0.15 + 0.85 * burnThreat)) : 0,
-          flare: Math.max(this.burnFlare, (g.chaser.flare ?? 0) * (0.3 + 0.7 * burnThreat)),
+          // (iteration 9: a CALM lower boundary — no fill surges; it flares only when the hero has stalled near it)
+          lunge: 0,
+          flare: Math.max(this.burnFlare, g.chaser.flare ?? 0),
           eat,
           t: this.clock,
         },
@@ -749,11 +743,11 @@ export class Renderer {
 
     // chalk: bar lines on every downbeat (quiet metronome) + scansion marks + Hup-Hup-HEY phrases
     const bpb = g.tempo.beatsPerBar;
-    const ppb = L.ppb;
     const barPulse = gr.pulse(4, 0.4);
-    for (let bb = Math.ceil(x0 / ppb / bpb) * bpb; bb * ppb < x1; bb += bpb) {
-      const fy = L.floorYAt(bb * ppb);
-      if (!Number.isNaN(fy)) drawBarLine(ctx, bb * ppb, fy, Math.abs(gr.beat - bb) < 0.5 ? barPulse : 0);
+    for (let bb = Math.ceil(L.beatAt(x0) / bpb) * bpb; L.xAt(bb) < x1; bb += bpb) {
+      const bxw = L.xAt(bb);
+      const fy = L.floorYAt(bxw);
+      if (!Number.isNaN(fy)) drawBarLine(ctx, bxw, fy, Math.abs(gr.beat - bb) < 0.5 ? barPulse : 0);
     }
     const markY = (a: { x: number; groundY: number }) => {
       const slam = L.slams.find((f) => a.x >= f.solid.x && a.x <= f.solid.x + f.solid.w);
@@ -766,7 +760,7 @@ export class Renderer {
       drawScansion(ctx, a.glyph, a.x, markY(a), lit, g.judge.gradeAt(a.beat, a.type) === 'perfect');
     }
     for (const ph of L.phrases) {
-      const xs = ph.beats.map((bt) => bt * ppb) as [number, number, number];
+      const xs = ph.beats.map((bt) => L.xAt(bt)) as [number, number, number];
       if (xs[2] < x0 - 100 || xs[0] > x1 + 100 || !marksOnAt(L, ph.beats[0])) continue;
       const fy = L.floorYAt(xs[0]);
       const lit = ph.beats.map((bt) => {
@@ -930,7 +924,7 @@ export class Renderer {
       drawToken(ctx, h.x, h.y, Math.sin(h.t * 6) * 0.4, 1, 0.5, blink);
     }
     // hidden film canisters (iteration 6, gameplay placeholder: render/canisterDraw.ts)
-    for (const c of L.canisters ?? []) if (c.x > x0 - 100 && c.x < x1 + 100) drawCanister(ctx, c, wb, this.clock, y0, L.floorYAt(c.from * L.ppb));
+    for (const c of L.canisters ?? []) if (c.x > x0 - 100 && c.x < x1 + 100) drawCanister(ctx, c, wb, this.clock, y0, L.floorYAt(L.xAt(c.from)));
 
     // ON-OBJECT GLYPHS (iteration 7: the teaches that used to be banners): a gold glyph pops over the thing to hit
     this.drawGlyphs(ctx, wb, x0, x1);
@@ -1010,7 +1004,7 @@ export class Renderer {
     for (const h of gl) {
       const d = wb - h.beat;
       if (d < -h.beats - 0.3 || d > 0.4) continue;
-      let x = h.beat * L.ppb;
+      let x = L.xAt(h.beat);
       if (x < x0 - 200 || x > x1 + 200) continue;
       // the thing at that beat: a breakable, a pendulum target, else the floor there
       const bk = L.breakables.find((k) => Math.abs(k.beat - h.beat) < 0.3);

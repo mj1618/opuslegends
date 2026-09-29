@@ -154,7 +154,7 @@ export class Stage {
   }
 
   envAt(L: RuntimeLevel, x: number): Env {
-    return GROUND_ENV[groundStyleAt(L, x / L.ppb) as string] ?? 'street';
+    return GROUND_ENV[groundStyleAt(L, L.beatAt(x)) as string] ?? 'street';
   }
 
   /** world x of every environment change (sorted) */
@@ -163,7 +163,7 @@ export class Stage {
     let cur: Env = 'street';
     for (const c of L.groundCues) {
       const e: Env = GROUND_ENV[c.style as string] ?? 'street';
-      if (e !== cur) out.push({ x: c.beat * L.ppb, to: e });
+      if (e !== cur) out.push({ x: L.xAt(c.beat), to: e });
       cur = e;
     }
     return out;
@@ -175,7 +175,8 @@ export class Stage {
       this.cuesKey = L;
       // the facade changes face every 4 bars from the act's first facade beat (art/grindhouse/facade.ts)
       const fb = this.boundaries(L).find((q) => q.to === 'facade');
-      if (fb) setFacadeGrid(L.ppb, Math.round(fb.x / L.ppb));
+      // (the grid is in px from the facade's first x: fb.x / ppb = the beat it would be at the base speed)
+      if (fb) setFacadeGrid(L.ppb, fb.x / L.ppb);
       this.cues = Object.fromEntries(ENVS.map((e) => [e, []])) as unknown as Record<Env, { beat: number; key: string }[]>;
       for (const c of L.skyCues) {
         const key = SKY_TO_LIGHT[c.preset] ?? c.preset;

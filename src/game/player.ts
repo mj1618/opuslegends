@@ -114,12 +114,20 @@ export class Player implements Body {
   /**
    * Follow the tempo map (called by Game every sim step with the seconds-per-beat at the world
    * beat): top run speed = pixelsPerBeat / spb, and the jump physics (defined in beats) rescale.
-   * Positions stay x = beat * pixelsPerBeat, so holding right keeps the hero on the music line
+   * Positions stay x = X(beat) (level/beatx.ts), so holding right keeps the hero on the music line
    * however the band pushes or drags (the original drifts 161.5 -> 166.6 BPM).
    */
-  setTempo(secondsPerBeat: number): void {
+  setTempo(secondsPerBeat: number, pixelsPerBeat?: number): void {
     this.spb = secondsPerBeat;
+    // iteration 9: the px per beat varies (the chorus speed zones, level/beatx.ts) — Game passes the ppb at the hero's
+    // own beat position, so a hero behind the grid keeps his lag in BEATS through a ramp
+    if (pixelsPerBeat !== undefined) this.pixelsPerBeat = pixelsPerBeat;
     this.runSpeed = this.pixelsPerBeat / secondsPerBeat;
+  }
+
+  /** px per beat at the hero's position (set by setTempo) */
+  get ppb(): number {
+    return this.pixelsPerBeat;
   }
 
   /** Release from the count-in hold. */

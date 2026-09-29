@@ -41,6 +41,11 @@
  *             (poll `game.sign` for the state). A missed hit leaves that letter as it was (BIG JIM's)
  *   tease     (iteration 7) the hero passed UNDER a hidden film canister without taking it — the first time this run
  *             (and only until the player has ever found one): "SOMETHING UP THERE?" (a 'tease' stamp at the canister too)
+ *   chorus    (iteration 9) THE CHORUS SPEED-UP: a level `speed` zone starts (`on: true`, emitted as its ramp-in starts,
+ *             `rampIn` beats before the downbeat `from`; full speed `mul` from `from` to `to`, back to 1 over `rampOut`
+ *             after `to`) or ends (`on: false`, at `to`). Re-emitted after a rewind into / out of one. Poll
+ *             `game.chorusK` (0..1 by the SONG beat, ramps with the speed: audio's boost), `game.speedMul` (the hero's
+ *             ppb multiplier, 1 = normal), `game.chorus` (the zone, or null); schedule ahead with `level.speedZones`
  *   finish    (iteration 7) the run reached the end: `rank` (the poster's letter, floored at C for a finisher) and
  *             `finisher` true. `game.finalRank` holds it from here on (audio: the rank sting; art: the stamp)
  */
@@ -69,6 +74,7 @@ export interface GameEventMap {
   sign: { index: number; letter: string; word: string; lit: number; beat: number; x: number; y: number };
   tease: { index: number; beat: number; x: number; y: number; text: string };
   finish: { beat: number; rank: import('./rank').RunRank; finisher: boolean };
+  chorus: { on: boolean; beat: number; from: number; to: number; mul: number; rampIn: number; rampOut: number };
 }
 
 export type WhewKind = 'lip' | 'coyote' | 'graze';

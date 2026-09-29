@@ -2,7 +2,8 @@
  * Level builder: LevelDef (musical time) -> RuntimeLevel (world pixels, collision, entities).
  * Pure function of (level, tempo, song, tunables) so it can be rebuilt at any time.
  *
- * Placement rules (all derived from "the hero is at x = beat * ppb on that beat"):
+ * Placement rules (all derived from "the hero is at x = X(beat) on that beat"; X = level/beatx.ts, the chorus speed
+ * zones — beat × ppb outside them):
  *   - spike:  centred at its beat (hop over it from beat - 0.5)
  *   - jabber:    placed so a strike pressed ON its beat connects early in the strike's active window,
  *              and body contact happens only ~0.42 beat later (late strikes within Good still win)
@@ -45,6 +46,7 @@ import type {
 import { heightAt, jumpProfile } from '../game/jumpProfile';
 import { CollisionWorld, type Solid } from '../game/physics';
 import { Tun } from '../game/tunables';
+import { BeatX, type SpeedZone } from './beatx';
 import type { FailKind, GroundStyle, LevelDef } from './types';
 
 export interface FloorSpan {
@@ -56,7 +58,22 @@ export interface FloorSpan {
 
 export interface RuntimeLevel {
   def: LevelDef;
+  /** BASE px per beat (outside speed zones). Positions: use xAt / beatAt / ppbAt (iteration 9: x is no longer beat × ppb) */
   ppb: number;
+  /** beat space → world x (level/beatx.ts: the chorus speed zones) */
+  bx: BeatX;
+  /** world x of `beat` */
+  xAt(beat: number): number;
+  /** beat at world x */
+  beatAt(x: number): number;
+  /** px per beat at `beat` (ppb × the speed multiplier) */
+  ppbAt(beat: number): number;
+  /** speed multiplier at `beat` (1 = normal; the chorus zones' `mul` at full speed) */
+  speedMulAt(beat: number): number;
+  /** 0..1: how far into a chorus speed zone `beat` is (ramps with the speed; audio / art read it) */
+  chorusKAt(beat: number): number;
+  /** the level's speed zones (sorted) */
+  speedZones: readonly SpeedZone[];
   runSpeed: number;
   swing: number;
   world: CollisionWorld;
@@ -151,7 +168,10 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
   const ppb = def.pixelsPerBeat;
   const bpm = tempo.bpmAtBeat(def.startBeat);
   const runSpeed = (ppb * bpm) / 60;
-  const X = (beat: number) => beat * ppb;
+  const zones: SpeedZone[] = [];
+  for (const it of def.items) if (it.type === 'speed') zones.push({ from: it.from, to: it.to, mul: it.mul, rampIn: it.rampIn ?? 1, rampOut: it.rampOut ?? 1 });
+  const bx = new BeatX(ppb, zones);
+  const X = (beat: number) => bx.x(beat);
   const spb = 60 / bpm;
   const swing = song.swing;
 
@@ -294,7 +314,7 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
     switch (it.type) {
       case 'jabber': {
         const hurtW = JABBER.w * JABBER.hurtK;
-        const hurtLeft = X(it.beat) + (Tun.player.width / 2 - Tun.player.hurtInset) + JABBER.contactBeats * ppb;
+        const hurtLeft = X(it.beat) + (Tun.player.width / 2 - Tun.player.hurtInset) + bx.dx(it.beat, it.beat + JABBER.contactBeats);
         const cx = hurtLeft + hurtW / 2;
         const y = groundYNear(cx);
         enemies.push({
@@ -385,7 +405,7 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
         const x = X(it.beat);
         const y = groundYNear(x);
         const landY = it.land !== undefined ? -it.land : y;
-        const pad: BouncePad = { id: id++, beat: it.beat, landBeat: it.beat + it.beats, landY, x, y, w: 2 * BOUNCE.halfBeats * ppb, kick: 0, used: false };
+        const pad: BouncePad = { id: id++, beat: it.beat, landBeat: it.beat + it.beats, landY, x, y, w: bx.dx(it.beat - BOUNCE.halfBeats, it.beat + BOUNCE.halfBeats), kick: 0, used: false };
         bouncePads.push(pad);
         if (it.tokens !== false) {
           // tokens along the launch arc (same solver the game uses at launch time)
@@ -431,7 +451,7 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
         const airBeats = prof.airtime / spb;
         const H = (db: number) => heightAt(prof, db * spb);
         for (let db = it.skipFirst ? every : 0; db < airBeats - every * 0.5; db += every) {
-          const slope = (H(db + 0.02) - H(db - 0.02)) / (0.04 * ppb);
+          const slope = (H(db + 0.02) - H(db - 0.02)) / (0.04 * bx.ppbAt(it.beat + db));
           addLum(it.beat + db, takeoffY - H(db) - Tun.player.height * 0.6, undefined, -Math.atan(slope));
         }
         break;
@@ -552,7 +572,7 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
     const f = floors[i];
     const n = floors[i + 1];
     if (n.x0 - f.x1 < 4) continue;
-    const beat = f.x1 / ppb;
+    const beat = bx.beat(f.x1);
     pits.push({ x0: f.x1, x1: n.x0, top: Math.min(f.y, n.y), beat, lethal: true, gauntlet: beat >= 304 && beat < 332 });
   }
   cameraCues.sort((a, b) => a.beat - b.beat);
@@ -562,6 +582,13 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
   return {
     def,
     ppb,
+    bx,
+    xAt: (b: number) => bx.x(b),
+    beatAt: (x: number) => bx.beat(x),
+    ppbAt: (b: number) => bx.ppbAt(b),
+    speedMulAt: (b: number) => bx.mulAt(b),
+    chorusKAt: (b: number) => bx.chorusK(b),
+    speedZones: bx.zones,
     runSpeed,
     swing,
     world,
@@ -602,7 +629,14 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
   };
 }
 
-/** Camera zoom the level asks for at `beat` (eased between cues). */
+/**
+ * iteration 9: in a chorus speed zone the camera pulls back with the speed (zoom ÷ (1 + SPEED_ZOOM × (mul − 1))), so the
+ * runway ahead keeps most of its TIME: at ×1.25 the zoom is ×0.87 and the runway in seconds only drops ~8 %.
+ */
+export const SPEED_ZOOM = 0.6;
+export const SPEED_ZOOM_LEAD = 2;
+
+/** Camera zoom the level asks for at `beat` (eased between cues; × the chorus speed pull-back). */
 export function cameraZoomAt(L: RuntimeLevel, beat: number, base: number): number {
   let z = base;
   for (const c of L.cameraCues) {
@@ -611,7 +645,10 @@ export function cameraZoomAt(L: RuntimeLevel, beat: number, base: number): numbe
     const e = k * k * (3 - 2 * k);
     z = z + (c.zoom - z) * e;
   }
-  return z;
+  // (the pull-back LEADS the speed by SPEED_ZOOM_LEAD beats: the runway ahead of a hero about to hit the chorus already
+  // reaches into the faster stretch)
+  const m = L.speedMulAt ? Math.max(L.speedMulAt(beat), L.speedMulAt(beat + SPEED_ZOOM_LEAD)) : 1;
+  return z / (1 + SPEED_ZOOM * (m - 1));
 }
 
 /** The hero's ground line (screen-y fraction) the level asks for at `beat` (eased between `ground` cues; act 2's climb). */

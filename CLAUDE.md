@@ -69,10 +69,22 @@ World y grows DOWN; the base ground top is y = 0.
   The Perfect "Freeze" is presentation-only (zoom punch + speed lines), never a sim freeze.
 - **Catch-up surge** (`Tun.grooveLock`): holding forward while behind the music line gives up to +15%
   speed until back on the beat grid (~4.7 beats after a stumble). Never pushes ahead.
-- Run speed is DERIVED from the tempo map every sim step: `Player.setTempo(spb(worldBeat))` →
-  `runSpeed = pixelsPerBeat * BPM(beat) / 60`. Holding right = riding the music (positions stay
-  x = beat × ppb; the surge's music line is `timeToBeat(worldTime) × ppb`). `RuntimeLevel.runSpeed` is
+- Run speed is DERIVED from the tempo map every sim step: `Player.setTempo(spb(worldBeat), ppbAt(hero's beat))` →
+  `runSpeed = ppb(beat) * BPM(beat) / 60`. Holding right = riding the music (positions stay
+  x = X(beat); the surge's music line is `X(timeToBeat(worldTime))`). `RuntimeLevel.runSpeed` is
   only the start-beat reference (lum arcs are tempo-invariant in beat space).
+- **THE CHORUS SPEED-UP** (iteration 9, `level/beatx.ts`, level `speed` items via `dsl.chorusSpeed(from, to)`): the music
+  can't change, so the GAME speeds up — during each chorus (88-120, 204-236, 272-304) the px per beat is ×`CHORUS_SPEED`
+  (1.25), smoothstep-ramped over the beat before the downbeat and the beat after `to`. World x is the INTEGRAL
+  `X(beat) = ∫ ppb·m(b) db` (no zones = beat × ppb exactly). NEVER write `beat * ppb` / `x / ppb`: use
+  `L.xAt(beat)`, `L.beatAt(x)`, `L.ppbAt(beat)` (`L.ppb` is only the BASE ppb). The hero's ppb is sampled at his OWN beat
+  position half a step ahead (midpoint rule: no drift through a ramp; a lagging hero keeps his lag in beats). Jump
+  airtime stays in beats (jumps fly 25 % further in the chorus); the hitbox is smaller in beats there (≈ −5..10 ms per
+  side on a pit: slack.mjs measures it). The camera pulls back with the speed (`cameraZoomAt` ÷ (1 + 0.6·(m−1)),
+  leading by 2 beats) so the runway keeps its time. Rolling balls roll ×mul faster in a zone. Presentation / audio:
+  `game.speedMul` (at the hero), `game.chorusK` (0..1 by the song beat), `game.chorus` (zone, from its ramp-in to `to`),
+  the `chorus` game event on the edges, `level.speedZones` to schedule ahead. Chorus choreography (HOP ON THE KICK,
+  STRIKE ON THE SNARE, measured accents): `docs/level/chorus_alignment.md`.
 - **Jump physics are in beats** (`Tun.jump.timeToApexBeats`): every tap ≤ `minHoldBeats` is the same
   ~0.93-beat hop (~92 px); hold 1 beat = ~1.96-beat jump (~250 px), at any tempo.
 - **Timing judge** (`game/judge.ts`): each hop/strike PRESS is graded against the nearest intended
@@ -94,6 +106,8 @@ World y grows DOWN; the base ground top is y = 0.
   drop / rally / play), `sign` (the roof's neon rewritten one letter per stop-time hit — `index` 0..3 of SLIM, `lit`;
   poll `game.sign`), `tease` (the first canister a newcomer runs under: "SOMETHING UP THERE?", + a 'tease' stamp),
   `finish` (`rank`, `finisher`; `game.finalRank` from then on) — stamp kinds + 'rally' (ENCORE!) / 'tease'.
+  **Iteration 9:** `chorus` (`on`, `from`, `to`, `mul`, `rampIn`, `rampOut`: a chorus speed zone starts at its ramp-in /
+  ends at `to`; re-emitted after rewinds). `burn` events: 'lunge' no longer fires (the Burn is a calm boundary).
   **Film canisters** (`canister` items → `RuntimeLevel.canisters`, `Game.collectCanister`): 3, one per act, at the APEX
   of a HELD jump where the song line only asks for a tap hop (43 the chimney, 170 the roof's searchlight, 315 Big Jim's
   shoulder over the lapel); clue = a TRAIL of tokens every 1/6 beat up the held arc out of a hop's reach (iteration 7) + a glint on the 2 beats before the takeoff
@@ -120,21 +134,17 @@ World y grows DOWN; the base ground top is y = 0.
   172-184) — once the house has been full the decay rests at 20 instead of 14 (FULL HOUSE doesn't evaporate; a miss /
   stumble still knocks it out), and 4 consecutive Great+ presses (or a Heave) refill it to 21 (the RALLY). One stumble
   no longer costs a whole chorus: sloppy and ±130 bots hold ≥ 20 FULL HOUSE beats in every chorus.
-- **The Burn** (`Tun.chaser`, `Game.updateChaser`): its front sits `gap` beats behind the music line (rest 1.75).
-  Every stumble PULLS it 0.75 beat closer, every missed reward 0.2 (after it rises), clean play relaxes it
-  (+0.04/beat, +0.06 per hit); it LUNGES 0.3 beat on every drum fill (`fills` lane). Two stumbles close together
-  (or a stumble into a fill) = caught. Checkpoints snapshot its gap; a respawn restarts it at rest (1.75, iteration 4:
-  was 1.1 → catch-twice loops) and the first stumble after a respawn doesn't pull it (it only flares); after it CAUGHT
-  you it rests 0.5 beat further back until the next checkpoint (`Tun.chaser.caughtBonus`).
-  **The assist (iteration 5):** it only KILLS once pulled below `catchBelowGap` 0.95 beat, and a stumble that is the
-  only pulling one in the last 2 bars doesn't count toward that — ONE stumble never catches, even after misses or into a
-  fill lunge (it scorches your heels: held at your back, flaring); two within 2 bars still do. Per checkpoint segment: after 2
-  catches missed rewards stop feeding it and it rests at 2.5 without lunging; after 3 it can't kill (a hero with no
-  forward progress for 2 beats — a softlock — is still caught). Lazy / reckless bots finish with ≤ 2 catches per spot.
+- **The Burn** (`Tun.chaser`, `Game.updateChaser`) — iteration 9 (user: "the fire shouldn't be stressful … it comes up
+  so fast"): a CALM LOWER BOUNDARY, not a chaser. Its front rests `restGap` 3.5 beats behind the music line (off screen:
+  `render/burn.ts` draws only a soft warm glow at the frame's left edge; the fire fades in only when the REAL front enters
+  the frame). Missed rewards never feed it (`missPull` 0); a stumble pulls it 0.4 closer but never nearer than `minGap`
+  2.75 beats; clean play relaxes it (+0.1/beat, +0.06 per hit); NO drum-fill lunges (`lungeBeats` 0: no 'lunge' events);
+  it FLARES / `danger` rises only within `warnBeats` 1.25 of the hero. It catches only a STALLED hero (≥ 2.75 beats behind
+  the music: stopped running, stuck at a wall). Checkpoints snapshot its gap; a respawn restarts it at rest; per
+  checkpoint segment after 2 catches it rests at 4.5, after 3 it can't kill unless the hero is stuck (no forward progress
+  for 2 beats — no softlock). The cost of skipped rewards / eaten stumbles is the crowd, the music and the rank; lazy /
+  reckless bots may finish. Report `burn.onScreenPct` / `nearPct` (real front on screen / within 1.25 beats of the hero).
   Hook rides grab by the hero's POSITION when he's behind the grid (a stumble's knockback), not only the song beat.
-  **Threat (iteration 6):** `chaser.threat` 0..1 = how far it's pulled in from its rest (0.5 beat = 1). Its fill lunge
-  scales with it (at rest a fill is a pulse, not a surge), 'lunge' events fire only with threat > 0, and a pull only
-  FLARES it at threat ≥ 0.5 (a single missed reward doesn't; a stumble or two misses do). It crying wolf was noise.
 - **Failure hints**: first-appearance prompts are `hint` items — iteration 7: only TWO banners (bar 1: all three verbs;
   bar 18: the knee-slide); the other teaches are `hint { glyph }` items → `RuntimeLevel.glyphs` (an on-object glyph for
   the art: bar 3's bottle X, act 2's bottle / rope X, the balls' HOP). Anything else is taught by placement +
@@ -274,7 +284,7 @@ tokens that would only echo a sung note 1/12..1/3 beat late: every chorus + tag,
 `miniBounce` (31: a cab roof pops Slim off the bar-8 pits, landing 33), `slimSign` (172-184). `RuntimeLevel.pits` = every
 lethal pit (`top` = its lip's y, `gauntlet` on Big Jim 304-332) for the art's danger language; `signLetters`, `glyphs`.
 **Levels are authored in musical time** (`level/types.ts`, helpers in `level/dsl.ts`):
-x = beat × pixelsPerBeat. Obstacles declare an *intended action* `{type:'jump'|'strike'|'slide', beat, hold}`,
+x = X(beat) = beat × pixelsPerBeat outside the chorus `speed` zones (`level/beatx.ts`, see THE CHORUS SPEED-UP). Obstacles declare an *intended action* `{type:'jump'|'strike'|'slide', beat, hold}`,
 which drives the autoplay bot, the timing judge, scansion marks, debug markers, timing stats and playtest
 validation; each resolves a `failKind` (death/stumble/none) so `--miss` knows what a skip should cost.
 `lumJump` places collectibles along the REAL simulated jump arc (`game/jumpProfile.ts`).
@@ -349,6 +359,7 @@ src/
   level/   types.ts       level schema               dsl.ts   authoring helpers (spikeHop, gapHop, gapJump, jabber,
                           pendulum, slamRun, jumpStrike, hupHupHey, awning, lumArc*…) with measured tolerances
            build.ts       LevelDef → RuntimeLevel (collision, entities, action markers, slamState, cues)
+           beatx.ts       beat space → world x (the chorus speed zones: X(beat) = ∫ ppb·m db, inverse, chorusK)
            slice.ts       THE LEVEL: act 1 on the edit's grid (bar n = beat 4(n-1)): cold open + bars 1-33
                           (intro, verse 1 on the rooftops, honky-tonk, chorus 1, tag, turnaround). Plan: docs/level/act1_plan.md
            act2.ts        act 2, bars 34-60 (beats 132-240): the climb 0 → 1,620 px up the Jimperial on the boogie bass

@@ -245,6 +245,17 @@ export function slamRunPool(first: number, n: number): LevelItem[] {
   return out;
 }
 
+/**
+ * THE CHORUS SPEED-UP (iteration 9, user playtest: "the game speeds up just during the chorus"): the hero covers
+ * CHORUS_SPEED × more ground per beat from the chorus downbeat `from` to `to` (level/beatx.ts), ramping in over the
+ * beat before the downbeat and out over the beat after `to`. The music can't change (the original recording): the
+ * GAME speeds up. Jumps keep their airtime in beats, so they fly CHORUS_SPEED × further.
+ */
+export const CHORUS_SPEED = 1.25;
+export function chorusSpeed(from: number, to: number, mul = CHORUS_SPEED): LevelItem {
+  return { type: 'speed', from, to, mul, rampIn: 1, rampOut: 1 };
+}
+
 /** tokens tracing a vocal line: [beat, midi pitch] pairs, height follows the pitch */
 export function melodyTokens(notes: [number, number][], base = 62, perSemitone = 7, ref = 55): LevelItem[] {
   return notes.map(([beat, pitch]) => ({ type: 'lum', beat, h: base + (pitch - ref) * perSemitone }) as LevelItem);

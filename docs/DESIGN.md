@@ -183,7 +183,9 @@ the grid**; when *behind* it (stumble, release), top speed rises **+15%** until 
 "you can really fail" [S7], with the guarantee that obstacles, SFX and marks line up. **Assist:** "Auto-run" toggle.
 
 **Chaser: the Burn.** The film burns through behind you: a bubbling cream-white hole with scorched edges eats the frame
-from the left, 2 beats behind the grid; fall 2 beats behind and it takes you. The set **collapses into it** (bar shelves,
+from the left. Iteration 9 (user: "the fire shouldn't be stressful"): it is a CALM LOWER BOUNDARY — it rests ~3.5 beats
+behind the grid, off screen (a warm glow at the frame's left edge), never lunges, and takes you only if you STALL
+(fall ~2.75 beats behind: stop running, stuck at a wall). The set **collapses into it** (bar shelves,
 lanes, tables and ceilings fall in behind you). It first appears on bar 5 and changes form per act (rising under the rack
 and the climb, Big Jim's backhand in the outro).
 
@@ -199,13 +201,10 @@ Playtest Good at ±150 **[tune]**. **Forgiveness:** coyote 100 ms, jump buffer 1
 **Fail state (reference Q3 → C, with A for pits).**
 - **Stumble** (snapped cues, goon jabs, thrown bottles, rolling balls, Little Jims, low obstacles, Big Jim's fists):
   0.5-beat knockback, 1 beat of i-frames, 5 tokens dropped (they hover 1 bar), audience −25% (min 3). The surge wins the
-  ground back. **Two stumbles within 2 bars = you fall behind to the Burn** (a death, unless you surge clear). **One
-  stumble never kills** (iteration 5: the Burn scorches your heels but only catches once pulled below ~1 beat), and a
-  struggling player always gets through: after 2 Burn catches in one checkpoint segment missed rewards stop feeding it
-  and it stops lunging, after 3 it can't kill until the next checkpoint (Rayman's rule: missing rewards costs score,
-  not life).
+  ground back. **Stumbles never kill** (iteration 9: a stumble pulls the Burn only 0.4 beat, never nearer than 2.75
+  beats; missed rewards never feed it — Rayman's rule: missing rewards costs score, crowd and music, not life).
 - **Death** from falling out of the frame (street gaps, lift shafts, lane gutters over the floor below, roof edges) or
-  being caught by the Burn. **Bars 93–96 cannot kill you.**
+  being caught by the Burn after a stall. **Bars 93–96 cannot kill you.**
 
 **Checkpoints:** a **splice** every **8 bars** (§7): splicing tape across the frame with a hand-lettered scene number
 ("SC. 17"). **Respawn in < 1 s** on a bar boundary: the film visibly rewinds and the music restarts 1 bar before the

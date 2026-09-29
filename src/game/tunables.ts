@@ -245,64 +245,58 @@ export const Tun = {
   },
 
   /**
-   * The Chaser (the Burn): DESIGN §4, iteration 3 "the Burn remembers". Its front sits `gap` beats behind the
-   * music line; `gap` rests at `restGap`, every stumble PULLS it `stumblePull` closer, every missed reward feeds
-   * it `missPull`, and it backs off `relaxPerBeat` (+ `relaxPerHit` per graded press) toward rest. On every
-   * drum fill it LUNGES `lungeBeats` for a beat. It moves toward its target at `closeRate` beats per beat.
-   * One stumble = it's on screen and hungry; two stumbles close together (or a stumble into a fill) = caught.
+   * The Chaser (the Burn) — iteration 9 (user playtest: "the fire shouldn't be stressful … it's all you can focus on
+   * because it comes up so fast"): a CALM LOWER BOUNDARY, not a chaser. Its front rests `restGap` beats behind the music
+   * line (off screen: a warm glow at the frame's left edge). Missed rewards never feed it; a stumble pulls it only
+   * `stumblePull` closer and never nearer than `minGap` (so stumbles alone can't bring it near you: a knockback costs
+   * < 1 beat of lag); clean play lets it back off `relaxPerBeat` (+ `relaxPerHit` per graded press). No drum-fill
+   * lunges. It catches only a hero who has STALLED — fallen ≥ `minGap` beats behind the music (stopped running, stuck
+   * at a wall) — and it only flares / shows danger inside `warnBeats` of him. (Iteration 3-8's hungry chaser — rest
+   * 1.75, stumble 0.75, miss 0.2, fill lunges, two stumbles = caught — is in git history.)
    */
   chaser: {
-    /** resting distance behind the music line (beats) */
-    restGap: 1.75,
-    stumblePull: 0.75,
-    missPull: 0.2,
-    relaxPerBeat: 0.04,
+    /** resting distance behind the music line (beats): ~1.3 s, off screen */
+    restGap: 3.5,
+    /** a stumble pulls it this much closer (beats) … */
+    stumblePull: 0.4,
+    /** … but never closer than this (beats): the stall tolerance */
+    minGap: 2.75,
+    /** missed rewards never feed it (iteration 9: the cost of a skipped reward is the crowd / the music / the rank) */
+    missPull: 0,
+    relaxPerBeat: 0.1,
     relaxPerHit: 0.06,
-    /**
-     * after a death the Burn restarts at max(checkpoint gap, this). 1.75 = rest (iteration 4, was 1.1: you respawned
-     * CLOSER to it than it rests, so one stumble after a Burn death was a second death — the bars 40-41 loop)
-     */
-    respawnMinGap: 1.75,
-    /** after a respawn the first stumble doesn't pull the Burn (it flares, nothing more): no catch-twice loops */
+    /** after a death the Burn restarts at max(checkpoint gap, this) */
+    respawnMinGap: 3.5,
+    /** after a respawn the first stumble doesn't pull the Burn */
     respawnGraceStumbles: 1,
     /** after the Burn CAUGHT you, it rests this much further back (beats) until the next checkpoint */
     caughtBonus: 0.5,
-    /**
-     * iteration 5 (review iter4 fix 3): it only KILLS once pulled below this gap (beats). One stumble from rest
-     * (1.75 − 0.75 = 1.0) never catches, even into a fill lunge: the Burn scorches your heels (danger 1, flare) but you
-     * live. Two stumbles close together, or a stumble after a run of misses (already pulled), still catch.
-     */
-    catchBelowGap: 0.95,
-    /** …and when only ONE stumble pulled it in the last `stumbleMemoryBeats` (2 bars), that stumble's pull doesn't count
-     * toward the catch (misses + a single stumble ≠ caught; two stumbles within 2 bars still are) */
+    /** (iteration 5-8's catch gate; iteration 9: any front that reaches a stalled hero catches — minGap does the work) */
+    catchBelowGap: 0,
     stumbleMemoryBeats: 8,
     /**
-     * the ASSIST, per checkpoint segment (resets at the next checkpoint): after `missFeedOffAfter` catches, missed
-     * rewards stop feeding it; after `restAfter` catches it rests at `assistRest` beats and stops lunging; after
-     * `spentAfter` catches it can't kill at all (a struggling player always gets through; no catch loops)
+     * the ASSIST, per checkpoint segment (resets at the next checkpoint): after `restAfter` catches it rests at
+     * `assistRest` beats; after `spentAfter` catches it can't kill at all unless the hero is STUCK (no softlock)
      */
-    missFeedOffAfter: 2,
+    missFeedOffAfter: 0,
     restAfter: 2,
-    assistRest: 2.5,
+    assistRest: 4.5,
     spentAfter: 3,
     /** …but a hero STUCK (no forward progress for this many beats: a wall he can't pass) is caught anyway (no softlock) */
     stuckBeats: 2,
-    /** drum-fill lunge: extra reach (beats) and envelope (rise, fall) in beats */
-    lungeBeats: 0.3,
+    /** drum-fill lunge (iteration 9: OFF — the boundary doesn't chase you): extra reach (beats), envelope (rise, fall) */
+    lungeBeats: 0,
     lungeRise: 0.25,
     lungeFall: 0.9,
     /** how fast the front closes on / backs off from its target (beats of distance per beat) */
-    closeRate: 0.8,
+    closeRate: 0.5,
     /** rise animation (beats) */
     riseBeats: 4,
-    /**
-     * THREAT (iteration 6, review iter5 cut list: the Burn cried wolf): `threat` = how far it is pulled in from its rest,
-     * 0 at rest → 1 at `threatSpan` beats closer. Its drum-fill LUNGE scales with it (at rest it only pulses: a lunge
-     * there could never reach you anyway), 'lunge' events fire only when threat > 0, and a pull only FLARES it when the
-     * threat is ≥ `flareAt` (one missed reward = no flare; a stumble or two misses = it flares)
-     */
-    threatSpan: 0.5,
-    flareAt: 0.5,
+    /** `threat` 0..1 = how far it's pulled in from its rest (`threatSpan` beats = 1); pulls never flare it (flareAt > 1) */
+    threatSpan: 1,
+    flareAt: 99,
+    /** it flares / its danger rises only when the hero is within this many beats of it (a real stall) */
+    warnBeats: 1.25,
   },
 
   /**

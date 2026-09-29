@@ -27,15 +27,15 @@ export class DebugOverlay {
     if (!this.enabled) return;
     const g = this.game;
     const L = g.level;
-    const ppb = L.ppb;
     ctx.save();
     // beat grid
-    const b0 = Math.floor(v.x0 / ppb);
-    const b1 = Math.ceil(v.x1 / ppb);
+    const b0 = Math.floor(L.beatAt(v.x0));
+    const b1 = Math.ceil(L.beatAt(v.x1));
     ctx.font = 'bold 20px monospace';
     ctx.textAlign = 'center';
     for (let b = b0; b <= b1; b++) {
-      const x = b * ppb;
+      const x = L.xAt(b);
+      const xh = L.xAt(b + 0.5);
       const bar = b % 4 === 0;
       ctx.strokeStyle = bar ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.16)';
       ctx.lineWidth = bar ? 3 : 1.5;
@@ -48,13 +48,13 @@ export class DebugOverlay {
       // half-beat ticks
       ctx.strokeStyle = 'rgba(255,255,255,0.1)';
       ctx.beginPath();
-      ctx.moveTo(x + ppb / 2, v.y0 + 140);
-      ctx.lineTo(x + ppb / 2, v.y0 + 160);
+      ctx.moveTo(xh, v.y0 + 140);
+      ctx.lineTo(xh, v.y0 + 160);
       ctx.stroke();
     }
     // music line: where the song is right now in world space
     if (g.conductor.playing) {
-      const mx = g.conductor.beat * ppb;
+      const mx = L.xAt(g.conductor.beat);
       ctx.strokeStyle = 'rgba(120,255,140,0.9)';
       ctx.lineWidth = 3;
       ctx.setLineDash([12, 8]);
@@ -81,7 +81,7 @@ export class DebugOverlay {
       // hold duration bar
       if (a.hold) {
         ctx.fillStyle = c + '55';
-        ctx.fillRect(a.x, y - 6, a.hold * ppb, 12);
+        ctx.fillRect(a.x, y - 6, L.xAt(a.beat + a.hold) - a.x, 12);
       }
       ctx.fillStyle = c;
       ctx.beginPath();
@@ -173,7 +173,7 @@ export class DebugOverlay {
       `song ${c.time.toFixed(3)}s  beat ${c.beat.toFixed(2)}  bar ${Math.floor(c.beat / 4)}:${(Math.floor(((c.beat % 4) + 4) % 4) + 1).toString()}  bpm ${c.bpm.toFixed(1)}`,
       `clock ${c.clockSource} jitter ${c.clockJitterMs.toFixed(2)}ms  latency ${(c.latency * 1000).toFixed(0)}ms ([ ])`,
       `sim ${g.simTime.toFixed(3)}  drift ${((c.time - g.simTime) * 1000).toFixed(1)}ms  hitstop ${(g.hitstop * 1000).toFixed(0)}`,
-      `hero x ${p.x.toFixed(0)} (beat ${(p.x / g.level.ppb).toFixed(2)}, music ${(c.beat - p.x / g.level.ppb).toFixed(2)} ahead)`,
+      `hero x ${p.x.toFixed(0)} (beat ${g.level.beatAt(p.x).toFixed(2)}, music ${(c.beat - g.level.beatAt(p.x)).toFixed(2)} ahead)  speed ×${g.speedMul.toFixed(2)} chorus ${g.chorusK.toFixed(2)}`,
       `v ${p.vx.toFixed(0)},${p.vy.toFixed(0)} ${p.grounded ? 'G' : 'air'}${p.sliding ? ' SLIDE' : ''}${p.striking ? ' STRIKE' : ''}${p.invulnerable ? ' IFRAMES' : ''}${p.surging ? ' SURGE' : ''}`,
       `deaths ${g.stats.deaths}  stumbles ${g.stats.stumbles}  lums ${g.stats.lums}/${g.stats.lumsTotal}  pendulums ${g.stats.pendulums}/${g.stats.pendulumsTotal}  cp ${g.checkpointIndex}`,
       `crowd ${g.crowd.count} (peak ${g.crowd.peak})  grades P${g.judge.counts.perfect} G${g.judge.counts.great} g${g.judge.counts.good} x${g.judge.counts.miss}  heaves ${g.stats.heaves}`,

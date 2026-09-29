@@ -84,12 +84,12 @@ try {
     const p = new Player({ jump: () => takeoffs?.push(tNow), land: noop, strike: noop, slide: noop, footstep: noop });
     p.setWorld(L.world);
     p.lowCeilings = (r) => L.signs.some((sg) => r.x < sg.rect.x + sg.rect.w && r.x + r.w > sg.rect.x && r.y < sg.rect.y + sg.rect.h && r.y + r.h > sg.rect.y);
-    const x0 = start * ppb;
+    const x0 = L.xAt(start);
     const y0 = L.floorYAt(x0);
-    p.spawn(x0, Number.isNaN(y0) ? 0 : y0, tempo.runSpeedAt(start, ppb), ppb);
+    p.spawn(x0, Number.isNaN(y0) ? 0 : y0, tempo.runSpeedAt(start, L.ppbAt(start)), L.ppbAt(start));
     const c = new Controls();
     c.apply('right', true, 0);
-    p.setTempo(tempo.secondsPerBeatAt(start));
+    p.setTempo(tempo.secondsPerBeatAt(start), L.ppbAt(start));
     p.release(c);
     const events = [];
     L.actions.forEach((a, i) => {
@@ -112,13 +112,14 @@ try {
         if (e.down && (e.btn === 'jump' ? c.jump : e.btn === 'strike' ? c.strike : c.down)) c.apply(e.btn, false, e.t);
         c.apply(e.btn, e.down, e.t);
       }
-      p.musicX = beat * ppb;
-      p.setTempo(tempo.secondsPerBeatAt(beat));
+      p.musicX = L.xAt(beat);
+      // (iteration 9: the ppb at the hero's own beat position — the chorus speed zones, like Game.simulate)
+      p.setTempo(tempo.secondsPerBeatAt(beat), L.ppbAt(L.beatAt(p.x) + (0.5 * dt) / tempo.secondsPerBeatAt(beat)));
       for (const f of L.slams) f.solid.active = slamState(f, beat, L.swing).solid;
       p.step(dt, c, L.world);
       c.clearEdges();
       mech.step(dt, beat, p, true, true);
-      if (mechLog.died) return why('fall-out (mech)', p.x / ppb);
+      if (mechLog.died) return why('fall-out (mech)', L.beatAt(p.x));
       if (L.canisters?.length) {
         const hb = p.hurtbox({ x: 0, y: 0, w: 0, h: 0 });
         for (const cn of L.canisters) {
@@ -163,12 +164,13 @@ try {
         const hb = p.hurtbox({ x: 0, y: 0, w: 0, h: 0 });
         if (L.signs.some((sg) => hb.x < sg.rect.x + sg.rect.w && hb.x + hb.w > sg.rect.x && hb.y < sg.rect.y + sg.rect.h && hb.y + hb.h > sg.rect.y)) trace.push(`${beat.toFixed(2)} !!! SIGN HIT`);
       }
-      if (trace && Math.floor(beat * 10) !== Math.floor((beat - dt / tempo.secondsPerBeatAt(beat)) * 10)) trace.push(`${beat.toFixed(2)} x ${(p.x / ppb).toFixed(2)} y ${Math.round(p.y)}${p.grounded ? ' G' : ''}${p.sliding ? ' S' : ''}${mech.hook ? ' H' : ''}`);
-      if (p.y > Tun.flow.killY) return why('killY', p.x / ppb);
+      if (trace && Math.floor(beat * 10) !== Math.floor((beat - dt / tempo.secondsPerBeatAt(beat)) * 10)) trace.push(`${beat.toFixed(2)} x ${(L.beatAt(p.x)).toFixed(3)} y ${Math.round(p.y)}${p.grounded ? ' G' : ''}${p.sliding ? ' S' : ''}${mech.hook ? ' H' : ''}`);
+      if (p.y > Tun.flow.killY) return why('killY', L.beatAt(p.x));
       // the game's FALL-OUT rule (game/mech): falling FALL_OUT px below the last ledge is a death (high pits)
-      if (!p.grounded && p.y > p.groundY + FALL_OUT) return why('fall-out', p.x / ppb);
-      // walled: stuck far behind the music line = dead in the real game (the Burn)
-      if (beat - p.x / ppb > 1.5) return why(`walled (y ${Math.round(p.y)})`, p.x / ppb);
+      if (!p.grounded && p.y > p.groundY + FALL_OUT) return why('fall-out', L.beatAt(p.x));
+      // walled: stuck far behind the music line = dead in the real game (the Burn: iteration 9, it catches a hero who
+      // has fallen Tun.chaser.minGap beats behind — a stall)
+      if (beat - L.beatAt(p.x) > Tun.chaser.minGap) return why(`walled (y ${Math.round(p.y)})`, L.beatAt(p.x));
     }
     return null;
   }
@@ -238,8 +240,13 @@ try {
     const [a, b] = String(args.trace).split(',').map(Number);
     const tr = [];
     let s0 = a;
-    while (Number.isNaN(L.floorYAt(s0 * ppb))) s0 -= 0.25;
-    run(s0, b, new Map(), new Map(), tr);
+    while (Number.isNaN(L.floorYAt(L.xAt(s0)))) s0 -= 0.25;
+    // --offset=<beat>:<ms>[,…] presses those actions off their beat in the trace (debugging a window's edge)
+    const offs = new Map(String(args.offset ?? '').split(',').filter(Boolean).map((o) => {
+      const [bt, ms] = o.split(':').map(Number);
+      return [L.actions.findIndex((q) => Math.abs(q.beat - bt) < 1e-6), ms / 1000];
+    }));
+    run(s0, b, offs, new Map(), tr);
     console.log(tr.join('\n'));
     process.exit(0);
   }
@@ -252,11 +259,11 @@ try {
   const startFor = (beat) => {
     let start = Math.max(level.startBeat, beat - 3);
     for (let k = 0; k < 20; k++) {
-      while (Number.isNaN(L.floorYAt(start * ppb))) start -= 0.25;
+      while (Number.isNaN(L.floorYAt(L.xAt(start)))) start -= 0.25;
       const prev = L.actions.find((b) => b.type === 'jump' && b.beat < start && b.beat + 2.2 > start);
       // …nor mid-way through a launch (start before the pad) or a hook ride (start before the grab)
       const pad = L.bouncePads.find((b) => b.beat - 0.3 < start && b.landBeat + 0.1 > start);
-      const hk = mech.hooks.find((h) => h.beat - 0.3 < start && h.x1 / ppb + 0.1 > start);
+      const hk = mech.hooks.find((h) => h.beat - 0.3 < start && L.beatAt(h.x1) + 0.1 > start);
       if (!prev && !pad && !hk) break;
       start = Math.min(prev ? prev.beat - 0.5 : Infinity, pad ? pad.beat - 0.5 : Infinity, hk ? hk.beat - 0.5 : Infinity);
     }
@@ -291,7 +298,7 @@ try {
         holds = new Map();
         const fail = ai < 0 || onLine || !got || dead0 !== null;
         if (fail) bad++;
-        const hy = Math.round(-cn.y + L.floorYAt(cn.from * ppb));
+        const hy = Math.round(-cn.y + L.floorYAt(L.xAt(cn.from)));
         console.log(`  #${cn.index + 1} hold jump@${cn.from} -> canister @${cn.beat.toFixed(2)} (${hy} px over the takeoff): ${ai < 0 ? 'NO JUMP ACTION on from' : onLine ? 'ON THE SONG LINE (the on-time run takes it)' : !got ? `NOT REACHED${deadHeld !== null ? ` (held run dies @${deadHeld.toFixed(2)})` : ''}` : `OK window ${E}/+${Lt} ms`}; flight skips: ${inFlight(cn.from, cn.from + 2).join(' ') || '-'}`);
       }
       if (bad) process.exitCode = 1;
@@ -305,8 +312,8 @@ try {
         const dead = run(start, a.beat + 4, new Map());
         holds = new Map();
         if (dead !== null) continue;
-        const y0 = L.floorYAt(a.beat * ppb);
-        console.log(`  ${String(a.beat).padEnd(8)} ${a.failKind.padEnd(8)} apex ${Math.round(y0 - peak.y)} px @${(peak.x / ppb).toFixed(2)}  skips: ${inFlight(a.beat, a.beat + 2).join(' ') || '-'}`);
+        const y0 = L.floorYAt(L.xAt(a.beat));
+        console.log(`  ${String(a.beat).padEnd(8)} ${a.failKind.padEnd(8)} apex ${Math.round(y0 - peak.y)} px @${(L.beatAt(peak.x)).toFixed(2)}  skips: ${inFlight(a.beat, a.beat + 2).join(' ') || '-'}`);
       }
     }
     return;
@@ -367,10 +374,10 @@ try {
     for (const { a, i } of movers) {
       let start = Math.max(level.startBeat, a.beat - 3);
       for (let k = 0; k < 20; k++) {
-        while (Number.isNaN(L.floorYAt(start * ppb))) start -= 0.25;
+        while (Number.isNaN(L.floorYAt(L.xAt(start)))) start -= 0.25;
         const prev = L.actions.find((b) => b.type === 'jump' && b.beat < start && b.beat + 2.2 > start);
         const pad = L.bouncePads.find((b) => b.beat - 0.3 < start && b.landBeat + 0.1 > start);
-        const hk = mech.hooks.find((h) => h.beat - 0.3 < start && h.x1 / ppb + 0.1 > start);
+        const hk = mech.hooks.find((h) => h.beat - 0.3 < start && L.beatAt(h.x1) + 0.1 > start);
         if (!prev && !pad && !hk) break;
         start = Math.min(prev ? prev.beat - 0.5 : Infinity, pad ? pad.beat - 0.5 : Infinity, hk ? hk.beat - 0.5 : Infinity);
       }

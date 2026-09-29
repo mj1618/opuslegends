@@ -173,6 +173,8 @@ export function foregroundMusician(
   playing: boolean,
   /** world x → is there floor (not a pit) there? He fades back where a lethal pit passes behind him */
   solidAt: (x: number) => boolean = () => true,
+  /** world x → beat (iteration 9: the chorus speed zones; default x / ppb) */
+  beatAt: (x: number) => number = (x) => x / ppb,
 ): ForegroundBand | null {
   if (NO_FG.has(env)) return null;
   const SP = FG_EVERY * ppb * FG;
@@ -182,7 +184,7 @@ export function foregroundMusician(
   const sx = VIEW_W / 2 + (lx - cx) * zoom;
   if (sx < -300 || sx > VIEW_W + 300) return null;
   // the beat the hero passes him (the camera centre crosses him, lead ~0.28 screen)
-  const pass = (lx / FG - (0.28 * VIEW_W) / zoom) / ppb;
+  const pass = beatAt(lx / FG - (0.28 * VIEW_W) / zoom);
   const kind: MusicianKind = kindFor(feed, pass, k * 5 + 1) ?? 'stomp';
   const t = feed.lane(LANE[kind]);
   const timing: MusicianTiming = playing

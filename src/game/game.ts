@@ -30,7 +30,7 @@ import { StageAudio } from '../audio/stage';
 import { SyncProbe } from '../audio/syncProbe';
 import type { TempoMap } from '../audio/tempoMap';
 import { DebugOverlay } from '../debug/overlay';
-import { Display } from '../engine/display';
+import { Display, VIEW_W } from '../engine/display';
 import { Controls, Input, type InputEdge } from '../engine/input';
 import { clamp, overlaps, type Rect } from '../engine/math';
 import { params } from '../engine/params';
@@ -174,6 +174,14 @@ export class Game {
   chaser = { active: false, x: -Infinity, riseBeat: 0, gap: Tun.chaser.restGap, rel: Tun.chaser.restGap + 0.5, lunge: 0, danger: 0, flare: 0, threat: 0 };
   /** the scripted set-piece in progress (level `setPiece` items; gameplay 'launch'), for the art/audio */
   setPiece: { name: string; beat: number; beats: number } | null = null;
+  /**
+   * THE CHORUS SPEED-UP (iteration 9, level `speed` items → level/beatx.ts): the hero's px-per-beat multiplier at his
+   * position (1 = normal, the zone's `mul` at full speed), the chorus state 0..1 by the SONG beat (ramps with the
+   * speed: the audio boost reads it) and the zone in effect (ramps included) or null. 'chorus' events on the edges.
+   */
+  speedMul = 1;
+  chorusK = 0;
+  chorus: import('../level/beatx').SpeedZone | null = null;
   /** beats of the song's drum fills (the Burn lunges on them) */
   private lungeBeats: number[] = [];
   private lungeIdx = 0;
@@ -189,7 +197,7 @@ export class Game {
   private boothBeats = 0;
   private fullHouseBySection: Record<string, number> = {};
   private crowdTrace: { beat: number; value: number }[] = [];
-  private burnStats = { pulls: 0, lunges: 0, minMarginBeats: Infinity, caught: 0 };
+  private burnStats = { pulls: 0, lunges: 0, minMarginBeats: Infinity, caught: 0, onScreenSec: 0, nearSec: 0, runSec: 0 };
   popups: Popup[] = [];
   /** dubbed subtitle flashed on the song's shouts ("HEY!") */
   subtitle = { text: '', t: 0 };
@@ -376,7 +384,7 @@ export class Game {
     this.boothBeats = 0;
     this.fullHouseBySection = {};
     this.crowdTrace = [];
-    this.burnStats = { pulls: 0, lunges: 0, minMarginBeats: Infinity, caught: 0 };
+    this.burnStats = { pulls: 0, lunges: 0, minMarginBeats: Infinity, caught: 0, onScreenSec: 0, nearSec: 0, runSec: 0 };
     this.checkpointIndex = -1;
     for (const cp of this.level.checkpoints) cp.reached = false;
     const start = fromBeat ?? params.start ?? this.level.def.startBeat;
@@ -437,9 +445,9 @@ export class Game {
     this.spawnBeat = beat;
     this.conductor.stop('cut');
     this.resetWorld(beat);
-    const x = beat * this.level.ppb;
+    const x = this.level.xAt(beat);
     const y = this.level.floorYAt(x);
-    this.player.spawn(x, Number.isNaN(y) ? 0 : y, this.tempo.runSpeedAt(beat, this.level.ppb), this.level.ppb);
+    this.player.spawn(x, Number.isNaN(y) ? 0 : y, this.tempo.runSpeedAt(beat, this.level.ppbAt(beat)), this.level.ppbAt(beat));
     this.controls.reset();
     if (this.bot) this.bot.reset(beat, this.controls);
     this.pendingEdges = [];
@@ -501,7 +509,7 @@ export class Game {
     const rest = Tun.chaser.restGap + this.burnRestBonus;
     const gap = Math.min(rest, Math.max(this.snap.burnGap, Tun.chaser.respawnMinGap + this.burnRestBonus));
     this.chaser = { active: false, x: -Infinity, riseBeat: 0, gap, rel: gap + 0.5, lunge: 0, danger: 0, flare: 0, threat: 0 };
-    this.progress = { x: beat * this.level.ppb, beat };
+    this.progress = { x: this.level.xAt(beat), beat };
     this.burnStumbles = [];
     for (const b of [...this.dropsDone]) if (b >= beat - 1e-6) this.dropsDone.delete(b);
     this.dropCapBeat = -Infinity;
@@ -510,6 +518,9 @@ export class Game {
     this.setPieceIdx = this.level.setPieces.findIndex((sp) => sp.beat >= beat - 1e-6);
     if (this.setPieceIdx < 0) this.setPieceIdx = this.level.setPieces.length;
     this.setPiece = null;
+    // (a rewind re-emits the chorus edge it lands in / out of)
+    this.chorus = null;
+    this.chorusK = 0;
   }
 
   /** (Re)spawn at a beat: reset entities ahead, place the hero, rewind the music with a count-in. */
@@ -532,9 +543,9 @@ export class Game {
     this.stats.canisters = this.snapCanisters.size;
     this.judge.reset(beat);
     for (const i of [...this.heaveReady]) if (this.level.phrases[i].beats[0] >= beat - 1e-6) this.heaveReady.delete(i);
-    const x = beat * this.level.ppb;
+    const x = this.level.xAt(beat);
     const y = this.level.floorYAt(x);
-    this.player.spawn(x, Number.isNaN(y) ? 0 : y, this.tempo.runSpeedAt(beat, this.level.ppb), this.level.ppb);
+    this.player.spawn(x, Number.isNaN(y) ? 0 : y, this.tempo.runSpeedAt(beat, this.level.ppbAt(beat)), this.level.ppbAt(beat));
     this.controls.reset();
     // keep currently held directions so a player holding right launches immediately
     if (this.input.isHeld('right')) this.controls.apply('right', true, 0);
@@ -573,12 +584,12 @@ export class Game {
     this.phase = 'dying';
     this.phaseTimer = Tun.flow.deathTime;
     this.stats.deaths++;
-    this.stats.deathLog.push({ beat: round3(this.player.x / this.level.ppb), cause });
+    this.stats.deathLog.push({ beat: round3(this.level.beatAt(this.player.x)), cause });
     this.breakCombo('death');
-    this.events.emit('death', { cause, beat: round3(this.player.x / this.level.ppb) });
+    this.events.emit('death', { cause, beat: round3(this.level.beatAt(this.player.x)) });
     // (bots: the last presses before a death, song beats — the death-loop diagnosis)
     if (this.bot) this.log('deathPresses', { presses: this.bot.presses.slice(-3).map((q) => ({ type: q.type, beat: q.beat, at: round3(this.tempo.timeToBeat(q.songTime)) })) });
-    const overLifts = this.level.slams.some((f) => Math.abs(f.solid.x + f.solid.w / 2 - this.player.x) < 1.5 * this.level.ppb);
+    const overLifts = this.level.slams.some((f) => Math.abs(f.solid.x + f.solid.w / 2 - this.player.x) < 1.5 * this.level.ppbAt(this.level.beatAt(this.player.x)));
     this.noteFailure(cause === 'chaser' ? 'burn' : overLifts ? 'lifts' : 'pit', true);
     this.player.mode = 'dead';
     this.conductor.stop('tape');
@@ -593,7 +604,7 @@ export class Game {
     }
     this.camera.addTrauma(Tun.juice.shakeOnDeath);
     this.flashScreen('#1A1410', 0.35);
-    this.log('death', { cause, beat: p.x / this.level.ppb });
+    this.log('death', { cause, beat: this.level.beatAt(p.x) });
   }
 
   private respawn(): void {
@@ -723,6 +734,15 @@ export class Game {
     if (this.scene === 'play') this.camera.groundFrac = cameraGroundAt(this.level, this.conductor.playing ? this.conductor.beat : this.spawnBeat, Tun.camera.groundFraction);
     this.camera.beatZoom = this.scene === 'play' && this.conductor.playing ? Tun.camera.barZoomPulse * this.groove.pulse(4, 0.35) : 0;
     this.camera.update(presDt, ix, iy, p.h, p.groundY, p.vx / p.maxSpeed, p.mode === 'dead');
+    // (iteration 9 report: how long the REAL Burn front is on screen — the calm lower boundary should rarely be)
+    if (this.phase === 'run' && this.conductor.playing && this.scene === 'play') {
+      this.burnStats.runSec += presDt;
+      if (this.chaser.active && Number.isFinite(this.chaser.x)) {
+        const sx = VIEW_W / 2 + (this.chaser.x - this.camera.rx) * this.camera.rzoom;
+        if (sx > 0) this.burnStats.onScreenSec += presDt;
+        if (this.level.beatAt(p.x) - this.level.beatAt(this.chaser.x) < 1.25) this.burnStats.nearSec += presDt;
+      }
+    }
 
     this.renderer.render(ix, iy);
     this.input.endFrame();
@@ -913,7 +933,7 @@ export class Game {
   }
 
   private heroView() {
-    return { phase: this.phase, x: this.player.x, musicX: this.player.musicX, ppb: this.level.ppb };
+    return { phase: this.phase, x: this.player.x, musicX: this.player.musicX, ppb: this.player.ppb };
   }
 
   /** One fixed simulation step ending at song time `t`. */
@@ -1002,9 +1022,13 @@ export class Game {
     const dBeat = beatW - this.worldBeat;
     this.worldBeat = beatW;
     if (this.phase === 'run' && dBeat > 0 && dBeat < 0.5) this.beatTick(beatW, dBeat);
-    p.musicX = this.conductor.playing && this.phase === 'run' ? beatW * this.level.ppb : NaN;
-    // top run speed + jump physics follow the TEMPO MAP (x = beat * ppb, so speed = ppb / spb(beat))
-    p.setTempo(this.tempo.secondsPerBeatAt(beatW));
+    p.musicX = this.conductor.playing && this.phase === 'run' ? this.level.xAt(beatW) : NaN;
+    // top run speed + jump physics follow the TEMPO MAP (x = X(beat), so speed = ppb(beat) / spb(beat)); iteration 9: the
+    // ppb is the one at the hero's OWN beat position (the chorus speed zones: a hero behind the grid keeps his lag in beats)
+    // (sampled half a step ahead: the midpoint rule keeps the hero ON the grid through a ramp, no drift)
+    const spbW = this.tempo.secondsPerBeatAt(beatW);
+    p.setTempo(spbW, this.level.ppbAt(this.level.beatAt(p.x) + (0.5 * dt) / spbW));
+    this.updateSpeed(beatW);
     // grade presses (score/feedback/crowd only — the controller never sees this); iteration 7: against the hero's world
     // when he is behind the music line (a scramble / knockback: Tun.judgeLag)
     const lag = this.judgeLag();
@@ -1044,6 +1068,20 @@ export class Game {
     this.interact(beatW);
   }
 
+  /** the chorus speed-up state (iteration 9): speedMul at the hero, chorusK + 'chorus' edges by the song beat */
+  private updateSpeed(beatW: number): void {
+    const L = this.level;
+    this.speedMul = L.speedMulAt(L.beatAt(this.player.x));
+    this.chorusK = L.chorusKAt(beatW);
+    const z = L.bx.zoneAt(beatW);
+    const on = z && beatW < z.to ? z : null;
+    if (on !== this.chorus) {
+      const e = on ?? this.chorus!;
+      this.chorus = on;
+      this.events.emit('chorus', { on: !!on, beat: beatW, from: e.from, to: e.to, mul: e.mul, rampIn: e.rampIn, rampOut: e.rampOut });
+    }
+  }
+
   /** song time at the start of the current sim step (for action logging) */
   private stepTime = 0;
 
@@ -1058,7 +1096,9 @@ export class Game {
     if (!J.enabled || this.phase !== 'run' || !Number.isFinite(p.musicX)) return 0;
     const px = p.musicX - p.x;
     if (px < J.minLagPx) return 0;
-    return Math.min(px, J.maxLagBeats * this.level.ppb) / Math.max(1, p.runSpeed);
+    // (in beats: the chorus speed zones change the px per beat)
+    const lagBeats = this.level.beatAt(p.musicX) - this.level.beatAt(p.x);
+    return Math.min(lagBeats, J.maxLagBeats) * this.tempo.secondsPerBeatAt(this.worldBeat);
   }
 
   /** per-step musical bookkeeping while running: crowd decay, set-piece cues, report traces */
@@ -1271,9 +1311,9 @@ export class Game {
     if (!this.conductor.playing) return;
     const L = this.level;
     const px = this.player.x;
-    const ppb = L.ppb;
-    const view0 = px - 2 * ppb;
-    const view1 = px + 6 * ppb;
+    const hb = L.beatAt(px);
+    const view0 = L.xAt(hb - 2);
+    const view1 = L.xAt(hb + 6);
     for (const e of L.enemies) if (e.alive && !e.retired && e.x > view0 && e.x < view1) e.jabT = 0.12;
     const ctxAt = (b: number) => this.conductor.ctxTimeAtSongTime(this.tempo.beatToTime(b));
     // slam platform clack: 1 beat before each slam (slams slam every beat, alternating sets)
@@ -1357,9 +1397,9 @@ export class Game {
     // iteration 6: THREAT = how far it's pulled in from its rest (0 resting … 1 = a stumble's worth): it only lunges /
     // flares in earnest when it can actually reach you
     c.threat = clamp((B.restGap + this.burnRestBonus - c.gap) / B.threatSpan, 0, 1);
-    // drum-fill lunges (deterministic from the world beat, so rewinds replay them exactly)
+    // drum-fill lunges (deterministic from the world beat, so rewinds replay them exactly; iteration 9: lungeBeats 0 = off)
     while (this.lungeIdx < this.lungeBeats.length && this.lungeBeats[this.lungeIdx] <= beatW) {
-      if (this.burnCatches < B.restAfter && c.threat > 0) {
+      if (this.burnCatches < B.restAfter && c.threat > 0 && B.lungeBeats > 0) {
         this.burnStats.lunges++;
         this.events.emit('burn', { kind: 'lunge', beat: this.lungeBeats[this.lungeIdx], gap: c.gap, danger: c.danger, threat: c.threat });
       }
@@ -1371,24 +1411,24 @@ export class Game {
     c.lunge = c.threat * (d < 0 ? 0 : d < B.lungeRise ? Math.sin((d / B.lungeRise) * Math.PI * 0.5) : d < B.lungeRise + B.lungeFall ? 1 - (d - B.lungeRise) / B.lungeFall : 0);
     // the assist: after `restAfter` catches in this segment it stops lunging
     if (this.burnCatches >= B.restAfter) c.lunge = 0;
-    c.x = (beatW - c.rel + B.lungeBeats * c.lunge) * L.ppb;
-    c.flare = Math.max(0, c.flare - dBeats * 0.5);
-    let margin = (p.x - p.w / 2 + Tun.player.hurtInset - c.x) / L.ppb;
-    // it only kills once PULLED (gap < catchBelowGap: more than one stumble's worth) and not spent (the assist): else it
-    // scorches your heels — held at your back, flaring — and you live
-    // (a hero STUCK — no progress for stuckBeats, a wall he can't pass — is still caught: no softlock)
-    if (p.x > this.progress.x + 0.25 * L.ppb) this.progress = { x: p.x, beat: beatW };
+    const cBeat = beatW - c.rel + B.lungeBeats * c.lunge;
+    c.x = L.xAt(cBeat);
+    let margin = L.beatAt(p.x - p.w / 2 + Tun.player.hurtInset) - cBeat;
+    // iteration 9: it only FLARES when the hero is genuinely stalled (within warnBeats of it), never on a pull
+    c.flare = margin < B.warnBeats ? Math.min(1, c.flare + dBeats * 2) : Math.max(0, c.flare - dBeats * 0.5);
+    // a hero STUCK — no progress for stuckBeats, a wall he can't pass — is caught even by a spent Burn: no softlock
+    if (L.beatAt(p.x) > L.beatAt(this.progress.x) + 0.25) this.progress = { x: p.x, beat: beatW };
     const stuck = beatW - this.progress.beat > B.stuckBeats;
-    // ONE stumble never catches, whatever else pulled it (iteration 5): with a single pulling stumble in the last 2 bars
-    // its pull is discounted (a sloppy player who missed two rewards and then stumbled once used to be caught)
+    // the assist: a Burn spent in this segment (spentAfter catches) scorches your heels — held at your back — and you live
     const recent = this.burnStumbles.filter((b) => beatW - b < B.stumbleMemoryBeats).length;
     const pulled = c.gap + (recent === 1 ? B.stumblePull : 0);
-    if (margin < 0 && (pulled >= B.catchBelowGap || this.burnCatches >= B.spentAfter) && !stuck) {
-      c.x = (p.x - p.w / 2 + Tun.player.hurtInset) - 0.02 * L.ppb;
+    if (margin < 0 && (pulled < B.catchBelowGap || this.burnCatches >= B.spentAfter) && !stuck) {
+      c.x = L.xAt(L.beatAt(p.x - p.w / 2 + Tun.player.hurtInset) - 0.02);
       c.flare = 1;
       margin = 0.02;
     }
-    c.danger = clamp(1 - margin / B.restGap, 0, 1);
+    // (iteration 9: danger rises only inside warnBeats — at rest it's 0, the HUD / art stay calm)
+    c.danger = clamp(1 - margin / B.warnBeats, 0, 1);
     if (beatW > c.riseBeat + B.riseBeats) this.burnStats.minMarginBeats = Math.min(this.burnStats.minMarginBeats, margin);
     if (margin < 0) {
       this.burnStats.caught++;
@@ -1401,7 +1441,7 @@ export class Game {
   private feedBurn(beats: number): void {
     const c = this.chaser;
     const B = Tun.chaser;
-    c.gap = Math.max(0, c.gap - beats);
+    c.gap = Math.max(Math.min(c.gap, B.minGap), c.gap - beats);
     c.threat = clamp((B.restGap + this.burnRestBonus - c.gap) / B.threatSpan, 0, 1);
     // iteration 6: it only FLARES when the pull puts you in danger (a single missed reward from rest doesn't)
     if (c.threat >= B.flareAt) c.flare = Math.min(1, c.flare + beats / B.stumblePull);
@@ -1765,7 +1805,7 @@ export class Game {
   static readonly FAIL_HINTS: Record<string, { text: string; icon: string }> = {
     pit: { text: 'TAP JUMP right at the edge', icon: 'jump' },
     lifts: { text: 'HOP on EVERY beat — the kegs slam on it', icon: 'jump' },
-    burn: { text: 'SWING (X) at the gold — every miss feeds the BURN', icon: 'burn' },
+    burn: { text: 'KEEP RUNNING — hold → : the fire only catches you if you stop', icon: 'burn' },
     jabber: { text: 'X — swing FIRST, on the beat', icon: 'strike' },
     spike: { text: 'Hop the cue racks', icon: 'jump' },
     lowSign: { text: 'HOLD ↓ under the sign', icon: 'down' },
@@ -1880,8 +1920,8 @@ export class Game {
     const p = this.player;
     if (p.invulnerable) return;
     this.stats.stumbles++;
-    const lag = Number.isFinite(p.musicX) ? (p.musicX - p.x) / this.level.ppb : 0;
-    this.stats.stumbleLog.push({ beat: round3(p.x / this.level.ppb), cause, lagBeats: round3(lag) });
+    const lag = Number.isFinite(p.musicX) ? this.level.beatAt(p.musicX) - this.level.beatAt(p.x) : 0;
+    this.stats.stumbleLog.push({ beat: round3(this.level.beatAt(p.x)), cause, lagBeats: round3(lag) });
     p.stumble();
     this.recoverFrom = this.stepTime;
     // drop lums: they hover for a bar, re-grab them
@@ -1904,13 +1944,13 @@ export class Game {
         this.burnStumbles.push(this.worldBeat);
       }
     }
-    this.events.emit('stumble', { cause, beat: round3(p.x / this.level.ppb) });
+    this.events.emit('stumble', { cause, beat: round3(this.level.beatAt(p.x)) });
     this.noteFailure(cause.split('@')[0], false);
     this.sfx.stumble();
     this.camera.addTrauma(0.35);
     this.flashScreen('#B3201B', 0.12);
     this.particles.emit({ x: p.x, y: p.y - 30, count: 14, speed: [200, 600], life: [0.2, 0.45], size: [6, 12], color: '#B3201B', shape: PShape.Spark, drag: 3 });
-    this.log('stumble', { cause, beat: p.x / this.level.ppb });
+    this.log('stumble', { cause, beat: this.level.beatAt(p.x) });
   }
 
   private hitJabber(e: Enemy): void {
@@ -2109,7 +2149,8 @@ export class Game {
         y: Math.round(p.y),
         vx: Math.round(p.vx),
         vy: Math.round(p.vy),
-        beatPos: round3(p.x / this.level.ppb),
+        beatPos: round3(this.level.beatAt(p.x)),
+        speedMul: round3(this.speedMul),
         grounded: p.grounded,
         striking: p.striking,
         alive: p.mode !== 'dead',
@@ -2144,7 +2185,7 @@ export class Game {
 
   report() {
     const L = this.level;
-    const timings = this.stats.timings(L.actions, this.tempo, L.ppb, params.start ?? L.def.startBeat, L.finishBeat);
+    const timings = this.stats.timings(L.actions, this.tempo, L.beatAt, params.start ?? L.def.startBeat, L.finishBeat);
     const matched = timings.filter((t) => t.matched);
     const spb = this.tempo.secondsPerBeatAt(L.def.startBeat);
     const jumps = [0.15, 0.25, 0.5, 1].map((hold) => {
@@ -2163,6 +2204,7 @@ export class Game {
       swing: this.song.swing,
       pixelsPerBeat: L.ppb,
       runSpeed: L.runSpeed,
+      speedZones: L.speedZones.map((z) => ({ ...z })),
       tempoMap: { points: this.tempo.points.length, bpmRange: this.tempo.bpmRange().map(round3), runSpeedRange: this.tempo.bpmRange().map((b) => Math.round((L.ppb * b) / 60)) },
       autoplay: params.autoplay,
       jitterMs: params.jitter,
@@ -2194,7 +2236,13 @@ export class Game {
       rallies: this.rallies,
       lumsMissed: L.lums.filter((l) => !l.collected && !l.skipped).map((l) => round3(l.beat)),
       sign: { ...this.sign },
-      burn: { ...this.burnStats, minMarginBeats: round3(this.burnStats.minMarginBeats), endGap: round3(this.chaser.gap) },
+      burn: {
+        ...this.burnStats,
+        minMarginBeats: round3(this.burnStats.minMarginBeats),
+        endGap: round3(this.chaser.gap),
+        onScreenPct: round3((100 * this.burnStats.onScreenSec) / Math.max(1e-6, this.burnStats.runSec)),
+        nearPct: round3((100 * this.burnStats.nearSec) / Math.max(1e-6, this.burnStats.runSec)),
+      },
       failHints: [...this.hintsShown],
       /** final grade per judge target [beat, grade] (split the grades by act / section) */
       targetGrades: this.judge.targets.map((t) => [t.action.beat, t.grade ?? '-']),

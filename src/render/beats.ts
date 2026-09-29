@@ -155,14 +155,13 @@ export class VisualBeats {
     const tn = this.on.get('tenants');
     if (!lc && !tn) return;
     const L = game.level;
-    const ppb = L.ppb;
     const wb = game.worldBeat;
     if (lc) {
       const ahead = lc.c.ahead ?? 1;
       const n0 = Math.ceil(lc.c.beat);
       const n1 = Math.min(Math.floor(wb), Math.floor(lc.c.beat + lc.c.beats - 1));
       for (let n = n0; n <= n1; n++) {
-        const x = (n + ahead) * ppb + 60;
+        const x = L.xAt(n + ahead) + 60;
         if (x < x0 - 120 || x > x1 + 120) continue;
         const fy = L.floorYAt(x);
         if (Number.isNaN(fy)) continue;
@@ -179,7 +178,7 @@ export class VisualBeats {
       const n1 = Math.min(Math.floor(wb), Math.floor(tn.c.beat + tn.c.beats - 1));
       const fadeAll = 1 - smooth((wb - (tn.c.beat + tn.c.beats)) / 1);
       for (let n = n0; n <= n1; n++) {
-        const x = (n + 2.5) * ppb + (hash(n) - 0.5) * 120;
+        const x = L.xAt(n + 2.5) + (hash(n) - 0.5) * 120;
         if (x < x0 - 120 || x > x1 + 120) continue;
         const fy = L.floorYAt(x);
         if (Number.isNaN(fy)) continue;

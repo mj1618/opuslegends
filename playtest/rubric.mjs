@@ -273,7 +273,8 @@ const VERTICAL_MODES = new Set(['rooftops', 'bar-top', 'launch', 'climb', 'verti
 // Ignores the director's chorus zoom-out (only widens) and hit punches (brief).
 const leadFrac = FRAMING?.leadFraction ?? Tun.camera.leadFraction;
 const zoomMul = FRAMING?.zoomMul ?? 1;
-const runwayBeatsAt = (beat) => ((1 - leadFrac) * VIEW_W) / (cameraZoomAt(L, beat, Tun.camera.zoom) * zoomMul) / L.ppb;
+// (iteration 9: the chorus speed zones — the runway in px covers fewer beats where the hero runs faster)
+const runwayBeatsAt = (beat) => L.beatAt(L.xAt(beat) + ((1 - leadFrac) * VIEW_W) / (cameraZoomAt(L, beat, Tun.camera.zoom) * zoomMul)) - beat;
 const bars = [];
 for (let bar = firstBar; bar <= lastBar; bar++) {
   const acts = actions.filter((a) => a.bar === bar);
@@ -752,12 +753,14 @@ if (sloppy) {
 }
 // A11 (informational, iteration-2 review): the upper bound. A level no bot can die in is "no challenge" for a
 // player with rhythm. Harsh = jitter ≥ 130 ms or ≥ 20% late presses; deaths are normalised per 32 bars.
+// Iteration 9: the teeth come from the pits and threats (timing), not the Burn — the Burn is a calm lower boundary
+// that only catches a stalled hero, so lazy / reckless (--skip) bots may finish; they're excluded here.
 const per32 = (p) => (p.meanDeaths * 32) / nBars;
 const harsh = playtests.filter((p) => p.jitterMs >= 130 || p.lateProb >= 0.2);
 if (harsh.length || sloppy) {
   const harshOk = harsh.length ? harsh.some((p) => per32(p) >= 1) : true;
   const sloppyOk = sloppy ? per32(sloppy) >= 0.25 : true;
-  add('A11', 'Teeth (not in gate): the level can punish sloppy timing', 'a harsh bot (≥±130 ms or ≥20% late) dies ≥1 per 32 bars; the ±85 sloppy bot ≥0.25 per 32 bars (and ≤2)',
+  add('A11', 'Teeth (not in gate): the level can punish sloppy timing (pits / threats — not the Burn)', 'a harsh bot (≥±130 ms or ≥20% late) dies ≥1 per 32 bars; the ±85 sloppy bot ≥0.25 per 32 bars (and ≤2)',
     [...(sloppy ? [sloppy] : []), ...harsh].map((p) => `${p.group}: ${r2(per32(p))} deaths/32 bars (${p.runs} runs)`).join('; '), harshOk && sloppyOk ? 'PASS' : 'WARN', 'S');
 }
 add('B1', 'Novelty cadence', 'a twist ≤ every 8 bars; new mechanic/mode/set-piece ≤ every 16 bars',

@@ -50,8 +50,8 @@ export function makeLetters(L: RuntimeLevel): ToppleLetter[] {
   const out: ToppleLetter[] = [];
   for (const it of L.def.items) {
     if (it.type !== 'topple') continue;
-    const x0 = it.from * L.ppb;
-    const x1 = it.to * L.ppb;
+    const x0 = L.xAt(it.from);
+    const x1 = L.xAt(it.to);
     out.push({ index: it.index, letter: it.letter, beat: it.beat, by: it.by ?? 'self', x0, x1, y: -it.h, tall: x1 - x0, state: 'standing', angle: 0, slam: 0, wobble: 0, landedBeats: NaN });
   }
   return out.sort((a, b) => a.beat - b.beat);

@@ -84,7 +84,7 @@ export class GoonBand {
       const env = envAt(wx);
       if (NO_BAND.has(env)) continue;
       // the beat at which the hero passes this member (the camera centre crosses him: cam.x = lx / F, lead ~0.28 screen)
-      const passBeat = (lx / F - (0.28 * VIEW_W) / z) / L.ppb;
+      const passBeat = L.beatAt(lx / F - (0.28 * VIEW_W) / z);
       const kind = kindFor(feed, passBeat, k);
       if (!kind) continue;
       // stand only where there's floor at about this height (not over a pit / a drop)

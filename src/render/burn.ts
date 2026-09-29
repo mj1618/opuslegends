@@ -1,15 +1,16 @@
 /**
- * THE BURN on screen (review iter2 fix 4/6, visual half): our Castle-Rock fire wall.
+ * THE BURN on screen (review iter2 fix 4/6, visual half; iteration 9: a CALM LOWER BOUNDARY).
  *
- * The print is melting in the projector gate from the LEFT edge of the frame. It is ALWAYS visible once it
- * has risen: when the real Burn is farther behind than the screen edge a glow-band proxy lives at the left
- * 3-5 % of the frame; when the real one is closer it is drawn where it really is (never nearer than it is).
+ * The print is melting in the projector gate from the LEFT edge of the frame. Iteration 9 (user playtest: "the fire
+ * shouldn't be stressful … it's all you can focus on"): in normal play the real Burn rests ~3.5 beats behind the music
+ * line — off screen — and all you see is a soft warm glow breathing at the frame's left edge. The fire itself (below)
+ * fades in only when the REAL front enters the frame (a hero who stopped / stalled), drawn where it really is:
  *
  *   - curling, bubbling melt edge (film blisters that swell, pop and merge), char band, lacquer-red + hot-edge
  *     rims (LETHAL danger language), blinding projector light where the film has burnt through
- *   - crackles: sparks and curling char flakes spit off the edge; flares on every kick
- *   - LUNGES on the drum fills (the edge surges into the frame for the fill, then falls back)
- *   - FLARES when you stumble (it gets hungry: bigger, brighter, closer) and eats the frame on a chaser death
+ *   - crackles: sparks and curling char flakes spit off the edge
+ *   - FLARES when the hero is stalled within reach, and eats the frame on a chaser death
+ *   (no drum-fill lunges, no stumble flares any more)
  *
  * Screen space, drawn after the film pass (it IS the film burning) and before the theatre strip.
  */
@@ -48,11 +49,41 @@ export class Burn {
   draw(g: CanvasRenderingContext2D, v: BurnView, b: BeatInfo): void {
     if (v.rise <= 0.001) return;
     const kick = hit(b, 'kick', 0.14);
-    // proxy band: 3-5 % of the frame, pumping on the kick, surging on fills, flaring on stumbles
-    const proxy = -60 + v.rise * (120 + 36 * kick + 230 * v.lunge + 300 * v.flare);
-    let front = Math.max(v.realX, proxy);
+    // iteration 9 (user: "the fire shouldn't be stressful"): a CALM LOWER BOUNDARY. While the real front is off screen
+    // (always, in normal play: it rests ~3.5 beats behind the music line) only a soft warm glow breathes at the frame's
+    // left edge — no melt edge, no lethal rim, no sparks. The fire itself fades in only as the REAL front enters the
+    // frame (a stalled hero), and it is drawn where it really is.
+    const inK = v.eat > 0 ? 1 : Math.max(0, Math.min(1, (v.realX + 160) / 220));
+    this.drawGlowEdge(g, v, kick, 1 - inK);
+    if (inK <= 0.001) {
+      this.front = -999;
+      return;
+    }
+    let front = Math.max(v.realX, -60);
     if (v.eat > 0) front = front + (VIEW_W + 300 - front) * v.eat * v.eat;
     this.front = front;
+    g.save();
+    g.globalAlpha = inK;
+    this.drawFire(g, v, kick, front);
+    g.restore();
+  }
+
+  /** the resting boundary: a warm film-heat glow at the left edge, breathing gently on the kick (screen space) */
+  private drawGlowEdge(g: CanvasRenderingContext2D, v: BurnView, kick: number, k: number): void {
+    if (k <= 0.001) return;
+    const w = 90 + 18 * kick;
+    const gr = g.createLinearGradient(0, 0, w, 0);
+    const a = (0.2 + 0.06 * kick) * v.rise * k;
+    gr.addColorStop(0, `rgba(255,170,90,${a})`);
+    gr.addColorStop(0.45, `rgba(230,110,60,${a * 0.45})`);
+    gr.addColorStop(1, 'rgba(200,80,50,0)');
+    g.save();
+    g.fillStyle = gr;
+    g.fillRect(0, 0, w, VIEW_H);
+    g.restore();
+  }
+
+  private drawFire(g: CanvasRenderingContext2D, v: BurnView, kick: number, front: number): void {
     const t = v.t;
     // danger: how close to the hero (0 far .. 1 on him)
     const danger = Math.max(0, Math.min(1, 1 - (v.heroX - front) / Math.max(1, v.heroX)));

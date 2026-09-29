@@ -1,8 +1,9 @@
 /**
  * LEVEL DATA SCHEMA — authored in MUSICAL TIME.
  *
- * Horizontal positions are beats: x = beat * pixelsPerBeat, and the hero's run speed equals
- * pixelsPerBeat * BPM / 60, so "at beat 32.5 there's a gap" literally means the hero reaches it
+ * Horizontal positions are beats: x = x(beat) = ∫ pixelsPerBeat · m(b) db (m = 1, or a `speed` zone's
+ * multiplier: the choruses run faster — level/beatx.ts; without zones x = beat * pixelsPerBeat), and the hero's run
+ * speed equals ppb(beat) * BPM / 60, so "at beat 32.5 there's a gap" literally means the hero reaches it
  * when the song reaches beat 32.5. Heights (`h`) are pixels ABOVE the base ground line
  * (positive = up) for geometry (floor/platform/block); for entities (lums, enemies) `h` is
  * relative to the topmost surface under them (platform, raised floor, or the nearest floor
@@ -313,7 +314,14 @@ export type LevelItem =
    * on) so the route is discoverable; the canister itself glints on the beats before `from` (render). Validate with
    * `node playtest/slack.mjs --level=src/level/index.ts#gameLevel --canisters` (reachable, survivable, off the song line).
    */
-  | { type: 'canister'; from: number; dx?: number; dh?: number; clue?: boolean };
+  | { type: 'canister'; from: number; dx?: number; dh?: number; clue?: boolean }
+  /**
+   * SPEED ZONE (iteration 9, the chorus speed-up; level/beatx.ts): from `from` to `to` the hero covers `mul` × more
+   * ground per beat (the music can't change — the GAME speeds up), ramping in (smoothstep) over the `rampIn` beats
+   * before `from` (default 1: full speed ON the chorus downbeat) and back out over `rampOut` beats after `to` (default
+   * 1). World x = ∫ ppb · mul db; jump physics stay in beats (a jump covers more ground). Zones must not overlap.
+   */
+  | { type: 'speed'; from: number; to: number; mul: number; rampIn?: number; rampOut?: number };
 /* (iteration 7, review iter6 fix 9) the canister's clue is a TRAIL: tokens every 1/4 beat up the held arc from where it
  * clears the tap hop to just short of the canister, so the gold visibly keeps climbing out of reach of a hop */
 

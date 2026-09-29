@@ -323,17 +323,16 @@ export class Act3Art {
     const calls = L.setPieces.filter((s) => s.name === 'callResponse').map((s) => ({ from: s.beat, to: s.beat + s.beats }));
     if (!calls.length) return this.stompsC;
     const st = laneBeats(game.song, 'stomps').sort((a, b) => a - b);
-    const ppb = L.ppb;
     for (const c of calls) {
       for (const sb of st) {
         if (sb < c.from - 0.01 || sb >= c.to - 0.5) continue; // the call is 1 · &2 · 3 (the bar's last stomp is the next bar's pickup)
         const ab = sb + (c.to - c.from);
         // the goon stands 0.9 beat in front of the hero's stomp-beat position (in your face, then out of the way)
-        const gx = (sb + 0.9) * ppb;
+        const gx = L.xAt(sb + 0.9);
         const gy = L.surfaceYNear(gx);
         const bk = L.breakables.find((k) => Math.abs(k.beat - ab) < 0.12);
-        const tx = bk ? bk.x : ab * ppb;
-        const ty = bk ? bk.y : L.surfaceYNear(ab * ppb) - 8;
+        const tx = bk ? bk.x : L.xAt(ab);
+        const ty = bk ? bk.y : L.surfaceYNear(L.xAt(ab)) - 8;
         this.stompsC.push({ sb, to: c.to, gx, gy: Number.isNaN(gy) ? 0 : gy, ab, tx, ty: Number.isNaN(ty) ? 0 : ty, floor: !bk });
       }
     }

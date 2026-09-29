@@ -689,3 +689,70 @@ Not done:
   ad-libs the `tokenMelody` lane doesn't hold. That needs a lane re-measure in `tools/music`.
 - ±160 booth time is still above the ≤ 20 % target (misses within an attempt). `recoverPerBeat` is unchanged.
 - The "colour burst by your hand" and ◆196 items from the review were not attempted.
+
+## Iteration 9 — chorus speed + alignment (gameplay; audio's chorus lift + the Slim redesign shipped alongside)
+User playtest feedback:
+- "The game speeds up and the music a bit louder just during the chorus, and the things you do line up with the beat."
+- "A tad too hard."
+- Mid-iteration: "The fire shouldn't be stressful … it's all you can focus on because it comes up so fast."
+
+Shipped:
+- **THE CHORUS SPEED-UP** (`level/beatx.ts`, `speed` items, `dsl.chorusSpeed`).
+  - During chorus 1 (88-120), chorus 3 (204-236) and chorus 4 (272-304), Slim covers **×1.25** px per beat.
+  - The speed ramps in (smoothstep) over the beat before the downbeat and back out over the tag's first beat.
+  - World x is now the integral `X(beat)`. Every beat↔x conversion goes through `L.xAt / beatAt / ppbAt`: builder, arcs, music line, Burn, bot, judge lag, mechanics, render, overlay, `slack` / `rubric`.
+  - The hero's ppb is sampled at his own beat, half a step ahead, so he doesn't drift. Jump airtime is unchanged in beats, so jumps fly 25 % further.
+  - The camera pulls back with the speed (×0.87 at full speed, leading by 2 beats), so the runway keeps its time (E1 ≥ 1.21 s).
+  - Balls roll ×mul faster in a zone.
+  - Presentation hooks: `game.speedMul`, `game.chorusK`, `game.chorus`, the `chorus` event and `level.speedZones`. The audio agent's chorus lift reads the zones.
+- **The chorus accent pattern, measured on the record.** The script is `playtest/chorus_accents.py`; see `docs/level/chorus_alignment.md`.
+  - The chorus's strong beat is the **backbeat**: beat 2 (0.89 of the bar peak), then 4 (0.67). The kick's 1 and 3 carry the lows. The "and"s are weak (0.14-0.42).
+  - The three biggest hits per chorus are beat 2 of chorus bars 2, 5 and 8 (93 / 105 / 117, 209 / 221 / 233, 277 / 289 / 301) at 2.0-2.6 × the median beat.
+- **The new chorus choreography: HOP ON THE KICK, STRIKE ON THE SNARE.**
+  - Every chorus press is on a quarter note, reading ∪ X ∪ X. The biggest targets sit on the three big hits.
+  - 14 "and" presses were moved onto the beat or cut. Kick-strikes became hops.
+  - Exceptions: the walkdowns, the hook rides / zip (strike every beat), the knee-slide on the held note, and one "and" (the 303.66 push into tag 4).
+  - Density stays ≥ 1 per beat (D1).
+  - A strike 0.34 beat after another fires about 70 ms late: a gate caught this, so 278.66 was not used.
+- **Difficulty eased** (`slack` windows).
+  - Most lethals move from −85..−95 / +150 to −100..−115 / +155..+165.
+  - The exams stay at −85..−95: 92, 126, 280, 284, 294, 312, 326.
+  - Also eased: the 154 alley jump (−95 → −105), the fists (`SLAM_TOP` late edge 0.3), the posts (±0.3), and the second chorus-4 Bluffer (now a hop).
+- **THE BURN IS A CALM LOWER BOUNDARY** (the new feedback).
+  - It rests 3.5 beats behind the music line, off screen: `render/burn.ts` draws a soft warm glow at the left edge, and the fire itself fades in only when the real front enters the frame.
+  - Misses never feed it. A stumble pulls it 0.4 beat, never nearer than 2.75.
+  - No fill lunges and no stumble flares. It flares only within 1.25 beats of the hero.
+  - It catches only a STALLED hero. The report has `burn.onScreenPct` / `nearPct`.
+  - `slack`'s "walled" rule follows it (`minGap`). The rubric's A11 notes that the teeth come from pits and threats. DESIGN.md is updated.
+
+Validation:
+- **Autoplay:** `playtest` gate PASS (0 deaths, 302/302 actions, hidden-lethal gate PASS). `--canisters` OK, no moving threat under −85/+130.
+- **Rubric:** gate **11/11** for act 1, act 2, act 3 and the whole level (with the bot reports). E1 passes everywhere. A11 WARNs: ±130 is 0.87 deaths per 32 bars and sloppy is 0, the price of "easier".
+- **Tokens:** `tokens.mjs` shows chorus coverage 129/129 = 100 % with 0 % echo.
+- **Frames:** checked at 82 / 95 / 213 / 281. The chorus is a wider shot with the speed streaks, and the markers are visibly further apart.
+
+**Bots (deaths per act):**
+
+| Profile | Before (iter 8, 3 seeds) | After (6 seeds; sloppy 3) |
+|---|---|---|
+| ±130 | 1.7 / 1.0 / 3.0 | **0.5 / 0.67 / 1.17** |
+| Sloppy ±85 + 10 % | 0.33 / 0 / 0 | **0 / 0 / 0** |
+| ±160 + 20 % late | 2.7 / 3.7 / 6.3 | 6.5 / 3 / 5 (2 seeds, pre-final build) |
+
+**slack expected deaths (±130):** 5.97 → 3.48. Act 3 stays the hardest.
+
+**The Burn** (old = same level with the old Burn):
+
+| Profile | On screen, old → new | Catches, old → new |
+|---|---|---|
+| Lazy (skip rewards) | 47.8 % → 8.5 % | 16 → 4 (all in the act-2 climb, where a bot that never hops a ledge really stalls) |
+| Reckless (skip stumbles) | 31.5 % → 0.7 % | 10 → 0 |
+| ±130 | 0.8 % → 0 % | 0 → 0 |
+| Sloppy | 0.1 % → 0 % | 0 → 0 |
+
+Both lazy and reckless finish.
+
+Not done / next:
+- A11 teeth are now under its bar. If humans find it too easy, re-tighten the exam pits (fits are listed in `act3.ts` / `slice.ts`).
+- The lazy bot still stalls into the Burn on the act-2 ledge climb. Consider a shorter ledge scramble.
+- Rubric D3 "shouts struck" fell 72 → 52 % by design: the gang's second HEY sits on the kick, 3, and is now a hop.

@@ -23,6 +23,7 @@
 import {
   and,
   bottle,
+  chorusSpeed,
   bottleHigh,
   crate,
   gapHop,
@@ -61,15 +62,18 @@ const ROOF_A = 250;
 const ROOF_B = 150;
 const BAR_TOP = 120;
 /** the lethal turnaround lifts: narrower press tops (playtest/slack.mjs measures each hop's window) */
-const TIGHT_LIFT = [-0.19, 0.28] as const;
+/** iteration 9 (ease, user: "a tad too hard"): [-0.19, 0.28] → [-0.25, 0.3] (the 126 HEY hop −70 → −95 ms) */
+const TIGHT_LIFT = [-0.25, 0.3] as const;
 /**
  * Iteration 4 (review iter3 fix 3): the chorus pits that punished EARLY presses in bursts (94 at -60 ms, 98 / 106 at
  * -65 ms killed a ±130 player 6× in bars 24-28) end sooner: ~-85/+150 ms. The peak-bar pit 92 and 108 keep -75.
  */
-const CHORUS_FIT = [0.09, 0.81] as const;
+/** iteration 9 (ease + the chorus speed-up: the hero's hitbox is smaller in beats at ×1.25): [0.09, 0.81] → [0.13, 0.75] */
+const CHORUS_FIT = [0.13, 0.75] as const;
 /** iteration 6 (review iter5 fix 5): the chorus-1 peak pit on 92 relaxed from 'tight' (−70, the ±130 repeat killer) to −80:
  * act 1's chorus is the promise, chorus 4 the exam */
-const PEAK_92 = [0.09, 0.84] as const;
+/** iteration 9: [0.09, 0.84] → [0.12, 0.78] (−70 at the chorus speed → ~−90) */
+const PEAK_92 = [0.12, 0.78] as const;
 
 export const sliceLevel: LevelDef = {
   id: 'act1-bars-1-33',
@@ -283,6 +287,9 @@ export const sliceLevel: LevelDef = {
 
     // ================================================================ CHORUS 1 (bar 23 = A on the downbeat)
     { type: 'crowd', beat: bar(23), cap: 24 },
+    // iteration 9 (user playtest: "the game speeds up during the chorus"): Slim runs CHORUS_SPEED × faster, ramping in
+    // over the pre-chorus's last beat, back out over the tag's first beat (level/beatx.ts)
+    chorusSpeed(bar(23), bar(31)),
     // iteration 7 (review iter6 fix 2): THE CHORUS SINGS — a token ON every sung note of the hook, on Slim's path (the
     // launch arc, the hops, the counter), and the arc tokens that only echoed Croce a triplet late are gone
     { type: 'lumSing', from: bar(23), to: bar(32) },
@@ -300,45 +307,49 @@ export const sliceLevel: LevelDef = {
     fx(bar(23, 2), 'shot', 0.6),
     raised(bar(23, 2), bar(26, 4) + 1.2, BAR_TOP),
     mode(bar(23, 3), 'bar-top'),
-    // ---- bar 23 lands on the counter: the A7 climb's D# (&3) is a bottle, E on 4 a spike
-    bottle(and(bar(23, 3)), 'glass'),
-    // (beat 4 rests: a breath before the peak combination — a hop here would drag a late landing into the pit)
+    // ================================================================ THE CHORUS GROOVE (iteration 9, docs/level/chorus_alignment.md)
+    // The record's chorus accents (measured: onset strength by position, 3 choruses): the BACKBEAT is the strong beat —
+    // beat 2 (0.89 of the bar's peak, the snare + claps) then 4 (0.67), the kick's 1 / 3 carry the low end (0.80 / 0.75
+    // in the bass band), the swung "and"s are weak (0.14-0.42). The biggest hits: beat 2 of chorus bars 2, 5 and 8 (93,
+    // 105, 117: 2.0-2.6 × the chorus's median beat). So: HOP ON THE KICK (1, 3), STRIKE ON THE SNARE (2, 4), no press on
+    // an "and"; the three big hits carry the biggest targets. Exceptions: the walkdown (a blow on every beat).
+    // ---- bar 23 lands on the counter (90, the kick): the E on 4 = a bottle on the snare
+    bottle(bar(23, 4)),
     // ---- bar 24: block PEAK = LETHAL COMBINATION on the counter, on the record's HEY HEY: a pit on the kick (1),
-    // a goon on the first HEY (2), a pit on the second HEY + kick (3), then the snare and the fill's &4
-    // smashed: ∪ X ∪ X X. A missed goon knocks you off the grid right before the second pit (and feeds the Burn,
-    // which lunges on the fill).
+    // THE GOON ON THE BIG HIT (2: the first HEY, the chorus's loudest beat), a pit on the kick (3), the snare (4):
+    // ∪ X ∪ X. A missed goon knocks you off the grid right before the second pit (and feeds the Burn)
     ...gapHop(bar(24, 1), PEAK_92),
     jabber(bar(24, 2)),
     ...gapHop(bar(24, 3), CHORUS_FIT),
     bottle(bar(24, 4)),
-    bottle(and(bar(24, 4)), 'glass'),
-    fx(bar(24, 2), 'flash', 0.4),
-    fx(bar(24, 3), 'flash', 0.4),
-    fx(and(bar(24, 4)), 'bgPulse', 0.6),
+    fx(bar(24, 2), 'flash', 0.5),
+    fx(bar(24, 4), 'bgPulse', 0.5),
 
-    // ---- bar 25: A7 climb: the chorus cell (hop on D, swing on D#)
+    // ---- bar 25: A7 climb — the same groove: a hop on the respawn's 1, the lamp on 2, a pit on 3, a bottle on 4
     { type: 'checkpoint', beat: bar(25) },
     follows(bar(25), 'shouts'),
+    ...tokenHop(bar(25, 1)),
     pendulum(bar(25, 2)), // the chorus's own target: swinging lamps (review iter2 fix 6)
     ...gapHop(bar(25, 3), CHORUS_FIT),
-    bottle(and(bar(25, 3))),
-    bottle(and(bar(25, 4)), 'glass'),
-    // ---- bar 26: E7, HEY on 3, then the held note 102.97: a held jump off the end of the counter
+    bottle(bar(25, 4), 'glass'),
+    // ---- bar 26: E7 — a hop on 1, the crate on the snare (the bar's big hit), a hop on the gang's HEY (3), a bottle on 4
     ...tokenHop(bar(26, 1)),
-    bottle(bar(26, 2)),
-    jabber(bar(26, 3)),
-    ...tokenJump(bar(26, 4)), // off the end of the counter on the held note
-    fx(bar(26, 3), 'flash', 0.5),
+    crate(bar(26, 2)),
+    ...tokenHop(bar(26, 3)),
+    bottle(bar(26, 4)),
+    fx(bar(26, 2), 'flash', 0.4),
     mode(bar(27, 1), 'bar-floor'),
-    // ---- bar 27: A7 climb on the floor: a pit on the D, the D# and the E are bottles
-    pendulum(bar(27, 2)), // swinging lamp
+    // ---- bar 27: A7 — off the end of the counter on the kick (a hop down), THE BIG HIT on 2 (105: the swinging lamp, big),
+    // a pit on 3, a bottle on 4
+    ...tokenHop(bar(27, 1)),
+    pendulum(bar(27, 2), true),
+    fx(bar(27, 2), 'flash', 0.5),
     ...gapHop(bar(27, 3), CHORUS_FIT),
-    bottle(and(bar(27, 3)), 'glass'),
-    bottle(and(bar(27, 4))),
-    // ---- bar 28: A7, the held note 109: hop a pit on 1 straight into a knee-slide
-    ...gapHop(bar(28, 1), 'tight'),
-    ...slideUnder(bar(28, 2), 1.3),
-    ...tokenHop(and(bar(28, 3))), // pop up out of the slide on the melody's "and"
+    bottle(bar(27, 4), 'glass'),
+    // ---- bar 28: A7, the held note 108.14: a pit on 1, the knee-slide on the snare (held), up on 3, the jug on 4
+    ...gapHop(bar(28, 1), CHORUS_FIT),
+    ...slideUnder(bar(28, 2), 1.05),
+    ...tokenHop(bar(28, 3)),
     bottle(bar(28, 4), 'jug'),
     // ---- bar 29: HOOK A — the walkdown B A G F#: THE GIANT SMASH (wow 2): four giant kegs, one per quarter, each a
     // real hitstop + zoom punch (game.ts hitBreakable; `smash` events carry index 0..3 for the art/audio)
@@ -354,28 +365,27 @@ export const sliceLevel: LevelDef = {
     fx(bar(29, 3), 'shake', 0.35),
     fx(bar(29, 4), 'zoom', 0.8),
     { type: 'camera', beat: bar(29, 1), zoom: 0.78, beats: 1 },
-    // ---- bar 30: E lands; hook B + the fill (&3, &4)
+    // ---- bar 30: E lands; hook B: a pit on the kick, THE BIG HIT on 2 (117: a crate), a pit on 3, a bottle on 4
     fx(bar(30, 1), 'flash', 0.6),
     { type: 'camera', beat: bar(30, 1), zoom: 0.84, beats: 2 },
-    // iteration 4: E lands on a pit — the ±130 teeth the widened 94/98/106 gave back. Iteration 5 (review iter4 fix 10):
-    // 'std' (~-105/+150): at -80 it was the ±130 bot's repeat pit right after the walkdown checkpoint (◆112, 5 deaths in
-    // 5 seeds, 3 in a row); the tight one is now 118 (bar 30 b3, a bar after the re-entry)
     ...gapHop(bar(30, 1), 'std'),
-    bottle(bar(30, 2)),
-    ...gapHop(bar(30, 3), 'tight'),
-    bottle(and(bar(30, 3)), 'glass'),
-    bottle(and(bar(30, 4))),
-    fx(and(bar(30, 3)), 'bgPulse', 0.6),
-    fx(and(bar(30, 4)), 'bgPulse', 0.6),
+    crate(bar(30, 2)),
+    fx(bar(30, 2), 'flash', 0.5),
+    ...gapHop(bar(30, 3), CHORUS_FIT),
+    bottle(bar(30, 4)),
+    fx(bar(30, 4), 'bgPulse', 0.6),
 
     // ---- bar 31: the TAG — the record dips (.48): a breath before the last run
     { type: 'checkpoint', beat: bar(31) },
     label(bar(31), 'TAG'),
     fx(bar(31), 'bgPulse', 0.5),
     { type: 'camera', beat: bar(31), zoom: 0.9, beats: 2 },
-    ...tokenHop(bar(31, 2)), // the tag breathes on hops (iteration 4: the chorus block ≤ 60 % strikes)
+    // iteration 9: the tag keeps the chorus groove at a walk — a hop on the kick, the big hit on 2 (121), a hop on 3,
+    // the snare on 4
+    ...tokenHop(bar(31, 1)),
+    bottle(bar(31, 2)),
     ...tokenHop(bar(31, 3)),
-    bottle(and(bar(31, 3))),
+    bottle(bar(31, 4), 'glass'),
     ...melodyTokens([[120, 59], [121.67, 55], [123, 55], [123.67, 52]]),
     // ---- bar 32: TURNAROUND — piano B stabs on every beat: smash two, then the lethal lift run over the
     // cellar starts on the HEY (126) and carries the record's HUP HUP (128, 129) — the HEY (130) is the Heave
