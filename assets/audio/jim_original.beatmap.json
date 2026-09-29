@@ -2475,7 +2475,7 @@
     "path": "stems/jim_overlay/shouts.ogg",
     "repoPath": "assets/audio/stems/jim_overlay/shouts.ogg",
     "overlay": true,
-    "bytes": 747372
+    "bytes": 391542
    },
    "stomps": {
     "path": "stems/jim_overlay/stomps.ogg",
@@ -2512,7 +2512,7 @@
     "cowbell": -14.0
    },
    "appliedGainDb": {
-    "shouts": 2.54,
+    "shouts": 3.46,
     "stomps": 1.82,
     "cowbell": -2.33
    },
@@ -2521,25 +2521,25 @@
   "overlayLevels": {
    "intro": {
     "original": -12.6,
-    "shouts": -16.7,
+    "shouts": -17.3,
     "stomps": -21.6,
     "cowbell": null
    },
    "verse1": {
     "original": -10.1,
-    "shouts": -18.4,
+    "shouts": -18.3,
     "stomps": -22.0,
     "cowbell": null
    },
    "prechorus1": {
     "original": -10.3,
-    "shouts": -16.4,
+    "shouts": -17.2,
     "stomps": -19.8,
     "cowbell": null
    },
    "chorus1": {
     "original": -10.1,
-    "shouts": -16.5,
+    "shouts": -16.4,
     "stomps": -21.0,
     "cowbell": -24.0
    },
@@ -2551,25 +2551,25 @@
    },
    "turnaround1": {
     "original": -10.4,
-    "shouts": -16.0,
+    "shouts": -17.1,
     "stomps": -19.8,
     "cowbell": -66.2
    },
    "verse2": {
     "original": -10.6,
-    "shouts": -37.3,
+    "shouts": null,
     "stomps": -21.9,
     "cowbell": null
    },
    "prechorus2": {
     "original": -10.0,
-    "shouts": -16.7,
+    "shouts": -17.6,
     "stomps": -19.9,
     "cowbell": null
    },
    "chorus2": {
     "original": -10.0,
-    "shouts": -16.3,
+    "shouts": -16.6,
     "stomps": -21.1,
     "cowbell": -24.0
    },
@@ -2581,25 +2581,25 @@
    },
    "turnaround2": {
     "original": -13.1,
-    "shouts": -16.2,
+    "shouts": -17.4,
     "stomps": -20.3,
     "cowbell": -66.1
    },
    "verse3": {
     "original": -10.7,
-    "shouts": -37.3,
+    "shouts": -42.9,
     "stomps": -21.7,
     "cowbell": -31.6
    },
    "prechorus3": {
     "original": -10.1,
-    "shouts": -16.2,
+    "shouts": -17.2,
     "stomps": -19.8,
     "cowbell": -66.8
    },
    "chorus3": {
     "original": -9.4,
-    "shouts": -16.6,
+    "shouts": -16.1,
     "stomps": -21.1,
     "cowbell": -24.0
    },
@@ -2629,7 +2629,7 @@
    },
    "outro": {
     "original": -12.3,
-    "shouts": -17.2,
+    "shouts": -16.9,
     "stomps": -21.3,
     "cowbell": -29.8
    }

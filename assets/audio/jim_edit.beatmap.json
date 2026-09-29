@@ -1794,13 +1794,13 @@
     "repoPath": "assets/audio/licensed/jim_edit.ogg",
     "licensed": true,
     "decoderLagSamples": 0,
-    "bytes": 2591830
+    "bytes": 2591436
    },
    "shouts": {
     "path": "stems/jim_edit_overlay/shouts.ogg",
     "repoPath": "assets/audio/stems/jim_edit_overlay/shouts.ogg",
     "overlay": true,
-    "bytes": 605682
+    "bytes": 344598
    },
    "stomps": {
     "path": "stems/jim_edit_overlay/stomps.ogg",
@@ -1840,7 +1840,7 @@
     "cowbell": -14.0
    },
    "appliedGainDb": {
-    "shouts": 2.54,
+    "shouts": 3.46,
     "stomps": 1.82,
     "cowbell": -2.33
    },

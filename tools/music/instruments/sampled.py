@@ -408,20 +408,25 @@ class IRLeadGuitar(LeadGuitar):
 # =========================================================================== gang shouts
 class SampledGangShouts(Instrument):
     """Gang shouts built from real recordings. event.piece = word; params: voices (int, default `voices`),
-    stretch (>1 = longer word: longer takes + slightly lower/slower playback).
+    stretch (>1 = a longer word: prefers the longer takes; never slower or lower).
 
-    A hit layers `group_layers` real GROUP recordings (several people each; doubled hard L/R, different takes or a
-    pitch-shifted copy) + a SOLO gang (voices-2 single-voice takes, each pitch-shifted N(0, pitch_spread) semitones,
-    0-15 ms late, spread across the stereo field). Like the synth GangShouts, the result is self-calibrated so the
-    gang envelope reaches 50 % exactly on the beat (the /h/ is pre-rolled). Words not in the cache use `fallback`
-    (the formant-synth GangShouts); `synth_blend` > 0 adds some of the synth gang under the samples."""
+    A hit is a TIGHT gang of at most `max_voices` layers (iteration 8: the 12-16 layer stack sounded "demonic"):
+    `group_layers` real GROUP recordings (several people each, spread L/R) + single-voice SOLO takes, each from a
+    DIFFERENT performer (one take per author per hit, so no voice is ever cloned at several pitches - that stacking is
+    the classic demon-voice effect), female takes first when the word has them (~40 % of the solos). Every layer
+    keeps its natural pitch: +-`pitch_spread` st (clipped to +-1 st, symmetric), 0-10 ms late. The result is
+    self-calibrated so the gang envelope reaches 50 % exactly on the beat (the /h/ is pre-rolled). Words not in the
+    cache use `fallback` (the formant-synth GangShouts); `synth_blend` > 0 adds some of the synth gang under the
+    samples."""
     mono = False
     variants = 4
     lane_kind = "GangShouts"      # beat map: same 'shouts' lane as the synth gang
     PRE = 0.25        # s of pre-roll before the beat (longest take onset is ~0.2 s)
+    MAX_SHIFT_ST = 1.0
 
-    def __init__(self, voices: int = 10, spread: float = 0.85, level: float = 1.0, group_layers: int = 2,
-                 pitch_spread: float = 0.9, synth_blend: float = 0.0, fallback: Instrument | None = None):
+    def __init__(self, voices: int = 8, spread: float = 0.85, level: float = 1.0, group_layers: int = 2,
+                 pitch_spread: float = 0.45, synth_blend: float = 0.0, fallback: Instrument | None = None,
+                 max_voices: int = 8, female_share: float = 0.4):
         super().__init__()
         self.voices = voices
         self.spread = spread
@@ -429,7 +434,9 @@ class SampledGangShouts(Instrument):
         self.group_layers = group_layers
         self.pitch_spread = pitch_spread
         self.synth_blend = synth_blend
-        self.fallback = fallback or GangShouts(voices=voices)
+        self.max_voices = max_voices
+        self.female_share = female_share
+        self.fallback = fallback or GangShouts(voices=min(voices, max_voices))
         self.words = sc.section("shouts")
 
     def voice_key(self, ev):
@@ -440,50 +447,64 @@ class SampledGangShouts(Instrument):
         y = resample_ratio(x, rate)
         return y, t["on50"] / rate
 
+    def _shift(self, rng, sd):
+        return float(np.clip(rng.normal(0, sd), -self.MAX_SHIFT_ST, self.MAX_SHIFT_ST))
+
     def voice(self, ev, sr, rng):
         word = ev.piece.upper()
         takes = self.words[word]
-        nv = int(ev.params.get("voices", self.voices))
+        nv = max(1, min(int(ev.params.get("voices", self.voices)), self.max_voices))
         stretch = float(ev.params.get("stretch", 1.0))
-        slow = stretch ** -0.25                        # stretch 1.3 -> ~-1.1 semitone, 7 % longer
         groups = [t for t in takes if t["kind"] == "group"]
         solos = [t for t in takes if t["kind"] == "solo"]
         if stretch > 1.05:                             # prefer the longer takes for stretched words
             groups = sorted(groups, key=lambda t: -t["len"])[: max(2, len(groups) // 2 + 1)]
             solos = sorted(solos, key=lambda t: -t["len"])[: max(3, len(solos) // 2 + 1)]
+        who = lambda t: t.get("author") or t["id"]
+        used: dict[str, int] = {}
+
+        def pick(pool, per_author=1):
+            for i in rng.permutation(len(pool)):
+                t = pool[int(i)]
+                if used.get(who(t), 0) < per_author and t not in picked:
+                    used[who(t)] = used.get(who(t), 0) + 1
+                    picked.append(t)
+                    return t
+            return None
+
+        picked: list[dict] = []
         pre = int(self.PRE * sr)
         parts = []   # (stereo sig, on50 offset, delay, gain)
-        # --- group layers, doubled L/R
-        if groups:
-            n_g = min(self.group_layers, 2 * len(groups))
-            order = list(rng.permutation(len(groups)))
-            for j in range(n_g):
-                t = groups[order[j % len(groups)]]
-                again = j >= len(groups)
-                rate = slow * 2 ** (rng.normal(0, 0.25) / 12 + (0.35 if again else 0) * (1 if j % 2 else -1) / 12)
-                y, o = self._take(t, rate, sr)
-                side = -1 if j % 2 == 0 else 1
-                w = 0.55 + 0.35 * self.spread
-                m = 0.5 * (y[0] + y[1])
-                sde = 0.5 * (y[0] - y[1])
-                y = np.stack([m * (1 - side * w) + sde, m * (1 + side * w) - sde])
-                late = 0 if j == 0 else int(rng.uniform(0.003, 0.012) * sr)
-                parts.append((y, o, late, 1.0))
-        # --- solo gang
-        n_s = (max(2, nv - 4) if groups else nv) if solos else 0
-        if solos:
-            order = list(rng.permutation(len(solos)))
-            for j in range(n_s):
-                t = solos[order[j % len(solos)]]
-                reuse = j // len(solos)
-                st = float(np.clip(rng.normal(0, self.pitch_spread) + (1.2 * (1 if reuse % 2 else -1) if reuse else 0), -2.5, 2.5))
-                rate = slow * 2 ** (st / 12)
-                y, o = self._take(t, rate, sr)
-                mono = y.mean(axis=0)
-                pan = float(rng.uniform(-self.spread, self.spread))
-                late = int(min(abs(rng.normal(0, 0.007)), 0.018) * sr)
-                gain = rng.uniform(0.6, 1.0) * (0.75 if groups else 1.0)
-                parts.append((dsp.to_stereo(mono, pan) * math.sqrt(2), o, late, gain))
+        # --- group layers (a group recording may give two DIFFERENT takes: a double-tracked gang), spread L/R
+        n_g = min(self.group_layers, nv - 1 if nv > 2 else self.group_layers, len(groups)) if groups else 0
+        for j in range(n_g):
+            t = pick(groups, per_author=2)
+            if t is None:
+                break
+            y, o = self._take(t, 2 ** (self._shift(rng, 0.2) / 12), sr)
+            side = -1 if j % 2 == 0 else 1
+            w = 0.3 + 0.4 * self.spread
+            m = 0.5 * (y[0] + y[1])
+            sde = 0.5 * (y[0] - y[1])
+            y = np.stack([m * (1 - side * w) + sde, m * (1 + side * w) - sde])
+            late = 0 if j == 0 else int(rng.uniform(0.002, 0.008) * sr)
+            parts.append((y, o, late, 1.0))
+        n_grp = len(parts)
+        # --- solo gang: distinct performers, the women first (a mixed bar crowd), natural pitch
+        n_s = (nv - n_grp) if solos else 0
+        fem = [t for t in solos if t.get("voice") == "f"]
+        men = [t for t in solos if t.get("voice") != "f"]
+        n_f = min(len({who(t) for t in fem}), int(round(n_s * self.female_share))) if fem else 0
+        for j in range(n_s):
+            t = pick(fem) if j < n_f else (pick(men) or pick(fem))
+            if t is None:
+                break
+            y, o = self._take(t, 2 ** (self._shift(rng, self.pitch_spread) / 12), sr)
+            mono = y.mean(axis=0)
+            pan = float(rng.uniform(-self.spread, self.spread))
+            late = int(min(abs(rng.normal(0, 0.004)), 0.010) * sr)
+            gain = rng.uniform(0.7, 1.0) * (0.8 if n_grp else 1.0)
+            parts.append((dsp.to_stereo(mono, pan) * math.sqrt(2), o, late, gain))
         n = max(pre - int(o) + late + y.shape[1] for y, o, late, _ in parts) + 1
         out = np.zeros((2, n))
         tot = 0.0
@@ -491,9 +512,9 @@ class SampledGangShouts(Instrument):
             dsp.place(out, y * g, pre - int(round(o)) + late)
             tot += g * g
         out /= math.sqrt(max(tot, 1.0))
-        # real shouts are far brighter than the formant synth: keep body, soften the 3-8 kHz edge
-        out = eq(out, sr, [("hp", 120, 0.7), ("peak", 250, 1.0, 1.5), ("peak", 3200, 1.0, -1.5), ("hs", 6000, 0.7, -3.0),
-                           ("lp", 11000, 0.7)])
+        # an excited, open shout: clear the boxy low-mids, lift the presence (the old +250 Hz / -6 kHz curve made
+        # the gang dark and chesty); the 128 kbps previews are clean to ~13 kHz
+        out = eq(out, sr, [("hp", 140, 0.7), ("peak", 320, 1.0, -2.0), ("peak", 2800, 0.9, 2.5), ("lp", 13000, 0.7)])
         if self.synth_blend > 0:
             syn = self.fallback.voice(ev, sr, rng) / max(ev.vel, 1e-3)
             spre = int(0.1 * sr * stretch)
@@ -501,6 +522,8 @@ class SampledGangShouts(Instrument):
             s_out[:, :n] = out
             dsp.place(s_out, syn * self.synth_blend * np.max(np.abs(out)) / (np.max(np.abs(syn)) + 1e-9), pre - spre)
             out = s_out
+        if DEBUG:
+            print(f"  {word} x{len(parts)}: " + ", ".join(f"{t['kind'][0]}{t['id']}{'F' if t.get('voice') == 'f' else ''}" for t in picked))
         # self-calibrate: gang envelope reaches 50 % of its (attack) peak exactly at `pre`
         env = np.abs(signal.hilbert(out.mean(axis=0)))
         sm = int(0.0005 * sr)

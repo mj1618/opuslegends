@@ -42,18 +42,15 @@ take is listed in `instruments/sample_cache.py::SHOUT_TAKES`.
 | 527740 | khenshom | Hey - Men Shouting together | HEY | group | CC0 |
 | 57204 | Jace | Men Shouting Hey | HEY | group | CC0 |
 | 653386 | letztergeist (Joshua Scott / RJC Studios) | Big Hey (≈8 people) | HEY | group | CC0 |
-| 698872 | zvartafaran | Hey huge | HEY | group | CC0 |
-| 416507 | pipjmalt | Crowd Chanting HEY | HEY | group | **CC-BY 4.0** |
-| 634720 | Mafon2 | Hey hey hey hey hey hey hey (27 takes) | HEY | solo | CC0 |
-| 345431 | Artmasterrich | Male_Heyyy_01 | HEY | solo | CC0 |
+| 45603, 45604, 45605 | jukkis111 | pandora huuto1-3 ("group of guys yell 'hey'") | HEY | group | CC0 |
+| 362665 | AmeAngelofSin | batlle shouts: Come over, this way, hey, over here (the two "hey"s, 6.35 s / 8.58 s) | HEY | solo, **woman** | **CC-BY 4.0** |
+| 537816 | Legnalegna55 | hey hey you (the first "Hey!") | HEY | solo, **woman** | CC0 |
+| 246304 | vikuserro | Ey - shouting | HEY | solo | **CC-BY 4.0** |
+| 634720 | Mafon2 | Hey hey hey hey hey hey hey (18 clean single takes) | HEY | solo | CC0 |
 | 545949 | waveletaudio | Game Character HEY Loud | HEY | solo | **CC-BY 4.0** |
-| 179326 | jorickhoofd | Male screams "Hey!" | HEY | solo | **CC-BY 4.0** |
-| 368824 | klankbeeld | man screaming HEY breaking voice | HEY, HA | solo | **CC-BY 4.0** |
+| 368824 | klankbeeld | man screaming HEY breaking voice | HA | solo | **CC-BY 4.0** |
 | 546512 | zein.hg | Hey1 | HEY | solo | **CC-BY 4.0** |
-| 86212 | sandyrb | BRRRRR-HEY 01 | HEY | solo | **CC-BY 4.0** |
 | 764268 | ShangusBurger (Shane Vincent, GameSoundCon 2024 walla) | Group Marching, Hup 2 3 | HUP (7 group takes) | group | CC0 |
-| 613568 | MRdeadH | Hup | HUP | solo | CC0 |
-| 353542 | maxmakessounds | hup | HUP | solo | **CC-BY 4.0** |
 | 160769 | qubodup (Iwan Gabovitch) | Warrior's Battle Chants/Shouts | HO (12 takes), HA | solo | **CC-BY 4.0**. Required form: "Warrior Battle Chants and Shouts" Copyright 2012 Iwan Gabovitch [http://qubodup.net] |
 | 623441 | WelvynZPorterSamples | "HA!" - NO reverb | HA | solo | CC0 |
 | 209187 | LukeSharples | Ha | HA | solo | **CC-BY 4.0** |
@@ -62,6 +59,13 @@ take is listed in `instruments/sample_cache.py::SHOUT_TAKES`.
 | 340363 | (deleted user 5205523) | Male voice "Yeah" | YEAH | solo | CC0 |
 | 440035 | theuncertainman | YEAH! - Warcry, British Male | YEAH | solo | **CC-BY 4.0** |
 | 543778 | bandooga | Whoa! selection (9 takes) | WHOA | solo | CC0 |
+
+**Iteration 8 ("the HEYs are a bit demonic").** Removed from the HEY/HUP sets: 698872 "Hey huge" (processed, sub-heavy,
+long tail), 416507 (stadium reverb), 86212 "BRRRRR-HEY" (growl), 368824 (screaming, voice breaking; still an HA take),
+179326 (a long scream), 345431 (a drawn-out "heyyy"), Mafon2's double "hey-hey" takes, and the boomy solo HUPs 613568 /
+353542. Every kept HEY take transcribes as a single "Hey!" (Whisper small). Also downloaded, unused: 639864 (a sung
+female "Hey"), 852528/852535/852536 (CAT-FOX_ALEX "wooh" yells), 45606, 448705, 568608, 235019/235020 ("ne", not
+"hey"), 353137, 156510, 30989, 636021, 685742, 763824/764159 (other mics of the HUP march).
 
 Downloaded but unused (candidates for later): 593436, 345083, 403908, 88401, 257579, 384401 (a 14-person crowd/mob
 walla, 2 min, CC0) and 480805 (a small group of men shouting, CC0).
@@ -76,10 +80,10 @@ be the upgrade.
 ```
 Drums: "DRSKit" by the DrumGizmo project (drumgizmo.org), CC-BY 4.0
 Piano: "Salamander Grand Piano V3" by Alexander Holm, CC-BY 3.0
-Shouts (freesound.org, CC-BY): pipjmalt, waveletaudio, jorickhoofd, klankbeeld, zein.hg, sandyrb, maxmakessounds,
-  LukeSharples, theuncertainman, Tomlija (CC-BY 3.0), and "Warrior Battle Chants and Shouts" Copyright 2012 Iwan
+Shouts (freesound.org, CC-BY): waveletaudio, zein.hg, AmeAngelofSin, vikuserro, klankbeeld, LukeSharples,
+  theuncertainman, Tomlija (CC-BY 3.0), and "Warrior Battle Chants and Shouts" Copyright 2012 Iwan
   Gabovitch [http://qubodup.net], CC-BY 4.0
-CC0 thanks: VCSL (Versilian Studios), khenshom, Jace, letztergeist (Joshua Scott / RJC Studios), zvartafaran, Mafon2,
-  Artmasterrich, ShangusBurger / Shane Vincent, MRdeadH, WelvynZPorterSamples, bandooga
+CC0 thanks: VCSL (Versilian Studios), khenshom, Jace, letztergeist (Joshua Scott / RJC Studios), jukkis111, Mafon2,
+  Legnalegna55, ShangusBurger / Shane Vincent, WelvynZPorterSamples, bandooga
 Guitar cab IRs: Science Amplification
 ```

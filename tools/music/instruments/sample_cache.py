@@ -396,17 +396,22 @@ FS = os.path.join(SAMPLES, "freesound")
 # (freesound id, approximate onset seconds or None = whole file, max length s, kind 'group'|'solo')
 # Onsets come from the envelope/formant survey (see SAMPLES.md): e.g. 764268 is a group chanting
 # "HUP two three four" - the HUP syllables are the /ʌ/ (F1~690, F2~1250 Hz) peaks every ~1.73 s.
+# (freesound id, start s, max length s, "group"|"solo"[, "f" = a woman's voice]). Iteration 8 (the "demonic HEY"
+# playtest note): dropped the processed / reverberant / growled takes (698872 "Hey huge", 416507 stadium chant,
+# 86212 "BRRRRR-HEY", 368824 screaming with a breaking voice, 179326 a long scream, 345431 a drawn-out "heyyy", and
+# Mafon2's double "hey-hey"s; every kept take transcribes as a single "Hey!" with Whisper); added a bright CC0 group of
+# guys (jukkis111, 3 takes), women's HEYs (AmeAngelofSin, Legnalegna55) and vikuserro's "Ey!". SampledGangShouts uses
+# one take per performer per hit.
 SHOUT_TAKES = {
     "HEY": [
-        (527740, 0.0, 0.7, "group"), (57204, 0.0, 0.8, "group"), (416507, 0.0, 0.9, "group"), (653386, 0.37, 1.0, "group"),
-        (698872, 0.8, 0.9, "group"),
-        (545949, 0.17, 0.6, "solo"), (179326, 0.0, 0.8, "solo"), (368824, 0.5, 0.45, "solo"), (546512, 0.97, 0.6, "solo"),
-        (345431, 0.0, 0.6, "solo"), (86212, 1.37, 0.6, "solo"),
-    ] + [(634720, t, 0.42, "solo") for t in (0.835, 1.295, 3.33, 5.745, 6.045, 7.13, 8.97, 9.795, 10.07, 11.31, 12.8,
-                                              13.53, 15.83, 17.73, 20.40, 24.545, 26.925, 28.10, 28.585, 31.295, 32.88,
-                                              34.485, 36.89, 38.71, 41.675, 44.29, 45.69)],
-    "HUP": [(764268, t - 0.2, 0.46, "group") for t in (1.195, 2.985, 4.655, 6.375, 8.115, 9.890, 11.525)]
-           + [(613568, 0.0, 0.25, "solo"), (353542, 0.79, 0.3, "solo")],
+        (527740, 0.0, 0.7, "group"), (57204, 0.0, 0.8, "group"), (653386, 0.37, 1.0, "group"),
+        (45603, 0.0, 0.5, "group"), (45604, 0.0, 0.5, "group"), (45605, 0.0, 0.45, "group"),
+        (545949, 0.17, 0.6, "solo"), (546512, 0.97, 0.6, "solo"), (246304, 0.08, 0.5, "solo"),
+        (362665, 6.35, 0.5, "solo", "f"), (362665, 8.58, 0.55, "solo", "f"), (537816, 0.0, 0.5, "solo", "f"),
+    ] + [(634720, t, 0.42, "solo") for t in (1.295, 3.33, 5.745, 7.13, 9.795, 10.07, 11.31, 12.8, 13.53, 15.83, 20.40,
+                                              24.545, 26.925, 28.10, 28.585, 31.295, 34.485, 44.29)],   # clean single HEYs
+    # the marching squad only (a double-tracked gang of real men); the two solo HUPs were chesty / boomy (iteration 8)
+    "HUP": [(764268, t - 0.2, 0.46, "group") for t in (1.195, 2.985, 4.655, 6.375, 8.115, 9.890, 11.525)],
     "HO": [(160769, t - 0.02, 0.5, "solo") for t in (0.295, 1.0, 2.195, 2.915, 4.715, 9.265, 14.41, 16.73, 21.475,
                                                       23.57, 25.095, 28.54)],
     "HA": [(623441, 0.29, 0.5, "solo"), (209187, 0.0, 0.45, "solo"), (160769, 22.28, 0.5, "solo"),
@@ -424,7 +429,7 @@ def build_shouts(index: dict):
     decoded = {}
     for word, takes in SHOUT_TAKES.items():
         lst = []
-        for sid, t, max_s, kind in takes:
+        for sid, t, max_s, kind, *tag in takes:
             if sid not in decoded:
                 fp = os.path.join(FS, f"{sid}.mp3")
                 if not os.path.exists(fp):
@@ -437,7 +442,7 @@ def build_shouts(index: dict):
             if x is None:
                 continue
             # never run into the next take of the same file (fast "hey hey hey" runs)
-            nxt = [tt for s2, tt, _, _ in takes if s2 == sid and tt > t + 0.05]
+            nxt = [tk[1] for tk in takes if tk[0] == sid and tk[1] > t + 0.05]
             if nxt:
                 max_s = min(max_s, min(nxt) - t - 0.03)
             a = max(0, int(t * SR))
@@ -456,7 +461,8 @@ def build_shouts(index: dict):
             o50 = on50(y, search_s=min(0.25, y.shape[1] / SR))
             rel = write(f"shouts/{word}/{kind}_{sid}_{len(lst):02d}.wav", y)
             lst.append({"f": rel, "kind": kind, "on": on, "on50": o50, "len": y.shape[1] / SR, "id": sid,
-                        "license": man.get(str(sid), {}).get("license"), "author": man.get(str(sid), {}).get("user")})
+                        "license": man.get(str(sid), {}).get("license"), "author": man.get(str(sid), {}).get("user"),
+                        **({"voice": "f"} if "f" in tag else {})})
         out[word] = lst
         print(f"  shouts {word:5s} {sum(e['kind'] == 'group' for e in lst)} group + {sum(e['kind'] == 'solo' for e in lst)} solo takes")
     index["shouts"] = out

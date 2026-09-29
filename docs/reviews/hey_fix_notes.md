@@ -1,0 +1,34 @@
+# The "demonic HEY" fix (playtest note: "the 'hey's are a bit demonic, fix them up")
+
+## Diagnosis (measured)
+
+1. **Overlay stem** (`stems/jim_edit_overlay/shouts.ogg`, `tools/music` `SampledGangShouts`): each HEY stacked 10-16
+   layers; ~80 % of the solo layers were ONE performer (Mafon2) resampled N(0, 0.9) st up to ±2.5 st (formants move
+   with it). One voice layered at several pitches is the textbook demon-voice effect. Plus reverberant / processed
+   group takes ("Hey huge", a stadium chant), a darkening EQ (+1.5 dB 250 Hz, −3 dB shelf at 6 kHz) and a 2.2 s dark
+   hall send. Measured at the 20 HEY lane events: centroid 1034 Hz, low-mids 80-500 Hz −4.2 dB vs presence 1-4 kHz,
+   tail 0.35-0.8 s after the hit −7.4 dB. Group shouts have no single F0 (pyin voicing ≈ 0); the solo takes sit at
+   natural F0 (men 200-300 Hz), so the "growl" is the cloned-pitch stack + darkness + reverb, not one low F0.
+2. **Strike HEY** (`src/audio/sfx.ts` `Sfx.hey`, on EVERY strike, 5-6 voices with the crowd / on a heave): a
+   formant-filtered sawtooth cluster (196/208/233/262/294/311 Hz = G3 G#3 A#3 C4 D4 D#4, chromatic) sliding down
+   2 st. Rendered in Chromium: centroid ~600 Hz, low-mids +5..+6 dB over presence. NOT FIXED YET (below).
+3. Also noted: the death groan `crowd_ooh` plays at rate 0.78 (−4.3 st) in `stage.ts onDeath`.
+
+## Done (iteration 8)
+
+- New takes: CC0 group of guys (jukkis111 ×3), women's HEYs (AmeAngelofSin CC-BY, Legnalegna55 CC0), vikuserro "Ey!";
+  dropped the growled / screamed / reverberant takes (SAMPLES.md). Every kept take transcribes as "Hey!" (Whisper).
+- `SampledGangShouts`: ≤ 8 layers, one take per performer, ~40 % women, ±1 st max (σ 0.45), 0-10 ms spread,
+  EQ −2 dB 320 Hz / +2.5 dB 2.8 kHz. Overlay sends: room .14 only (was room .25 + hall .12).
+- `build_original.py --stage shouts` re-rendered both overlay stems (+ the final hit). Same level vs the record
+  (−5.3 dB broadband, −0.9 dB in 300 Hz-4 kHz at the HEYs). HEY centroid 1034 → 1674 Hz, low-mid/presence −4.2 →
+  −11.2 dB, tail −7.4 → −20.2 dB. Comparison: `playtest/out-audio/hey_before_after.mp3` (stem only, before then after).
+
+## Still to do
+
+- `sfx.ts`: play real `hey_1..3` (+ `hey_crowd` when the crowd is up) for the strike/roar instead of the synth cluster
+  (register StageAudio's SampleBank per AudioContext; start into the /h/ pre-roll when there is no lead time); make the
+  synth fallback a consonant, brighter unison. Add `hey_1..3` to `SAMPLE_ONSETS`.
+- `sfx.py`: add a `--set=voices` (merge) and re-render `hey_1..3`, `hey_crowd`, `hup_1..2` with the new gang.
+- `stage.ts` death groan: rate 0.78 → ~0.94.
+- Re-run `node playtest/playtest.mjs --dist=dist-audio --out=playtest/out-audio` and `mixlab.mjs`.

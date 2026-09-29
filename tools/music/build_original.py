@@ -2,7 +2,7 @@
 """Beat map, lanes, level edit and reward overlays for the ORIGINAL recording of "You Don't Mess Around with Jim".
 
 Run with the analysis venv (librosa + demucs):
-    tools/music/.venv/bin/python tools/music/build_original.py [--stage all|grid|lanes|edit|overlay]
+    tools/music/.venv/bin/python tools/music/build_original.py [--stage all|grid|lanes|full|edit|shouts]
 
 Inputs (never committed):  reference/jim_croce_original.mp3  (copied to assets/audio/licensed/jim_original.mp3)
 Stems (gitignored build):  tools/music/build/original/demucs/htdemucs_6s/jim_croce_original/*.wav  (demucs htdemucs_6s)
@@ -365,11 +365,12 @@ def stage_lanes():
 
 # ======================================================================================== overlay + encode
 OVERLAY_LEVELS = {"shouts": -17.0, "stomps": -19.0, "cowbell": -24.0}     # track LUFS (active parts)
+SHOUT_SENDS = {"room": 0.14}                                                # the gang in the bar's room, no hall
 
 
-def render_overlay(G, place, n_samples, extra=None):
+def render_overlay(G, place, n_samples, extra=None, only=None):
     """Render the overlay events (song beats -> file seconds) with the sampled palette. Returns {stem: (2, n)}.
-    extra(tracks_by_name, file_time_of_beat) may add events (e.g. the edit's final hit)."""
+    extra(tracks_by_name, file_time_of_beat) may add events (e.g. the edit's final hit). only = stems to fill."""
     from producer.score import Score
     from producer.mix import Mixer
     from instruments.palette import Palette
@@ -382,20 +383,23 @@ def render_overlay(G, place, n_samples, extra=None):
     s.bus("shouts", comp=dict(thresh=-18, ratio=2, attack_ms=5, release_ms=100))
     s.bus("stomps", comp=dict(thresh=-16, ratio=2.5, attack_ms=6, release_ms=90))
     s.bus("cowbell")
-    hey = s.track("shouts", P.shouts(voices=12), bus="shouts", lufs=OVERLAY_LEVELS["shouts"],
-                  sends={"room": 0.25, "hall": 0.12}, eq=[("hp", 160)])
+    # iteration 8 ("the HEYs are a bit demonic"): a tight natural gang (SampledGangShouts caps a hit at 8 layers, one
+    # take per performer, +-1 st) in a SHORT dry-ish room - the old room .25 + 2.2 s dark hall .12 smeared it
+    hey = s.track("shouts", P.shouts(voices=8), bus="shouts", lufs=OVERLAY_LEVELS["shouts"],
+                  sends=SHOUT_SENDS, eq=[("hp", 160)])
     stp = s.track("stomps", P.kit(), bus="stomps", lufs=OVERLAY_LEVELS["stomps"], sends={"room": 0.3},
                   eq=[("hp", 45)])
     cow = s.track("cowbell", P.kit(levels={"cowbell": 0.5}), bus="cowbell", lufs=OVERLAY_LEVELS["cowbell"],
                   sends={"room": 0.2}, pan=0.25)
     ftb = lambda b: float(G.beat_to_time(b) + G.offset)
-    for b, w, vel, voices, phrase in place.shouts:
+    want = lambda k: only is None or k in only
+    for b, w, vel, voices, phrase in (place.shouts if want("shouts") else []):
         hey.hit(ftb(b), w, vel, voices=voices)
-    for b, vel, gang in place.stomps:
+    for b, vel, gang in (place.stomps if want("stomps") else []):
         stp.hit(ftb(b), "stomp", vel, gang=gang)
-    for b, vel in place.claps:
+    for b, vel in (place.claps if want("stomps") else []):
         stp.hit(ftb(b), "clap", vel)
-    for b, vel in place.cow:
+    for b, vel in (place.cow if want("cowbell") else []):
         cow.hit(ftb(b), "cowbell", vel, tune=cow_tune)
     if extra:
         extra({"shouts": hey, "stomps": stp, "cowbell": cow}, ftb)
@@ -580,12 +584,55 @@ def splice(x, G, keep=EDIT_KEEP, final_beat=EDIT_FINAL_SONG_BEAT, fade_beats=1.0
 def final_hit(tracks, ftb_edit_time):
     """our button on the final beat: gang HEY, stomps, kick, crash, cowbell, crowd"""
     t = ftb_edit_time
-    tracks["shouts"].hit(t, "HEY", 1.0, voices=16)
+    tracks["shouts"].hit(t, "HEY", 1.0, voices=8)
     tracks["stomps"].hit(t, "stomp", 1.0, gang=5)
     tracks["stomps"].hit(t, "kick", 1.0)
     tracks["stomps"].hit(t, "crash", 1.0)
     tracks["stomps"].hit(t, "clap", 0.9)
     tracks["cowbell"].hit(t, "cowbell", 0.9, tune=1.049)
+
+
+def render_button(n, t_final):
+    """the edit's final hit at file time `t_final`, rendered alone: {shouts (+ the crowd's cheer), stomps, cowbell}"""
+    from producer.score import Score
+    from producer.mix import Mixer
+    from instruments.palette import Palette
+    from instruments.vocals import Crowd
+    P = Palette(use_samples=True)
+    sc = Score("jim_button", "button", bpm=60, sr=SR, pre_roll=0.0, tail=0.0, swing=0.0)
+    sc.section("all", int(math.ceil(n / SR / 4)) + 1)
+    sc.bus("shouts")
+    sc.bus("stomps")
+    sc.bus("cowbell")
+    tr = {"shouts": sc.track("shouts", P.shouts(voices=8), bus="shouts", sends={"room": 0.18, "hall": 0.05}),
+          "stomps": sc.track("stomps", P.kit(), bus="stomps", sends={"room": 0.3, "hall": 0.15}),
+          "cowbell": sc.track("cowbell", P.kit(), bus="cowbell", sends={"room": 0.2})}
+    final_hit(tr, t_final)
+    crowd = sc.track("crowd", Crowd(), bus="shouts", sends={"hall": 0.3})
+    crowd.hit(t_final + 0.15, "cheer", 0.9, dur=3.5)
+    return Mixer(sc, verbose=False).render()
+
+
+def _fit(v, n):
+    return v[:, :n] if v.shape[1] >= n else np.pad(v, ((0, 0), (0, n - v.shape[1])))
+
+
+def add_button(ov, btn, n):
+    """the button into the overlay stems, like the loudest overlay moments (peak ~ -3 dBFS), then -1 dBTP limited"""
+    from producer.mix import limiter
+    for k in ov:
+        b = btn.get(k)
+        if b is not None:
+            b = _fit(b, n)
+            b = b * (10 ** (-3 / 20) / (np.max(np.abs(b)) + 1e-9)) * (0.8 if k == "cowbell" else 1.0)
+            ov[k] = limiter(ov[k] + b, SR, ceiling_db=-1.0)
+    return ov
+
+
+def button_mix(btn, n):
+    """the button as baked (quieter) into the licensed edit mix"""
+    m = sum(_fit(v, n) for v in btn.values())
+    return m * (10 ** (-6 / 20) / (np.max(np.abs(m)) + 1e-9))
 
 
 def stage_edit():
@@ -603,35 +650,10 @@ def stage_edit():
         v, _ = splice(ovf[k].astype(np.float64), G, fade_beats=0.0)
         ov[k] = v[:, :n] if v.shape[1] >= n else np.pad(v, ((0, 0), (0, n - v.shape[1])))
     # the final hit (rendered on the edit timeline) goes into the overlays AND (quieter) into the edit's mix
-    from producer.score import Score
-    from producer.mix import Mixer, limiter
-    from instruments.palette import Palette
-    P = Palette(use_samples=True)
-    sc = Score("jim_button", "button", bpm=60, sr=SR, pre_roll=0.0, tail=0.0, swing=0.0)
-    sc.section("all", int(math.ceil(n / SR / 4)) + 1)
-    sc.bus("shouts")
-    sc.bus("stomps")
-    sc.bus("cowbell")
-    tr = {"shouts": sc.track("shouts", P.shouts(voices=16), bus="shouts", sends={"hall": 0.25}),
-          "stomps": sc.track("stomps", P.kit(), bus="stomps", sends={"room": 0.3, "hall": 0.15}),
-          "cowbell": sc.track("cowbell", P.kit(), bus="cowbell", sends={"room": 0.2})}
-    t_final = float(GE.beat_to_time(final_e) + GE.offset)
-    final_hit(tr, t_final)
-    from instruments.vocals import Crowd
-    crowd = sc.track("crowd", Crowd(), bus="shouts", sends={"hall": 0.3})
-    crowd.hit(t_final + 0.15, "cheer", 0.9, dur=3.5)
-    btn = Mixer(sc, verbose=False).render()
-    gains = json.load(open(os.path.join(ROOT, "assets", "audio", "jim_original.beatmap.json")))["audio"][
-        "overlayCalibration"]["appliedGainDb"]
-    for k in ov:
-        b = btn.get(k)
-        if b is not None:
-            b = b[:, :n] if b.shape[1] >= n else np.pad(b, ((0, 0), (0, n - b.shape[1])))
-            # button level: like the loudest overlay moments (peak ~ -3 dBFS)
-            b = b * (10 ** (-3 / 20) / (np.max(np.abs(b)) + 1e-9)) * (0.8 if k == "cowbell" else 1.0)
-            ov[k] = limiter(ov[k] + b, SR, ceiling_db=-1.0)
-    btn_mix = sum(v[:, :n] if v.shape[1] >= n else np.pad(v, ((0, 0), (0, n - v.shape[1]))) for v in btn.values())
-    btn_mix *= 10 ** (-6 / 20) / (np.max(np.abs(btn_mix)) + 1e-9)
+    from producer.mix import limiter
+    btn = render_button(n, float(GE.beat_to_time(final_e) + GE.offset))
+    ov = add_button(ov, btn, n)
+    btn_mix = button_mix(btn, n)
     y_mix = limiter(y + btn_mix, SR, ceiling_db=-0.5)
     # encode
     ogg = os.path.join(LIC, "jim_edit.ogg")
@@ -758,9 +780,68 @@ def check_splice(y, GE):
     print(f"splice seam spectral change {seam:.2f} dB vs neighbouring beats {np.median(diffs):.2f} dB (median)")
 
 
+def stage_shouts():
+    """Iteration 8: re-render ONLY the gang-shout overlay (full song + the edit, with the final hit) and the edit's
+    licensed mix (its button carries the final HEY). The stomps/cowbell stems, the lanes and every other beat-map field
+    stay as they are; the beat maps get the new shouts file sizes, gain and section levels."""
+    from original.overlay import Place
+    from original.timegrid import TimeGrid
+    G, g = load_grid()
+    lanes = json.load(open(os.path.join(BUILD, "lanes.json")))["lanes"]
+    swing = float(np.nanmedian(g["swing"]))
+    mix = decode(SRC)
+    n = mix.shape[1]
+    place = Place(G, lanes, TR["form"], N_BEATS, swing).build()
+    full_p = os.path.join(ROOT, "assets", "audio", "jim_original.beatmap.json")
+    full = json.load(open(full_p))
+    have = [(round(e["beat"], 3), e["word"]) for e in full["lanes"]["shouts"]]
+    assert have == [(round(b, 3), w) for b, w, *_ in place.shouts], "shout placement differs from the beat map"
+    sh, gains = calibrate_overlay(G, mix, {"shouts": render_overlay(G, place, n, only={"shouts"})["shouts"]})
+    npz = os.path.join(BUILD, "overlay_full.npz")
+    ovf = {k: v for k, v in np.load(npz).items()}
+    ovf["shouts"] = sh["shouts"].astype(np.float32)
+    np.savez(npz, **ovf)
+    pth = os.path.join(ROOT, "assets", "audio", "stems", "jim_overlay", "shouts.ogg")
+    encode(sh["shouts"], pth, 4)
+    fa = full["audio"]
+    fa["files"]["shouts"]["bytes"] = os.path.getsize(pth)
+    fa["overlayCalibration"]["appliedGainDb"]["shouts"] = round(gains["shouts"], 2)
+    fa["overlayLevels"] = section_level_report(G, mix, {k: v.astype(np.float64) for k, v in ovf.items()})
+    with open(full_p, "w") as f:
+        json.dump(full, f, indent=1, separators=(",", ": "))
+        f.write("\n")
+    print("full: shouts gain", round(gains["shouts"], 2), "dB")
+    # ---- the edit: the full stem cut the same way + the final hit; the licensed edit mix gets the new button
+    from producer.mix import limiter
+    y, eft = splice(mix, G)
+    GE = TimeGrid(eft, SR)
+    ne = y.shape[1]
+    final_e = edit_map(EDIT_FINAL_SONG_BEAT)
+    v, _ = splice(ovf["shouts"].astype(np.float64), G, fade_beats=0.0)
+    btn = render_button(ne, float(GE.beat_to_time(final_e) + GE.offset))
+    ove = add_button({"shouts": _fit(v, ne)}, btn, ne)
+    edit_p = os.path.join(ROOT, "assets", "audio", "jim_edit.beatmap.json")
+    edit = json.load(open(edit_p))
+    pth = os.path.join(ROOT, "assets", "audio", "stems", "jim_edit_overlay", "shouts.ogg")
+    encode(ove["shouts"], pth, 4)
+    edit["audio"]["files"]["shouts"]["bytes"] = os.path.getsize(pth)
+    edit["audio"]["overlayCalibration"] = fa["overlayCalibration"]
+    if os.path.exists(LIC):                       # licensed (gitignored): the record + the button, never committed
+        y_mix = limiter(y + button_mix(btn, ne), SR, ceiling_db=-0.5)
+        ogg = os.path.join(LIC, "jim_edit.ogg")
+        encode(y_mix, ogg, 5)
+        encode(y_mix, os.path.join(LIC, "jim_edit.mp3"), 4, "mp3")
+        edit["audio"]["files"]["mix"]["decoderLagSamples"] = decoder_lag(y_mix, ogg)
+        edit["audio"]["files"]["mix"]["bytes"] = os.path.getsize(ogg)
+    with open(edit_p, "w") as f:
+        json.dump(edit, f, indent=1, separators=(",", ": "))
+        f.write("\n")
+    print("edit: shouts stem + button re-rendered")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--stage", default="all", choices=["all", "grid", "lanes", "full", "edit"])
+    ap.add_argument("--stage", default="all", choices=["all", "grid", "lanes", "full", "edit", "shouts"])
     args = ap.parse_args()
     os.makedirs(BUILD, exist_ok=True)
     os.makedirs(REPORTS, exist_ok=True)
@@ -772,6 +853,8 @@ def main():
         stage_full()
     if args.stage in ("all", "edit"):
         stage_edit()
+    if args.stage == "shouts":
+        stage_shouts()
 
 
 if __name__ == "__main__":
