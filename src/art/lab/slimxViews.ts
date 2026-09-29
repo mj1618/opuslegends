@@ -9,7 +9,7 @@ import type { Ctx } from '../core/canvas';
 import { TAU, fract } from '../core/math';
 import { FilmPass } from '../fx/film';
 import { drawBarFloor, makeBar } from '../grindhouse/bar';
-import { SLIM_POSES, SLIM_POSE_LEN, type SlimPose, type SlimState } from '../grindhouse/slim';
+import { SLIM_POSES, SLIM_POSE_LEN, type SlimPose, type SlimState, drawSlimOld } from '../grindhouse/slim';
 import { type StreetScene, drawStreetGround, makeStreet } from '../grindhouse/street';
 import { SLIM_STYLES, SLIM_STYLE_NAMES, type SlimStyle, drawSlimX } from '../grindhouse/slimx';
 import { type ArtCamera, layerView, pushLayer } from '../world/camera';
@@ -235,9 +235,115 @@ function drawWorld(l: LabCtx, bg: 'street' | 'bar'): void {
   label(g, `IN-GAME SCALE · ${bg === 'bar' ? 'honky-tonk' : '42nd St'} · hero pass + film pass`, 40, 60, 22, '#F4EFE2', 'left');
 }
 
+// ------------------------------------------------------------------------------ sheet layout (review frames)
+
+interface Cell {
+  pose: SlimPose;
+  pt: number;
+  /** beat (idle bar A = flex, bar B = hip) */
+  beat?: number;
+  ph?: number;
+  label: string;
+  air?: number;
+  speed?: number;
+}
+
+const SETS: Record<string, Cell[]> = {
+  all: [
+    { pose: 'idle', pt: 1, beat: 1.2, label: 'idle · flex' },
+    { pose: 'idle', pt: 1, beat: 5.3, label: 'idle · swagger' },
+    { pose: 'run', pt: 0, ph: 0.0, label: 'run · contact', speed: 1024 },
+    { pose: 'run', pt: 0, ph: 0.2, label: 'run · down', speed: 1024 },
+    { pose: 'run', pt: 0, ph: 0.4, label: 'run · push', speed: 1024 },
+    { pose: 'run', pt: 0, ph: 0.72, label: 'run · drive', speed: 1024 },
+    { pose: 'hop', pt: 0.18, label: 'hop', air: -40 },
+    { pose: 'fall', pt: 0.3, label: 'fall', air: -40 },
+    { pose: 'land', pt: 0.03, label: 'land' },
+    { pose: 'strike', pt: 0.0, label: 'strike 0 (contact)' },
+    { pose: 'strike', pt: 0.06, label: 'strike .06' },
+    { pose: 'strike', pt: 0.14, label: 'strike .14' },
+    { pose: 'strike', pt: 0.3, label: 'strike .30' },
+    { pose: 'heave', pt: 0.08, label: 'heave' },
+    { pose: 'slide', pt: 0.3, label: 'knee-slide', speed: 1024 },
+    { pose: 'stumble', pt: 0.12, label: 'stumble', air: -10 },
+    { pose: 'dead', pt: 0.3, label: 'dead', air: -30 },
+    { pose: 'respawn', pt: 0.1, beat: 5.3, label: 'respawn' },
+    { pose: 'victory', pt: 1, beat: 0.1, label: 'victory' },
+    { pose: 'strike', pt: 0.03, label: 'strike .03 (moving)', speed: 1024 },
+    { pose: 'idle', pt: 1, beat: 7.6, label: 'idle · cue twirl' },
+  ],
+  run: [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875].map((ph) => ({ pose: 'run' as SlimPose, pt: 0, ph, label: `run ${ph}`, speed: 1024 })),
+  strike: [0, 0.02, 0.04, 0.07, 0.1, 0.14, 0.2, 0.26, 0.34, 0.44].map((pt) => ({ pose: 'strike' as SlimPose, pt, label: `strike ${pt}` })),
+  one: [{ pose: (q.get('pose') ?? 'run') as SlimPose, pt: Number(q.get('pt') ?? 0), ph: Number(q.get('ph') ?? 0.1), beat: Number(q.get('beat') ?? 5.3), label: q.get('pose') ?? 'run', speed: Number(q.get('spd') ?? 1024) }],
+  final: [
+    { pose: 'idle', pt: 1, beat: 5.3, label: 'idle' },
+    { pose: 'run', pt: 0, ph: 0.9, label: 'run', speed: 1024 },
+    { pose: 'strike', pt: 0.0, label: 'strike (contact)' },
+    { pose: 'hop', pt: 0.2, label: 'hop', air: -30 },
+    { pose: 'slide', pt: 0.3, label: 'knee-slide', speed: 1024 },
+    { pose: 'stumble', pt: 0.1, label: 'stumble' },
+    { pose: 'victory', pt: 1, beat: 4.1, label: 'victory' },
+  ],
+  head: [
+    { pose: 'idle', pt: 1, beat: 5.3, label: 'idle' },
+    { pose: 'run', pt: 0, ph: 0.2, label: 'run', speed: 1024 },
+    { pose: 'strike', pt: 0.02, label: 'strike' },
+    { pose: 'victory', pt: 1, beat: 0.1, label: 'victory' },
+  ],
+  air: [
+    { pose: 'hop', pt: 0.0, label: 'hop 0', air: -20 },
+    { pose: 'hop', pt: 0.06, label: 'hop .06', air: -40 },
+    { pose: 'hop', pt: 0.2, label: 'hop .2', air: -40 },
+    { pose: 'fall', pt: 0.1, label: 'fall', air: -40 },
+    { pose: 'land', pt: 0.0, label: 'land 0' },
+    { pose: 'land', pt: 0.08, label: 'land .08' },
+    { pose: 'land', pt: 0.2, label: 'land .2' },
+    { pose: 'stumble', pt: 0.05, label: 'stumble .05', air: -10 },
+    { pose: 'stumble', pt: 0.2, label: 'stumble .2', air: -10 },
+    { pose: 'stumble', pt: 0.35, label: 'stumble .35', air: -10 },
+  ],
+};
+
+function drawSheet(l: LabCtx): void {
+  const g = l.g;
+  const t = l.time;
+  studio(g);
+  const cells = SETS[q.get('set') ?? 'all'] ?? SETS.all;
+  const cols = Number(q.get('cols') ?? Math.min(7, cells.length));
+  const rows = Math.ceil(cells.length / cols);
+  const cw = 1920 / cols;
+  const rh = 1080 / rows;
+  const sc = Number(q.get('sc') ?? Math.min(2.2, (rh - 60) / 150));
+  const old = q.get('old') === '1';
+  cells.forEach((c, i) => {
+    const cx = cw * (i % cols) + cw / 2;
+    const cy = rh * Math.floor(i / cols) + rh - 34;
+    g.fillStyle = 'rgba(60,50,40,0.16)';
+    g.fillRect(cx - cw * 0.4, cy, cw * 0.8, 3);
+    const beat = c.beat ?? 0.3;
+    const s: SlimState = {
+      pose: c.pose,
+      poseTime: c.pt,
+      time: t + (c.pose === 'idle' || c.pose === 'victory' ? 0 : 0),
+      beat,
+      beatPhase: beat - Math.floor(beat),
+      runPhase: c.ph ?? (t * 1024) / 192,
+      speed: c.speed ?? 0,
+      vy: c.pose === 'hop' ? -700 : c.pose === 'fall' ? 800 : 0,
+      scale: sc,
+      bones: l.debug,
+    };
+    const y = cy + (c.air ?? 0) * sc;
+    if (old) drawSlimOld(g, cx, y, s);
+    else drawSlimX(style, g, cx, y, s);
+    label(g, c.label, cx, cy + 24, 15);
+  });
+}
+
 export function drawSlimxView(l: LabCtx): void {
   const layout = q.get('layout') ?? 'poses';
-  if (layout === 'world') drawWorld(l, q.get('bg') === 'bar' ? 'bar' : 'street');
+  if (layout === 'sheet') drawSheet(l);
+  else if (layout === 'world') drawWorld(l, q.get('bg') === 'bar' ? 'bar' : 'street');
   else drawPoses(l, style);
   void fract;
 }

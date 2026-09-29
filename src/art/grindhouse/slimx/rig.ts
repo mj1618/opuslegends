@@ -44,13 +44,13 @@ export interface Build {
 }
 
 export const BUILD: Build = {
-  thigh: 21,
-  shin: 20,
+  thigh: 23,
+  shin: 22,
   ankle: 7,
   torso: 50,
   upper: 24,
   fore: 23,
-  shN: [43, -19],
+  shN: [44, -15],
   shF: [45, 15],
   neck: [49, 6],
   headUp: 13,
@@ -125,6 +125,8 @@ export interface Pose {
   farFront: boolean;
   /** hair / shirt-tail flow (px back) — speed & air */
   flow: number;
+  /** the cue passes BEHIND the whole body (victory: across the shoulders) */
+  cueBack?: boolean;
 }
 
 export interface Smear {
@@ -229,32 +231,33 @@ function cyc(keys: number[][], ph: number, idx: number): number {
   return 0.5 * (2 * b + (-a + c) * u + (2 * a - 5 * b + 4 * c - d) * u2 + (-a + 3 * b - 3 * c + d) * u3);
 }
 
-// run cycle per leg: phase, thigh, shin, foot (deg). 0 = heel strike ahead, 0.2 mid-stance, 0.4 toe-off,
-// 0.55 heel kick, 0.72 knee drive, 0.87 reach.
+// run cycle per leg: phase, thigh, shin, foot (deg). 0 = heel strike ahead, 0.2 mid-stance (the body's low point),
+// 0.4 toe-off, 0.55 heel kick (the heel flicks up to the seat), 0.72 knee drive, 0.87 reach.
 const RUN_LEG = [
-  [0.0, 34, 4, -14],
-  [0.2, 12, -30, 0],
-  [0.4, -34, -26, 36],
-  [0.55, -26, -104, 52],
-  [0.72, 36, -70, 22],
-  [0.87, 56, -8, -6],
+  [0.0, 36, 8, -16],
+  [0.2, 10, -26, 0],
+  [0.38, -30, -30, 30],
+  [0.55, -22, -112, 60],
+  [0.72, 46, -64, 26],
+  [0.87, 62, -2, -10],
 ];
 
 function runLegs(P: Pose, ph: number, amp = 1): void {
   const L = (p: number): Leg => ({ a: cyc(RUN_LEG, p, 1) * D * amp, b: cyc(RUN_LEG, p, 2) * D * amp, f: cyc(RUN_LEG, p, 3) * D });
   P.legN = L(ph);
   P.legF = L(ph + 0.5);
-  P.hip = [0, -44 + 3 * Math.cos(TAU * 2 * (ph - 0.2))];
+  // two bobs per cycle: low at mid-stance, high at the flight between steps
+  P.hip = [0, -44.5 + 3.4 * Math.cos(TAU * 2 * (ph - 0.2))];
 }
 
-/** hand target that rests the cue on the near shoulder (the bat carry): fist low in front of the chest, clear of the chin */
+/** hand target that rests the cue on the near shoulder (the bat carry): fist at the pec, clear of the chin */
 function carry(P: Pose, lift = 0): void {
-  const h = T(P.hip, P.torso, 27 + lift, 2);
+  const h = T(P.hip, P.torso, 25 + lift, 7);
   P.armN = { x: h[0], y: h[1], bend: -1 };
-  const top = T(P.hip, P.torso, 51 + lift * 0.6, -22);
+  const top = T(P.hip, P.torso, 55 + lift * 0.6, -24);
   // aim from the fist centre (~8 px up the forearm) over the shoulder top
   const ang = Math.atan2(top[1] - (h[1] - 7), top[0] - (h[0] + 2));
-  P.cue = { hand: 'N', ang, grip: 22 };
+  P.cue = { hand: 'N', ang, grip: 24 };
 }
 
 // ------------------------------------------------------------------------------ poses
@@ -264,18 +267,20 @@ function idle(s: SlimState, P: Pose): void {
   const bp = s.beatPhase ?? fract(time * (164 / 60));
   const beat = s.beat ?? time * (164 / 60);
   const nod = beatBob(bp, 7);
-  const q = squash(nod * 0.035);
+  const q = squash(nod * 0.03);
   P.root.sx = q.sx;
   P.root.sy = q.sy;
-  P.hip = [0, -46 + nod * 1.6];
-  P.torso = -4 * D + Math.sin(time * 1.3) * 1.2 * D;
-  P.head = 6 * D + nod * 6 * D;
-  P.pel = -3 * D;
-  P.legN = { a: -15 * D, b: -4 * D, f: 0 };
-  P.legF = { a: 17 * D, b: 7 * D, f: 0 };
+  // weight rocks onto the back leg and back on every beat (the shoulder roll)
+  const rock = Math.sin(Math.PI * bp) * (1 - bp);
+  P.hip = [-1 - rock * 1.5, -46 + nod * 1.8];
+  P.torso = -5 * D + Math.sin(time * 1.3) * 1.2 * D - rock * 2 * D;
+  P.head = 7 * D + nod * 6 * D;
+  P.pel = -4 * D;
+  P.legN = { a: -17 * D, b: -5 * D, f: 0 };
+  P.legF = { a: 19 * D, b: 8 * D, f: 0 };
   const in2 = ((beat % 8) + 8) % 8;
   // far hand leans on the cue planted like a walking stick
-  const hand: V = [35, -70 + nod * 1.5];
+  const hand: V = [36, -71 + nod * 1.5];
   P.armF = { x: hand[0], y: hand[1], bend: -1 };
   const spin = in2 >= 7.15 ? easeOut((in2 - 7.15) / 0.85) : 0;
   const lean = 7 * D;
@@ -283,20 +288,19 @@ function idle(s: SlimState, P: Pose): void {
   const grip = (-hand[1] - 1) / Math.cos(lean);
   P.cue = spin > 0 ? { hand: 'F', ang: ang - spin * TAU, grip: lerp(grip, BUILD.cueLen / 2, Math.min(1, bump(spin, 1) * 1.6)) } : { hand: 'F', ang, grip };
   if (in2 < 4) {
-    // bar A: the near arm FLEXES behind his head — bicep peak toward the camera, the fist clear of the face
+    // bar A: the near arm FLEXES — elbow out at shoulder height, fist by the ear, the bicep peak toward the camera
     const k = in2 < 0.4 ? easeOutBack(in2 / 0.4, 2.2) : in2 > 3.35 ? 1 - smooth((in2 - 3.35) / 0.65) : 1;
     P.flex = k;
-    P.armN = { a: lerp(-8, -100, k) * D, b: lerp(10, 176, k) * D + Math.sin(time * 34) * 0.02 * k };
+    P.armN = { a: lerp(-10, -92, k) * D, b: lerp(8, 172, k) * D + Math.sin(time * 34) * 0.02 * k };
     P.face = { eyes: 'squint', brow: 0.2, mouth: k > 0.5 ? 'grin' : 'smirk', open: 0, lx: 1, ly: 0 };
-    P.head = (6 - 6 * k) * D + nod * 5 * D;
+    P.head = (7 - 9 * k) * D + nod * 5 * D;
+    P.torso -= 3 * D * k;
   } else {
     // bar B: fist on the hip, shoulder roll on every beat
     const k = smooth(clamp01((in2 - 4) / 0.35));
-    const roll = Math.sin(bp * Math.PI) * (1 - bp) * 2.2;
-    const h = T(P.hip, P.torso, 10 + roll, -22);
+    const h = T(P.hip, P.torso, 8 + rock * 2.5, -21);
     P.armN = { x: lerp(-12, h[0], k), y: lerp(-40, h[1], k), bend: -1 };
     if (k < 0.5) P.armN = { a: -8 * D, b: 10 * D };
-    P.hip[1] += roll * 0.4;
     P.face = { eyes: 'squint', brow: 0.35, mouth: 'smirk', open: 0, lx: 1, ly: 0.1 };
   }
   if (blink(time, 5)) P.face.eyes = P.face.eyes === 'squint' ? 'closed' : P.face.eyes;
@@ -306,61 +310,65 @@ function run(s: SlimState, P: Pose): void {
   const ph = s.runPhase ?? s.time * 5.5;
   runLegs(P, ph);
   const b16 = Math.cos(TAU * 2 * (ph - 0.2));
-  P.torso = 15 * D + b16 * 1.5 * D;
-  P.pel = 6 * D;
-  P.head = -8 * D - b16 * 2 * D;
-  P.root.sx = 1 + b16 * 0.018;
-  P.root.sy = 1 - b16 * 0.018;
+  P.torso = 16 * D + b16 * 1.6 * D;
+  P.pel = 7 * D;
+  P.head = -9 * D - b16 * 2 * D;
+  P.root.sx = 1 + b16 * 0.02;
+  P.root.sy = 1 - b16 * 0.02;
   carry(P, -b16 * 1.2);
-  // far arm pumps against the near leg
-  const sw = Math.sin(TAU * ph);
-  P.armF = { a: (15 + sw * 58) * D, b: (95 + sw * 50) * D };
+  // the far arm pumps against the near leg — a tight, bent power pump (fist chest-high at most)
+  const sw = Math.sin(TAU * (ph - 0.7));
+  P.armF = { a: (8 + sw * 34) * D, b: (96 + sw * 22) * D };
   P.face = { eyes: blink(s.time, 5) ? 'closed' : 'angry', brow: 0.55, mouth: 'grit', open: 0, lx: 1, ly: 0 };
-  P.flow = 6;
+  P.flow = 7;
 }
 
 function hop(s: SlimState, P: Pose): void {
   const t = Math.max(0, s.poseTime);
-  const k = easeOut(clamp01(t / 0.14));
-  const v = velocityStretch(s.vy ?? -700, 1 / 3400, 0.16);
-  const st = 1 - easeOut(clamp01(t / 0.2));
-  P.root.sx = v.sx * (1 - 0.1 * st);
-  P.root.sy = v.sy * (1 + 0.12 * st);
+  const k = easeOut(clamp01(t / 0.08));
+  // a short, punchy takeoff stretch (a hulk never goes pencil-thin)
+  const v = velocityStretch(s.vy ?? -700, 1 / 5200, 0.09);
+  const st = 1 - easeOut(clamp01(t / 0.12));
+  P.root.sx = v.sx * (1 - 0.05 * st);
+  P.root.sy = v.sy * (1 + 0.06 * st);
   P.root.py = -60;
   P.hip = [0, -50];
-  P.torso = 10 * D;
-  P.pel = 10 * D;
-  P.head = -6 * D;
-  // cannonball tuck: near knee drives up, far leg folds under
-  P.legN = { a: lerp(-10, 78, k) * D, b: lerp(0, -38, k) * D, f: 18 * D };
-  P.legF = { a: lerp(10, 28, k) * D, b: lerp(-10, -96, k) * D, f: 40 * D };
-  carry(P, 2);
-  P.cue.ang -= 0.12 * k;
-  P.armF = { a: lerp(20, 128, k) * D, b: lerp(60, 150, k) * D };
-  P.face = { eyes: 'squint', brow: 0.4, mouth: 'grin', open: 0, lx: 1, ly: -0.3 };
-  P.flow = 5;
+  P.torso = lerp(8, 20, k) * D;
+  P.pel = lerp(4, 18, k) * D;
+  P.head = lerp(-8, -16, k) * D;
+  // cannonball tuck: the near knee drives up to the chest, the far heel folds under the seat
+  P.legN = { a: lerp(-10, 96, k) * D, b: lerp(-4, -6, k) * D, f: 24 * D };
+  P.legF = { a: lerp(14, 56, k) * D, b: lerp(-12, -70, k) * D, f: 44 * D };
+  carry(P, 3);
+  P.cue.ang -= 0.1 * k;
+  // the far fist leads the leap, forward and up
+  P.armF = { a: lerp(20, 70, k) * D, b: lerp(60, 140, k) * D };
+  P.face = { eyes: 'angry', brow: 0.5, mouth: 'grin', open: 0, lx: 1, ly: -0.4 };
+  P.flow = 6;
 }
 
 function fall(s: SlimState, P: Pose): void {
   const time = s.time;
-  const v = velocityStretch(s.vy ?? 700, 1 / 3400, 0.14);
+  const t = Math.max(0, s.poseTime);
+  const k = smooth(clamp01(t / 0.15));
+  const v = velocityStretch(s.vy ?? 700, 1 / 5200, 0.08);
   P.root.sx = v.sx;
   P.root.sy = v.sy;
   P.root.py = -60;
   const w = Math.sin(time * 11);
   P.hip = [0, -49];
-  P.torso = 4 * D;
-  P.pel = 4 * D;
-  P.head = 4 * D;
-  // reaching for the ground: near leg down + forward, far leg bent back
-  P.legN = { a: (26 + w * 4) * D, b: (6 + w * 3) * D, f: -8 * D };
-  P.legF = { a: (-12 - w * 4) * D, b: -48 * D, f: 26 * D };
+  P.torso = lerp(14, 3, k) * D;
+  P.pel = 2 * D;
+  P.head = lerp(-10, 8, k) * D;
+  // reaching for the ground: the near leg down + forward, the far leg bent back
+  P.legN = { a: lerp(60, 24 + w * 3, k) * D, b: lerp(-20, 4 + w * 2, k) * D, f: -8 * D };
+  P.legF = { a: lerp(40, -14 - w * 3, k) * D, b: lerp(-70, -54, k) * D, f: 30 * D };
   carry(P, 3);
-  P.cue.ang += 0.1;
-  P.armF = { a: (104 + w * 8) * D, b: (128 + w * 10) * D };
-  P.openF = true;
-  P.face = { eyes: 'open', brow: 0.2, mouth: 'grit', open: 0, lx: 0.8, ly: 0.6 };
-  P.flow = -4;
+  P.cue.ang += 0.08;
+  // the far fist out front, ready for the landing
+  P.armF = { a: (40 + w * 5) * D, b: (104 + w * 6) * D };
+  P.face = { eyes: 'open', brow: 0.3, mouth: 'grit', open: 0, lx: 0.7, ly: 0.7 };
+  P.flow = -5;
 }
 
 function land(s: SlimState, P: Pose): void {
@@ -369,29 +377,29 @@ function land(s: SlimState, P: Pose): void {
   const k = 1 - easeOut(clamp01(t / 0.26));
   P.root.sx = q.sx;
   P.root.sy = q.sy;
-  P.hip = [0, lerp(-46, -35, k)];
-  P.torso = lerp(4, 24, k) * D;
+  P.hip = [0, lerp(-46, -34, k)];
+  P.torso = lerp(4, 26, k) * D;
   P.pel = 8 * D * k;
-  P.head = lerp(4, -12, k) * D;
-  P.legF = { a: lerp(16, 64, k) * D, b: lerp(6, -14, k) * D, f: 0 };
-  P.legN = { a: lerp(-14, -22, k) * D, b: lerp(-4, -66, k) * D, f: lerp(0, 40, k) * D };
+  P.head = lerp(4, -14, k) * D;
+  P.legF = { a: lerp(18, 66, k) * D, b: lerp(7, -16, k) * D, f: 0 };
+  P.legN = { a: lerp(-16, -24, k) * D, b: lerp(-5, -70, k) * D, f: lerp(0, 44, k) * D };
   carry(P, -2 * k);
-  P.armF = { a: lerp(20, 36, k) * D, b: lerp(30, 20, k) * D };
-  P.face = { eyes: 'squint', brow: 0.5, mouth: 'grit', open: 0, lx: 1, ly: 0.2 };
+  P.armF = { a: lerp(20, 40, k) * D, b: lerp(30, 24, k) * D };
+  P.face = { eyes: 'squint', brow: 0.6, mouth: 'grit', open: 0, lx: 1, ly: 0.2 };
 }
 
-/** the cue's swing: screen angle over strike progress u (0 = low back wind-up, 1 = CONTACT forward-up, 2 = over the shoulder) */
+/** the cue's swing: screen angle over strike progress u (0 = low forward, 1 = CONTACT up-forward, 2 = wrapped back over the shoulder) */
 export function swingAng(u: number): number {
-  const K = [128, -12, -192];
+  const K = [70, -34, -132];
   const i = Math.max(0, Math.min(1, Math.floor(u)));
-  const f = smooth(Math.max(0, Math.min(1, u - i)));
+  const f = i === 0 ? smooth(Math.max(0, Math.min(1, u - i))) : easeOut(Math.max(0, Math.min(1, u - i)));
   return lerp(K[i], K[i + 1], f) * D;
 }
 
 /** where the hands are along the swing (torso-local u,v) */
 export function swingHands(u: number): V {
-  // 0: low behind the hip, 1: arms thrown forward, 1.5: high in front of the face, 2: resting on the shoulder
-  const K: V[] = [[14, -20], [34, 38], [80, 6], [44, -10]];
+  // 0: low in front of the hip, 1: arms thrown forward at the chest, 2: the cue wrapped over the near shoulder
+  const K: V[] = [[22, 14], [40, 36], [44, 34], [34, 22]];
   const x = Math.max(0, Math.min(2, u)) * 1.5;
   const i = Math.min(2, Math.floor(x));
   const f = smooth(x - i);
@@ -404,23 +412,23 @@ function strike(s: SlimState, P: Pose, R: { smear?: Smear }): void {
   const back = smooth((t - 0.2) / 0.24);
   const lean = bump(Math.min(t, 0.34), 0.34) * 0.6 + (t < 0.05 ? 0.4 * (1 - t / 0.05) : 0);
   const moving = (s.speed ?? 0) > 60;
-  // the upper body swings; legs keep running, or plant a lunge when standing
+  // the upper body swings; the legs keep running, or plant a lunge when standing
   const base = basePose();
   if (moving) run(s, base);
   else idle(s, base);
   if (moving) {
     runLegs(P, s.runPhase ?? 0);
   } else {
-    P.hip = [lerp(4, 0, back), lerp(-40, -46, back)];
-    P.legF = { a: lerp(58, 17, back) * D, b: lerp(4, 7, back) * D, f: 0 };
-    P.legN = { a: lerp(-38, -15, back) * D, b: lerp(-30, -4, back) * D, f: lerp(30, 0, back) * D };
+    P.hip = [lerp(5, 0, back), lerp(-40, -46, back)];
+    P.legF = { a: lerp(62, 19, back) * D, b: lerp(6, 8, back) * D, f: 0 };
+    P.legN = { a: lerp(-40, -17, back) * D, b: lerp(-34, -5, back) * D, f: lerp(34, 0, back) * D };
   }
-  // torso: thrown forward at contact, opens back as the cue wraps over
+  // torso: thrown forward into the contact, opens up as the cue goes over
   const uu = Math.max(1, u);
   const open = smooth((uu - 1) / 0.8);
-  P.torso = lerp(lerp(26, 12, open) * D, base.torso, back);
-  P.pel = lerp(10 * D, base.pel, back);
-  P.head = lerp(lerp(-10, -4, open) * D, base.head, back);
+  P.torso = lerp(lerp(28, 8, open) * D, base.torso, back);
+  P.pel = lerp(12 * D, base.pel, back);
+  P.head = lerp(lerp(-14, -10, open) * D, base.head, back);
   const hv = swingHands(uu);
   const hand = T(P.hip, P.torso, hv[0], hv[1]);
   const ang = swingAng(uu);
@@ -437,120 +445,141 @@ function strike(s: SlimState, P: Pose, R: { smear?: Smear }): void {
     while (a2 - ang > Math.PI) a2 -= TAU;
     while (a2 - ang < -Math.PI) a2 += TAU;
     P.armN = { x: hx, y: hy, bend: -1 };
-    P.cue = { hand: 'N', ang: lerp(ang, a2, back), grip: lerp(10, tmp.cue.grip, back), second: back < 0.45 ? 32 : undefined };
-    P.armF = back < 0.45 ? { a: 0, b: 0 } : base.armF;
-    if (!moving) P.armF = back < 0.45 ? P.armF : { a: 20 * D, b: 40 * D };
+    P.cue = { hand: 'N', ang: lerp(ang, a2, back), grip: lerp(12, tmp.cue.grip, back), second: back < 0.45 ? 34 : undefined };
+    P.armF = back < 0.45 ? { a: 0, b: 0 } : moving ? base.armF : { a: 20 * D, b: 40 * D };
   } else {
     P.armN = { x: hand[0], y: hand[1], bend: -1 };
-    P.cue = { hand: 'N', ang, grip: 10, second: 32 };
+    P.cue = { hand: 'N', ang, grip: 12, second: 34 };
   }
   P.farFront = P.cue.second !== undefined;
   const q = squash(-0.07 * lean);
   P.root.sx = q.sx;
   P.root.sy = q.sy;
-  P.face = { eyes: 'angry', brow: 1, mouth: t < 0.3 ? 'shout' : 'grit', open: 1 - smooth((t - 0.15) / 0.15), lx: 1, ly: -0.3 };
-  P.flow = 7;
+  P.face = { eyes: 'angry', brow: 1, mouth: t < 0.3 ? 'shout' : 'grit', open: 1 - smooth((t - 0.15) / 0.15), lx: 1, ly: -0.5 };
+  P.flow = 8;
   if (t < 0.2) R.smear = { kind: 'swing', t, alpha: 1 - clamp01(t / 0.2) };
 }
 
 function heave(s: SlimState, P: Pose, R: { smear?: Smear }): void {
   const t = Math.max(0, s.poseTime);
-  // BREAK SHOT: a full-body lunge, the cue driven straight through
-  const k = t < 0.05 ? easeOut(t / 0.05) : 1 - smooth((t - 0.24) / 0.22);
-  P.hip = [lerp(0, 12, k), lerp(-46, -34, k)];
-  P.torso = lerp(6, 52, k) * D;
-  P.pel = lerp(0, 18, k) * D;
-  P.head = lerp(0, -46, k) * D;
-  P.legF = { a: lerp(17, 72, k) * D, b: lerp(7, 8, k) * D, f: 0 };
-  P.legN = { a: lerp(-15, -52, k) * D, b: lerp(-4, -64, k) * D, f: lerp(0, 50, k) * D };
-  const hN = T(P.hip, P.torso, lerp(20, 30, k), lerp(-8, 36, k));
+  // BREAK SHOT: a full-body lunge, the cue driven straight through like a pool break (two hands, level)
+  const k = t < 0.05 ? easeOut(t / 0.05) : 1 - smooth((t - 0.26) / 0.22);
+  P.hip = [lerp(0, 12, k), lerp(-46, -33, k)];
+  P.torso = lerp(6, 48, k) * D;
+  P.pel = lerp(0, 16, k) * D;
+  P.head = lerp(0, -40, k) * D;
+  P.legF = { a: lerp(19, 74, k) * D, b: lerp(8, 6, k) * D, f: 0 };
+  P.legN = { a: lerp(-17, -56, k) * D, b: lerp(-5, -60, k) * D, f: lerp(0, 52, k) * D };
+  const hN = T(P.hip, P.torso, lerp(22, 30, k), lerp(-6, 40, k));
   P.armN = { x: hN[0], y: hN[1], bend: -1 };
-  P.cue = { hand: 'N', ang: lerp(-80, -6, k) * D, grip: 12, second: k > 0.25 ? 70 : undefined };
+  P.cue = { hand: 'N', ang: lerp(-80, -4, k) * D, grip: 14, second: k > 0.25 ? 72 : undefined };
   P.farFront = P.cue.second !== undefined;
   P.armF = { a: 60 * D, b: 80 * D };
   const q = squash(-0.1 * k);
   P.root.sx = q.sx;
   P.root.sy = q.sy;
   P.face = { eyes: 'angry', brow: 1, mouth: t < 0.35 ? 'shout' : 'grit', open: 1, lx: 1, ly: 0 };
-  P.flow = 10 * k;
+  P.flow = 11 * k;
   if (t < 0.25) R.smear = { kind: 'thrust', t, alpha: 1 - clamp01(t / 0.25) };
 }
 
 function slide(s: SlimState, P: Pose, R: { sparks?: boolean }): void {
-  // KNEE-SLIDE: both knees down, shins trailing on the floor, leaning back, cue raised like a guitar
+  // KNEE-SLIDE: both knees down, shins trailing on the floor, leaning back, the cue played like a guitar
   const w = Math.sin(s.time * 20) * 0.5;
+  const strum = Math.sin(s.time * 26);
   P.hip = [-2, -31 + w];
-  P.torso = -24 * D;
-  P.pel = -30 * D;
-  P.head = -10 * D;
-  P.legN = { a: 50 * D, b: -90 * D, f: 80 * D };
+  P.torso = -22 * D;
+  P.pel = -28 * D;
+  P.head = -14 * D + w * 0.02;
+  P.legN = { a: 52 * D, b: -90 * D, f: 80 * D };
   P.legF = { a: 72 * D, b: -84 * D, f: 80 * D };
-  P.armN = { a: 158 * D, b: 176 * D };
-  P.cue = { hand: 'N', ang: -62 * D + w * 0.04, grip: 22 };
-  P.armF = { a: 96 * D, b: 70 * D };
-  P.openF = true;
-  P.face = { eyes: 'squint', brow: -0.1, mouth: 'shout', open: 0.8, lx: 1, ly: -0.6 };
-  P.flow = 9;
+  // guitar: the body of the "guitar" at the far hip, the neck up and forward, the near hand on the frets
+  P.cue = { hand: 'F', ang: -38 * D + w * 0.03, grip: 22, second: 86 };
+  const hF = T(P.hip, P.torso, 12, 14 + strum * 2);
+  P.armF = { x: hF[0], y: hF[1], bend: 1 };
+  P.armN = { a: 60 * D, b: 120 * D };
+  P.farFront = true;
+  P.face = { eyes: 'closed', brow: -0.3, mouth: 'shout', open: 0.8, lx: 1, ly: -0.6 };
+  P.flow = 10;
   R.sparks = true;
 }
 
 function stumble(s: SlimState, P: Pose): void {
   const t = Math.max(0, s.poseTime);
-  const k = clamp01(t / 0.4);
-  // knocked back: a tucked backward roll, limbs flung
-  P.root.rot = -TAU * easeOut(k);
-  P.root.y = -16 * bump(t, 0.4);
-  P.root.py = -60;
+  // OOF: the hit arches him back, arms flung forward, a heel kicks up; he hops back on one foot and catches himself
+  const hit = easeOut(clamp01(t / 0.06));
+  const rec = smooth(clamp01((t - 0.2) / 0.2));
+  const k = hit * (1 - rec * 0.75);
+  const wob = Math.sin(t * 34) * (1 - rec);
+  P.root.x = -16 * easeOut(clamp01(t / 0.3));
+  P.root.y = -12 * bump(t, 0.34);
   P.hip = [0, -46];
-  P.torso = 18 * D;
-  P.head = 16 * D;
-  P.legN = { a: 80 * D, b: -30 * D, f: 20 * D };
-  P.legF = { a: 55 * D, b: -80 * D, f: 30 * D };
-  P.armN = { a: -150 * D, b: -110 * D };
-  P.armF = { a: 150 * D, b: 175 * D };
-  P.openN = true;
+  P.torso = lerp(6, -28, k) * D + wob * 0.05;
+  P.pel = -10 * D * k;
+  P.head = lerp(0, -24, k) * D - wob * 0.08;
+  P.legN = { a: lerp(-12, -20, k) * D, b: lerp(-6, -24, k) * D, f: 10 * D * k };
+  P.legF = { a: lerp(18, 70, k) * D, b: lerp(8, 30, k) * D, f: -20 * D * k };
+  P.armN = { a: lerp(10, 58, k) * D + wob * 0.2, b: lerp(30, 104, k) * D + wob * 0.3 };
+  P.armF = { a: lerp(30, 104, k) * D - wob * 0.2, b: lerp(50, 140, k) * D - wob * 0.3 };
   P.openF = true;
-  P.cue = { hand: 'N', ang: t * 22, grip: 60 };
-  P.face = { eyes: 'spiral', brow: -0.6, mouth: 'wavy', open: 0, lx: 0, ly: 0 };
+  P.farFront = false;
+  P.cue = { hand: 'N', ang: lerp(-110, -168, k) * D + wob * 0.25, grip: 30 };
+  P.face = { eyes: t < 0.1 ? 'wide' : 'spiral', brow: -0.7, mouth: t < 0.14 ? 'o' : 'wavy', open: 1, lx: 0, ly: 0 };
+  P.flow = -6;
 }
 
 function dead(s: SlimState, P: Pose): void {
   const time = s.time;
+  const t = Math.max(0, s.poseTime);
   const w = Math.sin(time * 22);
-  P.root.rot = 0.2 * Math.sin(time * 8);
-  P.root.py = -60;
+  // a limp starfish TUMBLE backwards out of the frame, the cue spinning away from his open hand
+  P.root.rot = -0.3 - t * 5.5;
+  P.root.py = -64;
   P.hip = [0, -48];
-  P.torso = -8 * D;
-  P.head = -14 * D;
-  P.legN = { a: (-34 + w * 18) * D, b: -60 * D, f: 40 * D };
-  P.legF = { a: (38 - w * 18) * D, b: -20 * D, f: 10 * D };
-  P.armN = { a: (-150 + w * 20) * D, b: (-170 + w * 30) * D };
-  P.armF = { a: (150 - w * 20) * D, b: (170 - w * 30) * D };
+  P.torso = -14 * D;
+  P.head = -22 * D;
+  P.legN = { a: (-46 + w * 12) * D, b: (-34 + w * 10) * D, f: 30 * D };
+  P.legF = { a: (54 - w * 12) * D, b: (20 - w * 10) * D, f: 10 * D };
+  P.armN = { a: (-128 + w * 18) * D, b: (-96 + w * 24) * D };
+  P.armF = { a: (118 - w * 18) * D, b: (84 - w * 24) * D };
   P.openN = true;
   P.openF = true;
-  P.cue = { hand: 'F', ang: -1.2 + time * 9, grip: 80 };
+  P.cue = { hand: 'F', ang: -1.2 + time * 11, grip: 80 + Math.min(60, t * 160) };
   P.face = { eyes: 'x', brow: -0.8, mouth: 'o', open: 1, lx: 0, ly: 0 };
-  P.flow = -8;
+  P.flow = -9;
 }
 
 function victory(s: SlimState, P: Pose): void {
   const bp = s.beatPhase ?? fract(s.time * (164 / 60));
+  const beat = s.beat ?? s.time * (164 / 60);
   const b = beatBob(bp, 5);
   P.root.sx = squash(b * 0.04).sx;
   P.root.sy = squash(b * 0.04).sy;
   P.hip = [0, -47 + b * 1.5];
-  P.torso = -7 * D;
+  P.torso = -6 * D;
   P.pel = -4 * D;
-  P.head = -14 * D;
-  P.legN = { a: -16 * D, b: -4 * D, f: 0 };
-  P.legF = { a: 18 * D, b: 6 * D, f: 0 };
-  // cue thrust overhead (near hand), far arm double-pumps a bicep
-  P.armN = { a: (-172 + b * 6) * D, b: (-178 + b * 4) * D };
-  P.cue = { hand: 'N', ang: (-112 - b * 5) * D, grip: 34 };
-  P.armF = { a: (88 + b * 6) * D, b: (178 - b * 10) * D };
-  P.flex = 1;
-  P.farFront = false;
-  P.face = { eyes: 'happy', brow: -0.2, mouth: 'grin', open: 0, lx: 1, ly: -0.3 };
+  P.head = -12 * D;
+  P.legN = { a: -18 * D, b: -5 * D, f: 0 };
+  P.legF = { a: 20 * D, b: 7 * D, f: 0 };
+  const in2 = ((beat % 8) + 8) % 8;
+  if (in2 < 4) {
+    // FIST PUMP on every beat: the cue planted in the far hand, the near fist punches the sky (behind the head)
+    const hand: V = [34, -72 + b * 1.5];
+    P.armF = { x: hand[0], y: hand[1], bend: -1 };
+    P.cue = { hand: 'F', ang: -Math.PI / 2 + 7 * D, grip: 71 };
+    const pump = easeOut(clamp01(bp / 0.12)) * (1 - smooth(clamp01((bp - 0.35) / 0.6)));
+    P.armN = { a: lerp(-150, -176, pump) * D, b: lerp(-120, -178, pump) * D };
+    P.flex = 0.6;
+    P.face = { eyes: 'happy', brow: -0.2, mouth: pump > 0.4 ? 'shout' : 'grin', open: 0.7, lx: 1, ly: -0.4 };
+    P.head = (-12 - 6 * pump) * D;
+  } else {
+    // DOUBLE FLEX: the cue thrust up in the near fist, the far arm curls a bicep
+    P.armN = { a: (-160 + b * 6) * D, b: (-176 + b * 4) * D };
+    P.cue = { hand: 'N', ang: (-104 - b * 5) * D, grip: 36 };
+    P.armF = { a: (86 + b * 6) * D, b: (176 - b * 10) * D };
+    P.flex = 1;
+    P.face = { eyes: 'happy', brow: -0.2, mouth: 'grin', open: 0.6, lx: 1, ly: -0.3 };
+  }
 }
 
 function respawn(s: SlimState, P: Pose): void {
@@ -645,7 +674,8 @@ export function slimPose(s: SlimState): { P: Pose; smear?: Smear; sparks: boolea
 
 export function solveSlim(s: SlimState, b: Build = BUILD): Rig {
   const { P, smear, sparks } = slimPose(s);
-  const hip = P.hip;
+  // poses are authored for 41 px of leg; longer legs lift the hip by the difference
+  const hip: V = [P.hip[0], P.hip[1] - (b.thigh + b.shin - 41) * 0.92];
   const up: V = [Math.sin(P.torso), -Math.cos(P.torso)];
   const fw: V = [Math.cos(P.torso), Math.sin(P.torso)];
   const at = (u: number, v: number): V => [hip[0] + up[0] * u + fw[0] * v, hip[1] + up[1] * u + fw[1] * v];

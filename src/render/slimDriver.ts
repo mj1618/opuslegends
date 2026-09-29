@@ -9,8 +9,11 @@
  *   slide    player.sliding          stumble  first 0.4 s of the stumble i-frames
  *   dead     player.mode 'dead'      respawn  0.45 s splice-pop after every (re)spawn
  *   victory  finish / end screen     idle     everything else (beat swagger: flex bar, chalk bar, cue spin)
+ *
+ * The look: the inked-comic Slim (art/grindhouse/slimx, iteration 9) — `?slim=old` draws the original capsule rig for
+ * comparison (every `drawSlim` call: the run, the title, the poster).
  */
-import { SLIM_POSE_LEN, SLIM_STRIDE, type SlimPose, type SlimState } from '../art/grindhouse/slim';
+import { SLIM_POSE_LEN, SLIM_STRIDE, type SlimPose, type SlimState, setSlimLook } from '../art/grindhouse/slim';
 import type { Game } from '../game/game';
 import { Tun } from '../game/tunables';
 
@@ -18,6 +21,10 @@ import { Tun } from '../game/tunables';
 export const SLIM_SCALE = 1.1;
 
 export class SlimDriver {
+  constructor() {
+    const q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
+    setSlimLook(q?.get('slim') === 'old' ? 'old' : 'ink');
+  }
   readonly s: SlimState = { pose: 'idle', poseTime: 0, time: 0, scale: SLIM_SCALE, facing: 1 };
   private pose: SlimPose = 'idle';
   private poseStart = 0;
@@ -82,9 +89,9 @@ export class SlimDriver {
     s.vy = p.vy;
     s.facing = p.facing < 0 ? -1 : 1;
     s.scale = SLIM_SCALE;
-    // the controller's squash spring, halved (the rig squashes per pose on its own)
-    s.squashX = 1 + (p.sx - 1) * 0.45;
-    s.squashY = 1 + (p.sy - 1) * 0.45;
+    // the controller's squash spring, damped to 30 % (the rig squashes per pose on its own)
+    s.squashX = 1 + (p.sx - 1) * 0.3;
+    s.squashY = 1 + (p.sy - 1) * 0.3;
     s.perfect = Math.max(0, Math.min(1, g.freezeFx / 0.2));
     // i-frames after the stumble tumble: blink
     this.alpha = p.iframes > 0 && sinceStumble >= 0.4 ? (Math.floor(now * 16) % 2 ? 0.35 : 1) : 1;

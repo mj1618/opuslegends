@@ -12,7 +12,7 @@ import type { Ctx } from '../../core/canvas';
 import { drawGlow, puff, star4 } from '../../core/draw';
 import { TAU, clamp01, easeOut, fract, hash } from '../../core/math';
 import { strikeU } from '../../rig/motion';
-import { drawSmear, speedLines } from '../../rig/smear';
+import { speedLines } from '../../rig/smear';
 import { CF } from '../../palette';
 import type { SlimState } from '../slim';
 import { type Rig, type V, solveSlim, swingAng, swingHands, tAt } from './rig';
@@ -40,38 +40,85 @@ const LOOKS: Record<SlimStyle, Look> = {
   flat: { paint: paintFlat, smear: { body: CF.tangerine, core: '#FFF6E8', hard: true }, dust: '#F4E6D0' },
 };
 
+/**
+ * The strike crescent: a FAN swept by the cue (hands -> tip) over the last part of the swing, cel-stepped (three
+ * nested fans, the newest the most opaque) with a hot cream leading edge and a thin ink rim — a hard anime smear, not a
+ * soft blur, drawn behind the body so the figure stays readable.
+ */
 function swingSmear(g: Ctx, r: Rig, look: Look): void {
   const sm = r.smear;
   if (!sm || sm.alpha < 0.01) return;
   const L = r.b.cueLen;
   const uNow = Math.max(1, strikeU(Math.min(sm.t, 0.2), 2, 0.09, 0.2, 0.42, 1.8));
-  const u0 = Math.max(0.45, uNow - 0.95 - sm.t * 2);
-  const at = (u: number): [number, number, number, number] => {
+  const u0 = Math.max(0.55, uNow - 0.8 - sm.t * 3);
+  const N = 16;
+  const at = (u: number, k: number): V => {
     const h = swingHands(u < 1 ? 1 : u);
     const hp = tAt(r, h[0], h[1]);
     const a = swingAng(u);
-    const reach = L - 12;
-    return [hp[0] + Math.cos(a) * reach, hp[1] + Math.sin(a) * reach, hp[0] + Math.cos(a) * reach * 0.62, hp[1] + Math.sin(a) * reach * 0.62];
+    return [hp[0] + Math.cos(a) * L * k, hp[1] + Math.sin(a) * L * k];
+  };
+  const fan = (ua: number, k0: number, k1: number): Path2D => {
+    const p = new Path2D();
+    for (let i = 0; i <= N; i++) {
+      const q = at(ua + ((uNow - ua) * i) / N, k1);
+      if (i === 0) p.moveTo(q[0], q[1]);
+      else p.lineTo(q[0], q[1]);
+    }
+    for (let i = N; i >= 0; i--) {
+      // the inner edge tapers toward the trailing end: a crescent, not a band
+      const f = i / N;
+      const q = at(ua + ((uNow - ua) * i) / N, k1 - (k1 - k0) * (0.25 + 0.75 * f));
+      p.lineTo(q[0], q[1]);
+    }
+    p.closePath();
+    return p;
   };
   const S = look.smear;
-  if (S.edge) drawSmear(g, at, u0, uNow, { color: S.edge, alpha: sm.alpha * 0.7, taper: 0.95 }, 18);
+  const A = sm.alpha;
   g.save();
-  if (S.edge) g.translate(0, 0);
-  drawSmear(g, at, u0 + 0.05, uNow, { color: S.body, core: S.core, alpha: sm.alpha * 0.85, taper: S.hard ? 1 : 0.95, coreWidth: S.hard ? 3 : 3.5 }, 18);
+  g.lineJoin = 'round';
+  const span = uNow - u0;
+  const full = fan(u0, 0.4, 1.02);
+  if (S.edge) {
+    g.globalAlpha = A * 0.8;
+    g.strokeStyle = S.edge;
+    g.lineWidth = 3;
+    g.stroke(full);
+  }
+  g.globalAlpha = A * 0.3;
+  g.fillStyle = S.body;
+  g.fill(full);
+  g.globalAlpha = A * 0.55;
+  g.fill(fan(u0 + span * 0.4, 0.46, 1.02));
+  g.globalAlpha = A * 0.9;
+  g.fill(fan(u0 + span * 0.72, 0.52, 1.02));
+  // hot leading edge along the tip path
+  g.globalAlpha = A;
+  g.strokeStyle = S.core;
+  g.lineCap = 'round';
+  g.lineWidth = S.hard ? 3 : 4;
+  g.beginPath();
+  for (let i = 0; i <= 10; i++) {
+    const q = at(u0 + span * (0.45 + 0.55 * (i / 10)), 1);
+    if (i === 0) g.moveTo(q[0], q[1]);
+    else g.lineTo(q[0], q[1]);
+  }
+  g.stroke();
   g.restore();
   if (S.ghosts) {
-    // rubber-hose multiples: three ghost cues fanned behind the real one
     for (let i = 1; i <= 3; i++) {
       const u = uNow - i * 0.13;
       if (u < u0) break;
-      const [ox, oy, ix, iy] = at(u);
-      g.globalAlpha = sm.alpha * (0.55 - i * 0.12);
+      const o = at(u, 0.92);
+      const n = at(u, 0.55);
+      g.globalAlpha = A * (0.55 - i * 0.12);
       g.strokeStyle = '#1A1410';
       g.lineWidth = 6;
       g.lineCap = 'round';
       g.beginPath();
-      g.moveTo(ix, iy);
-      g.lineTo(ox, oy);
+      g.moveTo(n[0], n[1]);
+      g.lineTo(o[0], o[1]);
       g.stroke();
       g.strokeStyle = CF.cueMaple;
       g.lineWidth = 3;
@@ -81,7 +128,8 @@ function swingSmear(g: Ctx, r: Rig, look: Look): void {
   }
 }
 
-function thrustSmear(g: Ctx, r: Rig, look: Look): void {
+/** the BREAK SHOT: a hard speed streak along the cue (behind the body), speed lines and a ring burst off the tip */
+function thrustSmear(g: Ctx, r: Rig, look: Look, front: boolean): void {
   const sm = r.smear;
   if (!sm) return;
   const { tip, dir } = r.cue;
@@ -89,24 +137,46 @@ function thrustSmear(g: Ctx, r: Rig, look: Look): void {
   const k = sm.t / 0.25;
   g.save();
   g.globalAlpha = sm.alpha;
-  const wedge = (w: number, len: number, col: string) => {
-    g.fillStyle = col;
-    g.beginPath();
-    g.moveTo(tip[0] + n[0] * 2, tip[1] + n[1] * 2);
-    g.lineTo(tip[0] - dir[0] * len + n[0] * w, tip[1] - dir[1] * len + n[1] * w);
-    g.lineTo(tip[0] - dir[0] * len - n[0] * w, tip[1] - dir[1] * len - n[1] * w);
-    g.lineTo(tip[0] - n[0] * 2, tip[1] - n[1] * 2);
-    g.closePath();
-    g.fill();
-  };
-  if (look.smear.edge) wedge(15, 150, look.smear.edge);
-  wedge(12, 146, look.smear.body);
-  wedge(4, 120, look.smear.core);
-  g.strokeStyle = look.smear.core;
-  g.lineWidth = 5 * (1 - k);
-  g.beginPath();
-  g.ellipse(tip[0] + dir[0] * 12, tip[1] + dir[1] * 12, 14 + 50 * easeOut(k), 22 + 70 * easeOut(k), Math.atan2(dir[1], dir[0]), 0, TAU);
-  g.stroke();
+  if (!front) {
+    const streak = (w: number, len: number, col: string) => {
+      g.fillStyle = col;
+      g.beginPath();
+      g.moveTo(tip[0] + dir[0] * 6, tip[1] + dir[1] * 6);
+      g.lineTo(tip[0] - dir[0] * len + n[0] * w, tip[1] - dir[1] * len + n[1] * w);
+      g.lineTo(tip[0] - dir[0] * len * 1.08, tip[1] - dir[1] * len * 1.08);
+      g.lineTo(tip[0] - dir[0] * len - n[0] * w, tip[1] - dir[1] * len - n[1] * w);
+      g.closePath();
+      g.fill();
+    };
+    if (look.smear.edge) streak(13, 230, look.smear.edge);
+    streak(10, 222, look.smear.body);
+    streak(3.5, 200, look.smear.core);
+    g.strokeStyle = look.smear.core;
+    g.lineCap = 'round';
+    for (let i = 0; i < 5; i++) {
+      const off = (i - 2) * 11 + (i % 2 ? 3 : -3);
+      const l0 = 40 + hash(i + 3) * 70 + k * 90;
+      const l1 = l0 + 50 + hash(i + 9) * 60;
+      g.lineWidth = 2.2 - Math.abs(i - 2) * 0.4;
+      g.beginPath();
+      g.moveTo(tip[0] - dir[0] * l0 + n[0] * off * 2.2, tip[1] - dir[1] * l0 + n[1] * off * 2.2);
+      g.lineTo(tip[0] - dir[0] * l1 + n[0] * off * 2.2, tip[1] - dir[1] * l1 + n[1] * off * 2.2);
+      g.stroke();
+    }
+  } else {
+    // the shock ring: an ink + cream ellipse opening forward off the tip
+    const e = easeOut(k);
+    const cx = tip[0] + dir[0] * (10 + 30 * e);
+    const cy = tip[1] + dir[1] * (10 + 30 * e);
+    const a = Math.atan2(dir[1], dir[0]);
+    for (const [col, w] of [[look.smear.edge ?? '#1A1410', 7], [look.smear.core, 4]] as [string, number][]) {
+      g.strokeStyle = col;
+      g.lineWidth = w * (1 - k);
+      g.beginPath();
+      g.ellipse(cx, cy, 8 + 20 * e, 20 + 56 * e, a, 0, TAU);
+      g.stroke();
+    }
+  }
   g.restore();
 }
 
@@ -155,8 +225,9 @@ export function drawSlimX(style: SlimStyle, g: Ctx, x: number, y: number, s: Sli
   g.translate(0, -R.py);
   // smears sit BEHIND the body: the figure stays readable, the crescent frames it
   if (r.smear && r.smear.kind === 'swing') swingSmear(g, r, look);
+  if (r.smear && r.smear.kind === 'thrust') thrustSmear(g, r, look, false);
   look.paint(g, r);
-  if (r.smear && r.smear.kind === 'thrust') thrustSmear(g, r, look);
+  if (r.smear && r.smear.kind === 'thrust') thrustSmear(g, r, look, true);
   if (r.smear && r.smear.t < 0.14) {
     const k = r.smear.t / 0.14;
     const tp = r.cue.tip;
@@ -191,9 +262,24 @@ export function drawSlimX(style: SlimStyle, g: Ctx, x: number, y: number, s: Sli
     g.fillRect(-130, -95, 260, 3);
   }
   if (s.pose === 'stumble') {
+    // little 8-balls orbiting his head (DESIGN §2)
     for (let i = 0; i < 3; i++) {
       const a = s.time * 7 + (i * TAU) / 3;
-      star4(g, Math.cos(a) * 26, -150 + Math.sin(a) * 7, 7, a, CF.cream);
+      const bx = Math.cos(a) * 28;
+      const by = -156 + Math.sin(a) * 8;
+      g.fillStyle = '#1A1410';
+      g.beginPath();
+      g.arc(bx, by, 5.5, 0, TAU);
+      g.fill();
+      g.fillStyle = CF.cream;
+      g.beginPath();
+      g.arc(bx + 1, by - 1, 2.3, 0, TAU);
+      g.fill();
+      g.strokeStyle = CF.cream;
+      g.lineWidth = 1;
+      g.beginPath();
+      g.arc(bx, by, 5.5, -2.4, -1.2);
+      g.stroke();
     }
   }
   if (pf > 0.01) drawGlow(g, 0, -66, CF.filmHi, 120, pf * 0.35);

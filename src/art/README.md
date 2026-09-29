@@ -326,12 +326,34 @@ shutter dip, warm multiply, vignette, bass-synced gate weave ≤2/≤1 px, cigar
 y, speed, from: 'edge'|'view', max, prefill }`; pinned actors on tiling anchors; `ActorKind { spawn, update, draw }`).
 
 **grindhouse/** (the current theme)
-- `slim.ts` — **`drawSlim(ctx, x, y, SlimState)`**, origin = feet centre, ~130 px tall. State: `pose` (`idle run hop
-  fall land strike heave slide stumble dead respawn victory`), `poseTime`, `time`, `beatPhase`, `beat`, `runPhase`
-  (= distance / `SLIM_STRIDE` 192), `speed`, `vy`, `facing`, `scale`, `squashX/Y`, `lookX/Y`, `perfect` (0..1 radial
-  speed-line replay burst), `bones`. One-shot lengths in `SLIM_POSE_LEN`. Strike = big cue swing (contact at t=0,
-  crescent smear); heave = power-shot thrust + shock ring; slide = knee-slide with sparks; idle swagger: flex bar, chalk
-  bar, cue spin every 2 bars.
+- `slim.ts` — **`drawSlim(ctx, x, y, SlimState)`**, origin = feet centre, ~140 px tall at scale 1 (in game: scale 1.1 x
+  the camera's 1.14 framing = ~170 px at 1080p). State: `pose` (`idle run hop fall land strike heave slide stumble dead
+  respawn victory`), `poseTime`, `time`, `beatPhase`, `beat`, `runPhase` (= distance / `SLIM_STRIDE` 192), `speed`, `vy`,
+  `facing`, `scale`, `squashX/Y`, `lookX/Y`, `perfect` (0..1 radial speed-line replay burst), `bones`. One-shot lengths in
+  `SLIM_POSE_LEN`. **Iteration 9:** `drawSlim` paints the redesigned INKED-COMIC Slim (`slimx/`, below);
+  `setSlimLook('old')` (the game's `?slim=old`) / `drawSlimOld` = the original capsule rig, kept for comparison.
+- `slimx/` — **the hero since iteration 9** (Streets of Rage 4 direction; diagnosis + history:
+  `docs/reviews/slim_redesign_notes.md`). `rig.ts` = a style-agnostic 3/4 rig (near shoulder at the back edge, V-wedge
+  torso, gorilla arms, 45 px legs; poses as WORLD limb angles or IK hand targets, `solveSlim(state)` → joints):
+  idle (bar A flex, bar B fist-on-hip shoulder roll, cue twirl on beat 7), run (Catmull-Rom leg keys, 2 hip bobs per
+  cycle, the cue carried on the shoulder like a bat, a tight far-arm power pump), hop (cannonball tuck, the far fist
+  leads), fall (legs reach for the ground), land (crouch squash), strike (contact ON the press: two-handed, cue
+  up-forward; the follow-through wraps it back over the near shoulder; legs keep running when moving), heave (break-shot
+  lunge), knee-slide (the cue played like a guitar), stumble (arched back, arms flung, 8-balls orbit), dead (limp
+  starfish tumble), respawn (splice pop), victory (bar A fist pump + planted cue, bar B double flex). `paint.ts` = the
+  **Sheet** (closed Path2D parts painted in two passes: a fat ink silhouette for everything, then per part a thin part
+  line + a hard cel shade from ONE key light + clipped details = thick outside / thin inside) + geometry helpers (`seg`
+  asymmetric muscle segments, local `frame`s, `taper` brush strokes). `styleInk.ts` = the painter: rolled bowling-shirt
+  sleeves, camp collar, open shirt over the ribbed cream tank, stripe + SLIM pocket, belt, shirt tails that flutter with
+  `flow`, Popeye forearms with cached flash tattoos, fists with knuckles + wrapped thumb, flared jeans, heeled boots,
+  shaggy feathered hair, MUTTON CHOPS + a separate drooping moustache (clean chin), boxer nose, a heavy brow that carries
+  the expression; a cue pointing up-and-back is drawn behind the head. `index.ts` = `drawSlimX(style, ...)`: the strike
+  crescent (a cel-stepped fan swept by the cue, hot cream leading edge, ink rim, behind the body), the break-shot streak
+  + shock ring, dust / speed lines / sparks / 8-ball orbit. `styleHose.ts` / `styleFlat.ts` = unbuilt candidates B/C
+  (they call A). Cost: ~0.15 ms per Slim; the game stays at 60 fps at 1080p (renderer JS 1-1.7 ms/frame, same as before).
+  Lab: tab "Slim ×3" (`view=slimx`): `layout=poses` (big + grid + strike filmstrip), `layout=world&bg=street|bar`, and
+  `layout=sheet&set=all|run|strike|air|head|final|one` (review sheets; `old=1` = the old Slim, `debug=1` = bones;
+  `set=one&pose=..&pt=..&ph=..&beat=..&sc=..`).
 - `street.ts` — `makeStreet(light)` (tower on the horizon `towerX/towerScale`, rooftops, marquee facades, pigeons,
   falling letters, crowd, traffic, newspapers, festoon bulbs, steam), `drawStreetGround(ctx, rect, style)`.
 - `bar.ts` — `makeBar(light)` (bottle shelves, neon, jukebox, pool tables + lamps, bartender, brawlers, patrons,

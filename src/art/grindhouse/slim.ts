@@ -22,6 +22,7 @@ import { beatBob, landSquash, squash, strikeU, velocityStretch } from '../rig/mo
 import { type EyeStyle, type Ink, type MouthStyle, blink, brow, capsulePath, cartoonEye, cartoonMouth, inked, limb } from '../rig/parts';
 import { type Pose, type RootXf, Skeleton, blendPose, ik2 } from '../rig/skeleton';
 import { drawSmear, speedLines } from '../rig/smear';
+import { drawSlimX } from './slimx';
 
 export type SlimPose = 'idle' | 'run' | 'hop' | 'fall' | 'land' | 'strike' | 'heave' | 'slide' | 'stumble' | 'dead' | 'respawn' | 'victory';
 
@@ -752,8 +753,26 @@ function drawCue(g: Ctx, sk: Skeleton, c: Cue) {
   g.lineCap = 'round';
 }
 
-/** Draw Slim at (x, y) = feet centre on the ground. */
+/**
+ * Which Slim `drawSlim` paints: 'ink' = the redesign (slimx/, inked comic, iteration 9), 'old' = the original capsule
+ * rig below (kept for comparison: the game's `?slim=old`, `setSlimLook`).
+ */
+let slimLook: 'ink' | 'old' = 'ink';
+export function setSlimLook(look: 'ink' | 'old'): void {
+  slimLook = look;
+}
+export function getSlimLook(): 'ink' | 'old' {
+  return slimLook;
+}
+
+/** Draw Slim at (x, y) = feet centre on the ground (the current look). */
 export function drawSlim(g: Ctx, x: number, y: number, s: SlimState): void {
+  if (slimLook === 'old') drawSlimOld(g, x, y, s);
+  else drawSlimX('ink', g, x, y, s);
+}
+
+/** the ORIGINAL Slim (capsule rig, iterations 1-8) */
+export function drawSlimOld(g: Ctx, x: number, y: number, s: SlimState): void {
   const f = frameFor(s);
   const sk = SLIM_BONES;
   const facing = s.facing ?? 1;
