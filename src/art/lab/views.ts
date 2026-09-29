@@ -9,6 +9,7 @@ import { drawFxView, drawGreyboxWorld, drawHeroView, drawLightingView, drawRigVi
 import { SLIM_DESC, drawBarView, drawStreetView, drawStressView } from './grindhouseViews';
 import { drawSkinsView } from './skinsView';
 import { drawAct3View } from './act3Views';
+import { drawSlimxView } from './slimxViews';
 
 export interface LabCtx {
   g: Ctx;
@@ -26,7 +27,7 @@ export interface LabCtx {
   onion: boolean;
 }
 
-export type ViewId = 'slim' | 'street' | 'bar' | 'stress' | 'act3' | 'skins' | 'rig' | 'fx' | 'lighting' | 'world';
+export type ViewId = 'slim' | 'slimx' | 'street' | 'bar' | 'stress' | 'act3' | 'skins' | 'rig' | 'fx' | 'lighting' | 'world';
 
 export interface LabView {
   label: string;
@@ -40,6 +41,7 @@ export interface LabView {
 
 export const VIEWS: Record<ViewId, LabView> = {
   slim: { label: 'Slim', help: 'The hero (hulking tattooed pool shark) on the rig framework: every pose, big-swing filmstrip (crescent smear), 25% check. Debug = bones, Onion = ghosts.', lights: 'grindhouse', poses: SLIM_POSES, draw: (l) => drawHeroView(l, SLIM_DESC) },
+  slimx: { label: 'Slim ×3', help: 'REDESIGN candidates on one shared 3/4 rig: A inked comic (SoR4), B rubber-hose cartoon (Cuphead × 1973), C flat vector cel (Hi-Fi Rush / Sayonara). Keys A/B/C switch. URL layout=world&bg=street|bar = all three at in-game scale through the hero + film pass.', lights: 'grindhouse', poses: SLIM_POSES, draw: drawSlimxView },
   bar: { label: 'Bar', help: 'Act 1b: honky-tonk interior — bottle shelves, neon beer signs, jukebox, pool tables under swinging lamps, brawlers on the beat, bottles on the snare, pool balls on piano runs.', lights: 'grindhouse', poses: SLIM_POSES, draw: drawBarView },
   stress: { label: 'Stress', help: 'Street with ~3x ambient life (30 pedestrians, 11 cars) + full-house audience + Slim. Watch the perf readout.', lights: 'grindhouse', poses: SLIM_POSES, draw: drawStressView },
   street: { label: '42nd St', help: 'Act 1: matte sky, rooftops, grindhouse facades (marquees chase on 8ths), ambient life, festoon bulbs + steam, film pass, theatre audience (cycles 0 -> FULL HOUSE). Hold camera to pose Slim.', lights: 'grindhouse', poses: SLIM_POSES, draw: drawStreetView },
