@@ -613,3 +613,11 @@ Lanes contrast, trimmed ending.
   1/0/1 B 76.0 · 0/0/0 B 83.6; ±130 1/1/3 C 63.1 · 2/1/1 C 65.9 · 2/1/5 C 62.2; ±160+20 % 3/5/16 · 2/2/3 · 3/4/5, all C
   (floored). slack expected deaths: sloppy 0.53 → 0.52, ±130 6.72 → 6.45. Deaths still cluster in chorus 4's wells
   (276.8 / 284.8) and the act-1 lift run (127) — the intended exams.
+
+## Iteration 7 — outcome
+Shipped: forgiving FULL HOUSE (refill on 4 Great+ / Heave; scramble presses graded fairly), `lumSing` chorus tokens
+on every sung note (coverage 26% → 100%, late echoes 42% → 0%; audio doubles only within 30 ms, else harmonises),
+gauntlet 309 eased, rank floor C for finishers (warm C sting), roof stop-time rewrites the sign to SLIM (+FULL HOUSE
+chance), intro sepia → colour burst on beat 15, lethal look for all pits, ending trimmed (poster 4.3 s after hit,
+stings on renderer events), stronger speed layer + foreground band goon, chorus contrast, canister teases.
+Watch: one ±160 run died 16x in act 3; act-3 tokens clash with the singer 12% (outro ad-libs).
