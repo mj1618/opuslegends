@@ -624,15 +624,16 @@ Watch: one ±160 run died 16x in act 3; act-3 tokens clash with the singer 12% (
 
 ## HANDOFF (session paused for a computer restart, 2026-09-29)
 User playtested the deployed build (iter 7) and asked for:
-1. "The HEYs are a bit demonic" → audio agent was fixing (see its commit or docs/reviews/hey_fix_notes.md).
+1. "The HEYs are a bit demonic" → overlay gang shouts FIXED (real 8-voice gang, no pitch-stacking). Still TODO: the
+   player strike HEY in src/audio/sfx.ts is still the old synth — swap to real samples (plan: docs/reviews/hey_fix_notes.md).
 2. "On the chorus there's a strong beat and things should line up with that" → NOT STARTED. Next: measure the
    record's chorus accent strength per beat position (onset strength of the drum/full mix), then re-align chorus
    actions (strikes/lethals first) in all 4 choruses to the strongest accents.
 3. "A tad too hard, dying a lot — tone difficulty back a little (not too much)" → NOT STARTED (iter 8 split the
    chorus-4 checkpoint + crowd floor 14 on respawn, which helps). Next: widen a few lethal windows / thin threats
    by ~15-25% across acts 2-3, keep teeth; re-run bot tables. Bot targets under-predict human deaths — lean easier.
-4. "Improve the look of the character, it's like a bad drawing" → Slim redesign started in the art lab (3 candidate
-   directions; see docs/reviews/slim_redesign_notes.md + playtest/out-slim/compare.png). Next: pick one, integrate,
+4. "Improve the look of the character, it's like a bad drawing" → Slim redesign started in the art lab (only direction A — inked comic — built, ~70%;
+   recommended; see docs/reviews/slim_redesign_notes.md + playtest/out-slim/compare.png). Next: pick one, integrate,
    polish in-game.
 Resume: read this handoff + the latest review, check `git log`, run the playtest, then do 2-4 (+ finish 1), deploy
 (`npm run deploy`), push main.
