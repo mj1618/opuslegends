@@ -174,7 +174,8 @@ def main():
     ap.add_argument("--synth", action="store_true", help="all-synth voices (default: sampled where the song is)")
     ap.add_argument("--set", default="all", help="which sounds to render: all | core (iterations 1-3) | stage (the act-2/3 "
                     "set, instruments/fx_stage.py) | feel (iteration 6: token voice, WHEW, canister, poster stings, goon "
-                    "stingers; instruments/fx_feel.py). A partial render MERGES into the existing manifest (other ids kept)")
+                    "stingers; instruments/fx_feel.py) | polish (iteration 7: the poster's rank stamp + tier stabs, the roof's "
+                    "neon letters, the intro colour burst, the canister glint; instruments/fx_polish.py). A partial render MERGES into the existing manifest (other ids kept)")
     args = ap.parse_args()
     W = Writer(args.out, args.q)
     rp, sc = riff_pitches(args.song)
@@ -185,6 +186,8 @@ def main():
         stage_set(W, R)
     if args.set in ("all", "feel"):
         feel_set(W, R, args.synth)
+    if args.set in ("all", "polish"):
+        polish_set(W, R, args.synth)
     write_manifest(W, args, sc)
 
 
@@ -439,6 +442,38 @@ def feel_set(W, R, synth=False):
     # goon stingers (the stomp goon = jukebox_boom, the cowbell goon = tonk_lo + tonk_hi)
     W.add("piano_gliss", F.piano_gliss(piano, SR, R(640)), "goon", "the bar pianist smashed: a glissando down from E7 "
           "into a low E octave slam", -18.0, _finish={"fade_ms": 200.0})
+
+
+def polish_set(W, R, synth=False):
+    """iteration 7: the poster's billing stamp + per-tier stabs (the sting lands WITH the stamp), the roof's neon
+    letters flickering on as SLIM (pitched up the A7 chord), the intro's colour burst on beat 15, the canister glint
+    (instruments/fx_polish.py)"""
+    from instruments import fx_polish as F
+    P = Palette(use_samples=not synth)
+    pno = P.piano(synth=dict(bright=1.1))
+
+    def piano(events, seed=7):
+        end = max(a + d for _, a, d, _ in events) + 1.6
+        return render(pno, [ev(pitch=float(m), dur_beats=d / SPB, vel=v, at=a) for m, a, d, v in events], end, seed)
+
+    W.add("rank_stamp", F.rank_stamp(SR, R(700)), "poster", "the billing stamp SLAMS on the one-sheet: padded thump + "
+          "paper slap + board rattle (ON the stamp's slam)", -18.0, _finish={"fade_ms": 80.0})
+    for tier, desc in (("S", "BOX-OFFICE SMASH: fortissimo E chord + low octave + glass bells"),
+                       ("A", "CRITICS' PICK: a full forte E chord + two bells"), ("B", "CULT CLASSIC: a mezzo E triad"),
+                       ("C", "B-MOVIE: WARM, a soft rolled E6/9 and a music-box E on top (kind, never a joke)")):
+        W.add(f"rank_{tier}", F.rank_stab(piano, tier, SR, R(710 + ord(tier))), "poster", f"rank stab, {desc}: the "
+              "pianist punctuates the stamp", -18.0 if tier in ("S", "A") else -20.0, stereo=True,
+              _finish={"fade_ms": 300.0})
+    for m in (57, 61, 64, 67):
+        W.add(f"neon_on_{nn(m).replace('#', 's')}", F.neon_on(m, SR, R(720 + m)), "roof", "a neon letter flickering ON "
+              "(the roof's sign rewritten to SLIM): relay clunk + the tube striking and buzzing AT PITCH", -20.0, midi=m,
+              _finish={"fade_ms": 150.0})
+    W.add("color_whoosh", F.color_whoosh(SR, R(730)), "intro", "the colour switch's rising air: a riser that PEAKS at "
+          "its end (start it 1.5 beats before beat 15)", -24.0, stereo=True, _finish={"fade_ms": 5.0})
+    W.add("color_bloom", F.color_bloom(SR, R(731)), "intro", "the film floods to colour ON beat 15: an air bloom, glass "
+          "bells up the E chord, the house's delighted 'aaah'", -22.0, stereo=True, _finish={"fade_ms": 300.0})
+    W.add("canister_glint", F.canister_glint(100, SR, R(740)), "canister", "the canister's tease: a tiny glass star-"
+          "glint at E7 (on the 2 beats before the held jump's takeoff)", -26.0, midi=100, _finish={"fade_ms": 100.0})
 
 
 def write_manifest(W, args, sc):

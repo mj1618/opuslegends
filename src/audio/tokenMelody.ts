@@ -13,15 +13,20 @@
  * the same part every time (measured across all four).
  *
  * pick(beat):
- *   1. a melody note whose onset is within 1/6 beat before .. 1/3 beat after the token's beat -> that note (a token
- *      ON a sung syllable sings it); else a note still sounding at `beat` -> it again (the singer holds it). A second
- *      token on the same note turns to a chord tone around it (>= 3 semitones from the note and the singer) and the
- *      third back: a pianist's two-note figure, so a row of tokens moves with the tune instead of hammering one pitch
- *   2. between phrases / in the singer's rests: CHORD TONES of the bar's chord in the token register, stepping up one
+ *   1. ON a syllable — a melody note whose onset is within 1/6 beat before .. 1/12 beat (~30 ms, where two identical
+ *      attacks still fuse) after the token's beat -> that note (double / the lane's harmony). A second token on the
+ *      same syllable turns to a chord tone around it (an ornament: a pianist's two-note figure)
+ *   2. AFTER a syllable (iteration 7, review iter6 fix 2) — the token sounds later than 1/12 beat into a sung note (a
+ *      jump arc's triplet samples 1/3 beat after the syllable, a held note, a late pickup): it ANSWERS instead of
+ *      echoing — a chord tone >= a minor third from the note and the singer, alternating between the two nearest on
+ *      consecutive tokens (a fill under the held note). Never his note late: measured, 39 % of the singing tokens were
+ *      a 120 ms (triplet) or 1/3+ beat echo of the syllable before (src/audio/lab/tokenprobe.mjs)
+ *   3. between phrases / in the singer's rests: CHORD TONES of the bar's chord in the token register, stepping up one
  *      chord tone per token and turning at the top (ping-pong), starting from the chord tone nearest the last note —
  *      an arpeggio of what the band plays, never a random pitch
- * Timing (StageAudio.onToken): a token picked up early sings ON its own beat (the grid it was laid on); a late or
- * loose token sings on the next point of the triplet/swing grid if that is <= 70 ms away, else at once.
+ * Timing (StageAudio.onToken): a token picked up early sings ON its own beat (the grid it was laid on); picked up
+ * <= 40 ms after its own beat it sings at once AS IF on its beat (a doubling still fuses); later, on the next point of
+ * the triplet/swing grid if that is <= 70 ms away (it may land ON the next syllable), else at once — answering.
  */
 import type { Lane, TokenNote } from './lanes';
 import { type SongDef, chordAt } from './song';
@@ -33,6 +38,10 @@ export interface TokenPick {
   source: 'melody' | 'chord';
   beat: number;
   note?: TokenNote;
+  /** against the singer: double (his note, two octaves up) · harmony (the lane's chord tone a third off him) · ornament
+   *  (a second token on the same syllable) · answer (a token sounding after the syllable began: a chord tone, never
+   *  his note late) · chord (between phrases) */
+  role?: 'double' | 'harmony' | 'ornament' | 'answer' | 'chord';
 }
 
 /** the token voice's range (the token_* samples, C5..A6) */
@@ -43,7 +52,9 @@ const CHORD_LO = 76;
 const CHORD_HI = 88;
 /** a note counts as ON the token's beat from this far before its onset .. */
 const EARLY = 1 / 6;
-/** .. to this far after it (a triplet 8th) */
+/** .. to this far after it (~30 ms: two identical attacks closer than that fuse into one; later reads as a flam/echo) */
+const ON_LATE = 1 / 12;
+/** a token sounding up to this far after a syllable's onset (a triplet 8th) ANSWERS it (also any time it is held) */
 const LATE = 1 / 3;
 
 export class TokenMelody {
@@ -76,31 +87,80 @@ export class TokenMelody {
 
   /** the note a token sounding ON `beat` sings (see the file comment) */
   pick(beat: number): TokenPick {
-    const n = this.melodyAt(beat);
     if (beat - this.lastBeat > 2) this.dir = 1;
     this.lastBeat = beat;
+    const on = this.melodyAt(beat);
+    const after = on ? undefined : this.sungBefore(beat);
+    const n = on ?? after;
     if (n) {
-      // a second token on the same sung note (the singer holds / recites it): turn to a chord tone around it and back
-      // (a pianist's two-note figure), so a row of tokens moves instead of hammering one pitch
+      // a second token on the same sung note: a chord tone around it (ON: the two-note figure; AFTER: alternate answers)
       this.repeat = n === this.lastNote ? this.repeat + 1 : 0;
       this.lastNote = n;
-      const midi = this.repeat % 2 === 1 ? this.ornament(n) : n.pitch;
+      if (after) {
+        const midi = this.answer(n, this.repeat, beat);
+        this.last = midi;
+        return { midi, source: 'melody', beat, note: n, role: 'answer' };
+      }
+      const orn = this.repeat % 2 === 1;
+      const midi = orn ? this.ornament(n) : n.pitch;
       this.last = midi;
-      return { midi, source: 'melody', beat, note: n };
+      return { midi, source: 'melody', beat, note: n, role: orn ? 'ornament' : n.mode === 'harmony' ? 'harmony' : 'double' };
     }
     this.lastNote = undefined;
     const midi = this.chordStep(beat);
     this.last = midi;
-    return { midi, source: 'chord', beat };
+    return { midi, source: 'chord', beat, role: 'chord' };
   }
 
-  /** the lane note for a token ON `beat`: an onset in [beat - LATE, beat + EARLY], else one still sounding */
+  /** the lane note a token ON `beat` sings: an onset in [beat - ON_LATE, beat + EARLY] */
   melodyAt(beat: number): TokenNote | undefined {
     if (!this.hasMelody) return undefined;
-    const on = this.lane.between(beat - LATE, beat + EARLY + 1e-6);
-    if (on.length) return on[on.length - 1];
-    const prev = this.lane.prev(beat);
-    return prev && beat < prev.endBeat - 1e-6 ? prev : undefined;
+    const on = this.lane.between(beat - ON_LATE, beat + EARLY + 1e-6);
+    return on.length ? on[on.length - 1] : undefined;
+  }
+
+  /** the syllable a token at `beat` comes AFTER: an onset in [beat - LATE, beat - ON_LATE), or a note still held */
+  sungBefore(beat: number): TokenNote | undefined {
+    if (!this.hasMelody) return undefined;
+    const prev = this.lane.prev(beat - ON_LATE + 1e-6);
+    if (!prev) return undefined;
+    // (a token right as a held note ends still answers it: a chord tone could otherwise land on his pitch as it stops)
+    return beat - prev.beat <= LATE + 1e-6 || beat <= prev.endBeat + 1e-6 ? prev : undefined;
+  }
+
+  /**
+   * An ANSWER to a syllable already sung: the chord tones >= 3 semitones from the note's token pitch and >= 2.4 from the
+   * singer as a pitch class (a 3rd..6th off his pitch: consonant against a bend), never the note's own pitch class, the
+   * `k`-th token on the same note alternating between the two nearest (above first).
+   */
+  answer(n: TokenNote, k: number, beat = n.beat): number {
+    const song = this.song;
+    const pcs = new Set(chordAt(song, n.beat).map((t) => (((song.key.root + t) % 12) + 12) % 12));
+    const singer = (n.measured ?? n.sung) + 24;
+    // the singer may already be on his NEXT syllable while the answer rings (~0.4 beat): clear of that one too
+    const nx = this.lane.next(beat - 1e-6);
+    const next = nx && nx !== n && nx.beat < beat + 0.4 ? (nx.measured ?? nx.sung) + 24 : NaN;
+    // (down to G#4 under the token range: a blue note bent over the chord can leave nothing above it; never the note's
+    // own pitch class, not even an octave off — that is still his syllable, late)
+    const pc = (c: number): number => ((c % 12) + 12) % 12;
+    const range = (ok: (c: number) => boolean): number[] => {
+      const out: number[] = [];
+      for (let c = Math.max(TOKEN_LO - 4, n.pitch - 9); c <= Math.min(TOKEN_HI, n.pitch + 9); c++) if (pcs.has(pc(c)) && pc(c) !== pc(n.pitch) && ok(c)) out.push(c);
+      return out;
+    };
+    // clear of the singer as a PITCH CLASS (a 7th / 9th off him is a 2nd's rub against a bending voice): >= 2.4 semitones
+    const pcd = (c: number, v: number): number => {
+      if (!Number.isFinite(v)) return 12;
+      const d = (((c - v) % 12) + 12) % 12;
+      return Math.min(d, 12 - d);
+    };
+    let cands = range((c) => Math.abs(c - n.pitch) >= 3 && pcd(c, singer) >= 2.4 && pcd(c, next) >= 2.4);
+    if (cands.length === 0) cands = range((c) => Math.abs(c - n.pitch) >= 3 && pcd(c, singer) >= 2.4);
+    if (cands.length === 0) cands = range((c) => Math.abs(c - n.pitch) >= 3 && Math.abs(c - singer) >= 2.4);
+    if (cands.length === 0) cands = range(() => true);
+    if (cands.length === 0) return this.ornament(n);
+    cands.sort((a, b) => Math.abs(a - n.pitch) - (a > n.pitch ? 0.1 : 0) - (Math.abs(b - n.pitch) - (b > n.pitch ? 0.1 : 0)));
+    return cands[k % Math.min(2, cands.length)];
   }
 
   /**

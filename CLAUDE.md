@@ -190,17 +190,36 @@ World y grows DOWN; the base ground top is y = 0.
   the vocal stem (pYIN) — where the singer sits within 35 cents of it (and doesn't scoop from > 60 cents) the token
   DOUBLES it (~50 % of chorus notes, ~40 % of the speech-like verses), else it plays a chord tone ≥ a minor third from
   him (HARMONY, voice-led); a second token on the same sung note turns to a chord tone around it and back; between
-  phrases tokens arpeggiate the bar's chord (ping-pong). Timing: ON the token's own beat snapped to the triplet /
-  swung-8th grid (picked up early), else the next grid point ≤ 70 ms, else now. Measured (the real level's tokens, a
+  phrases tokens arpeggiate the bar's chord (ping-pong). **Iteration 7 — never a late echo:** a token only doubles /
+  harmonises a syllable it sounds ON (≤ 1/12 beat ≈ 30 ms after the onset); one sounding later into a sung note (an
+  arc's triplet sample 1/3 beat after the syllable, a held note, a late pickup) ANSWERS it — a chord tone ≥ a minor third
+  from the note and from the singer (as a pitch class, and from his next syllable), never the note's own pitch class.
+  Timing: ON the token's own beat snapped to the triplet / swung-8th grid (picked up early), picked up ≤ 40 ms after it
+  → at once AS IF on it (`TOKEN_SFX.fuseSec`: a doubling that close fuses with a sung attack), else the next grid point
+  ≤ 70 ms, else now. Measured in the REAL game (`node src/audio/lab/tokenprobe.mjs`: bots play the build, every pickup's
+  decision from `stage.tokenTrace`): before, 39 % of the singing tokens were a ~120 ms (triplet) or 1/3+ beat echo; with
+  the re-laid chorus tokens (`lumSing`) + the answer rule, see `docs/reviews/audio_checklist.md`. Measured (iteration 6) (the real level's tokens, a
   clean pickup): −10 dB under the music at each token (−3..−6 in its band), on the grid (0 ms), 1.5 % (act 1) / 6 %
   (act 3, the outro ad-libs) of sung-over tokens rub the singer (60–200 cents), 0 % in the chorus scene; the chorus mix
   +0.3 LU, limiter as FULL HOUSE. **WHEW** (game 'whew'): `whew_gasp` now + `whew_relief` (a rising "ooOOH" into a
   cheer) from the next beat, called off by a death: −9 dB vs the music. **Film canister** (game 'canister'): tin lid +
-  reel ratchet + a glass arpeggio of the bar's chord (`canister_E/A/B`) on the next swung 8th: −7 dB. **The poster**:
-  Game calls `stage.onPoster(rank().letter)` as the end screen appears: THE END flourish (projector running out under a
-  piano run + tremolo E chord; S big, C small, D a deflating "wah wah wah waaah" + sparse claps) and the finale's
-  curtain-call applause re-levelled to the billing (S +2 dB … D −40): applause 3–6 s after the poster −27 (S) / −31
-  (A) / −38 (D) LUFS. **Goons** (`audio/goonParts.ts`, for the art too): `partHits(song, part, a, b)` /
+  reel ratchet + a glass arpeggio of the bar's chord (`canister_E/A/B`) on the next swung 8th: −7 dB. **The ending**
+  (iteration 7: the stings land WITH the picture): the renderer owns the ending's clock and emits game events
+  `theEnd` (the iris has shut, THE END burns in) and `posterStamp` (the rank stamp slams), each ≤ 50 ms ahead with
+  `inS`; `stage.onTheEnd(inS)` plays THE END flourish (`THE_END_SFX`: the projector runs out under the pianist's run +
+  tremolo E chord, the same for every finisher) and `stage.onRank(letter, inS, finisher)` the billing ON the slam
+  (`POSTER_SFX`: `rank_stamp` thump + the tier's piano stab `rank_S/A/B/C` + the house — S mega cheer, A cheer swell,
+  B/C applause — and the curtain-call applause re-levelled: S +2 … C −7 dB). A finisher is never billed D (floored at
+  C, which is WARM: a soft rolled E6/9 and real applause); D's "wah wah waaah" is only for a run that walked out.
+  `stage.onPoster(letter)` (Game, scene 'end') only remembers the billing (THE END there if 'theEnd' never came).
+  In game: THE END at hit + 0.96 s, the rank sting at hit + 4.91 s (`stage.endingLog`); the stamp's thump lands
+  −2..0 ms from the slam. **Iteration 7's cues** (`tools/music/sfx.py --set=polish`, `instruments/fx_polish.py`):
+  the roof sign (game `sign`): each letter of SLIM flickers on — a relay clunk + the tube buzzing AT PITCH up the
+  chord (`neon_on_A3/Cs4/E4/G4`, A7 on the roof), on the strike's beat: −9 dB vs the music; the colour reel
+  (setPiece `colorBurst`, beat 15): `color_whoosh` rising 1.43 beats into it + `color_bloom` (air, glass bells up the
+  E chord, the house's "aaah") ON it: −14 dB, subtle; the canister tease: a glass glint on each of the 4 beats before a
+  hidden canister's takeoff, rising up the chord to E7 (quiet once found: `at` cues carry `tag` / `rate`,
+  `stage.skipTags`), and on game `tease` (ran under it) a falling pair: −18 / −16 dB. **Goons** (`audio/goonParts.ts`, for the art too): `partHits(song, part, a, b)` /
   `nextPartHit` / `partPulse(song, part, beat)` (1 → 0 after each hit) / `goonPartAt(song, beat)` for stomps / claps /
   cowbell (overlay lanes) / piano (the record's own piano hits, `piano` lane) / shouts; `stage.goons` = the level's
   jabbers → part; a strike graded on a jabber's beat = `stage.goonHit(part, beat)`: the part's overlay FLARES

@@ -154,6 +154,39 @@ SCENARIOS.push(
   // the finale into the poster, S and D (the applause re-levelled to the billing)
   ...['S', 'A', 'D'].map((L) => ({ name: `feel_poster_${L}`, from: 326, to: 362, crowd: 24, ticks: true, level: true, levelEvents: true, events: [{ beat: 347.5, poster: L }] })),
 );
+// ---- iteration 7 ("heard and seen"): the ending's two stings ON the picture (THE END at hit + 0.9 s when the iris has
+// shut; the billing ON the stamp's slam at hit + 4.3 + 0.55 s: the art's trimmed ENDING), the roof sign's neon letters,
+// the intro colour burst (the level's colorBurst cue), the canister glints + tease. `tools/music/polish_report.py`.
+const HIT = 340;
+const ENDING_S = { theEnd: 0.9, stamp: 4.85, posterScene: 2.5 };
+SCENARIOS.push(
+  ...feel('polish_intro', { from: 0, to: 32, crowd: 14, ticks: true, level: true }),
+  ...feel('polish_sign', {
+    from: 164,
+    to: 188,
+    crowd: 16,
+    ticks: true,
+    level: true,
+    events: [172, 174, 176, 178.659].map((beat, i) => ({ beat, sign: i })),
+  }),
+  ...feel('polish_glint', { from: 32, to: 50, crowd: 16, ticks: true, level: true, events: [{ beat: 44.5, tease: true }] }),
+  ...feel('polish_glint_roof', { from: 158, to: 172, crowd: 16, ticks: true, level: true }),
+  ...['S', 'A', 'B', 'C'].flatMap((L) =>
+    feel(`polish_poster_${L}`, {
+      from: 326,
+      to: 364,
+      crowd: 24,
+      ticks: true,
+      level: true,
+      levelEvents: true,
+      events: [
+        { beat: HIT, sec: ENDING_S.theEnd, theEnd: true },
+        { beat: HIT, sec: ENDING_S.posterScene, poster: L },
+        { beat: HIT, sec: ENDING_S.stamp, stamp: L },
+      ],
+    }),
+  ),
+);
 const only = args.only ? new Set(String(args.only).split(',')) : null;
 const prefix = args.prefix ? String(args.prefix).split(',') : null;
 
@@ -209,8 +242,9 @@ if (!args['no-report']) {
   const py = join(root, 'tools/music/.venv/bin/python');
   const names = metas.map((m) => m.name);
   let status = 0;
-  if (names.some((n) => !n.startsWith('act') && !n.startsWith('feel'))) status ||= spawnSync(py, [join(root, 'tools/music/mix_report.py'), out], { stdio: 'inherit' }).status ?? 1;
+  if (names.some((n) => !n.startsWith('act') && !n.startsWith('feel') && !n.startsWith('polish'))) status ||= spawnSync(py, [join(root, 'tools/music/mix_report.py'), out], { stdio: 'inherit' }).status ?? 1;
   if (names.some((n) => n.startsWith('act'))) status ||= spawnSync(py, [join(root, 'tools/music/stage_report.py'), out], { stdio: 'inherit' }).status ?? 1;
   if (names.some((n) => n.startsWith('feel'))) status ||= spawnSync(py, [join(root, 'tools/music/feel_report.py'), out], { stdio: 'inherit' }).status ?? 1;
+  if (names.some((n) => n.startsWith('polish'))) status ||= spawnSync(py, [join(root, 'tools/music/polish_report.py'), out], { stdio: 'inherit' }).status ?? 1;
   process.exit(status);
 }

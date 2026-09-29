@@ -9,7 +9,7 @@ import { gameLevel } from '../../level/index';
 import { AudioSystem } from '../audioSystem';
 import { Conductor } from '../conductor';
 import type { LevelLike } from '../cues';
-import { GOON_FLARE, STAGE_SFX } from '../mix';
+import { GOON_FLARE, STAGE_SFX, type StageSound } from '../mix';
 import { Sfx } from '../sfx';
 import type { GoonPart } from '../goonParts';
 import { loadSongBuffer, loadSongStems, makeTempoMap } from '../song';
@@ -46,6 +46,21 @@ export interface LabEvent {
   poster?: string;
   /** a goon playing this part is smashed on `beat` */
   goon?: GoonPart;
+  // ---- iteration 7
+  /** the event happens this many SECONDS after `beat` (the ending's picture clock runs in seconds from the hit) */
+  sec?: number;
+  /** THE END (the renderer's 'theEnd': the iris has shut) */
+  theEnd?: boolean;
+  /** the rank stamp slams with this letter (the renderer's 'posterStamp') */
+  stamp?: string;
+  /** the roof sign: letter `sign` (0..3) flickers on (game 'sign' on `beat`) */
+  sign?: number;
+  /** the hero passed under a canister (game 'tease') */
+  tease?: boolean;
+  /** play a STAGE_SFX stack whose beat 0 is `soundBeat` (a level `at` cue: the colour burst, a canister glint) */
+  sound?: StageSound;
+  soundBeat?: number;
+  rate?: number;
 }
 
 export interface Scenario {
@@ -183,8 +198,8 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
   const evs = [...(sc.events ?? []), ...lev, ...toks];
   if (sc.ticks) for (let b = Math.ceil(sc.from); b < sc.to; b++) evs.push({ beat: b });
   const at = (e: LabEvent): number =>
-    e.miss || e.missTarget ? 0.135 : e.token ? -0.06 : e.grade || e.strike || e.smash || e.goon ? -0.02 : e.crowd !== undefined ? -0.015 : 0;
-  const tokens: { beat: number; midi: number; source: string; mode?: string; when: number; sung?: number }[] = [];
+    (e.sec ?? 0) + (e.miss || e.missTarget ? 0.135 : e.token ? -0.06 : e.grade || e.strike || e.smash || e.goon || e.sign !== undefined ? -0.02 : e.crowd !== undefined ? -0.015 : 0);
+  const tokens: { beat: number; midi: number; source: string; mode?: string; role?: string; when: number; sung?: number }[] = [];
   evs.sort((a, b) => a.beat + at(a) / 0.37 - (b.beat + at(b) / 0.37));
   for (const e of evs) {
     now = clock.ctxAtBeat(e.beat) + at(e);
@@ -203,13 +218,18 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
     if (e.fx && !sc.legacy) stage.mechFx(e.fx);
     if (e.token || e.loose) {
       const p = stage.onToken(e.loose ? undefined : e.beat);
-      tokens.push({ beat: p.beat, midi: p.midi, source: p.source, mode: p.note?.mode, sung: p.note?.sung, when: p.when - (clock.ctxAtBeat(0) - tempo.beatToTime(0)) });
+      tokens.push({ beat: p.beat, midi: p.midi, source: p.source, mode: p.note?.mode, role: p.role, sung: p.note?.sung, when: p.when - (clock.ctxAtBeat(0) - tempo.beatToTime(0)) });
     }
     if (e.whew) stage.onWhew({ beat: e.beat });
     if (e.canister) stage.onCanister({ beat: e.beat });
     if (e.goon) stage.goonHit(e.goon, e.beat);
     if (e.poster) stage.onPoster(e.poster);
-    const other = e.strike || e.smash || e.missTarget || e.mech || e.fx || e.token || e.loose || e.whew || e.canister || e.goon || e.poster;
+    if (e.theEnd) stage.onTheEnd(0);
+    if (e.stamp) stage.onRank(e.stamp, 0, true);
+    if (e.sign !== undefined) stage.onSign({ index: e.sign, beat: e.beat });
+    if (e.tease) stage.onTease({ beat: e.beat });
+    if (e.sound) stage.playSound(e.sound, e.soundBeat ?? e.beat, false, true, e.rate ?? 1);
+    const other = e.strike || e.smash || e.missTarget || e.mech || e.fx || e.token || e.loose || e.whew || e.canister || e.goon || e.poster || e.theEnd || e.stamp || e.sign !== undefined || e.tease || e.sound;
     if (!e.grade && !e.miss && !e.stumble && !e.checkpoint && e.crowd === undefined && !other) stage.beatTick(e.beat);
   }
   const out = await ctx.startRendering();
@@ -244,6 +264,10 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
       // iteration 6: what each token sang (song time of its sound = `when`), the feel events
       tokens,
       feel: evs.filter((e) => e.whew || e.canister || e.goon || e.poster).map((e) => ({ beat: e.beat, whew: e.whew, canister: e.canister, goon: e.goon, poster: e.poster })),
+      // iteration 7: the ending's picture beats, the sign letters, the teases, the cue sounds (song time of each)
+      polish: evs
+        .filter((e) => e.theEnd || e.stamp || e.sign !== undefined || e.tease || e.sound)
+        .map((e) => ({ beat: e.beat, sec: e.sec ?? 0, t: tempo.beatToTime(e.beat) + (e.sec ?? 0), theEnd: e.theEnd, stamp: e.stamp, sign: e.sign, tease: e.tease, sound: e.sound, soundBeat: e.soundBeat })),
     },
   };
 }

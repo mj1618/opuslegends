@@ -105,6 +105,20 @@ export const SAMPLE_ONSETS = {
   rank_flop: 0.0008,
   claps_sparse: 0.0005,
   piano_gliss: 0.1362,
+  // iteration 7 (tools/music/sfx.py --set=polish, instruments/fx_polish.py): the poster's billing stamp + tier stabs, the
+  // roof's neon letters (SLIM), the intro colour burst, the canister's tease glint
+  rank_stamp: 0.0013,
+  rank_S: 0.0025,
+  rank_A: 0.0016,
+  rank_B: 0.0015,
+  rank_C: 0.0029,
+  neon_on_A3: 0.0015,
+  neon_on_Cs4: 0.0011,
+  neon_on_E4: 0.0014,
+  neon_on_G4: 0.001,
+  color_whoosh: 0.1658,
+  color_bloom: 0.0064,
+  canister_glint: 0.0005,
 } as const;
 
 export type SampleId = keyof typeof SAMPLE_ONSETS;
@@ -145,6 +159,14 @@ export const TOKEN_NOTES: [number, SampleId][] = [
   [91, 'token_G6'],
   [92, 'token_Gs6'],
   [93, 'token_A6'],
+];
+
+/** the roof sign's neon letters by MIDI note (iteration 7): the A7 chord, A3 C#4 E4 G4 */
+export const NEON_NOTES: [number, SampleId][] = [
+  [57, 'neon_on_A3'],
+  [61, 'neon_on_Cs4'],
+  [64, 'neon_on_E4'],
+  [67, 'neon_on_G4'],
 ];
 
 export interface PlayOpts {

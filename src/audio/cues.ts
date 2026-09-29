@@ -18,7 +18,8 @@
  *   - `def.audio` (optional AudioCue[] on the LevelDef, duck-typed) — explicit cues, e.g. `audio: [hush(270.95, 271.95)]`;
  *   - derived from ordinary items (no audio authoring needed):
  *       setPiece 'hush' → THE HUSH over its `beats` · 'drop' → the drop's cheer · 'windowCrash' → the window crash ·
- *       'bigJimReveal' → the bluff roar · 'marqueeSwap' → the usher's clanks · `topple` items (by `index`) → the six
+ *       'bigJimReveal' → the bluff roar · 'marqueeSwap' → the usher's clanks · 'colorBurst' (iteration 7) → the colour
+ *       reel's whoosh + bloom · `canister` items → the tease glints on the 4 beats before `from` · `topple` items (by `index`) → the six
  *       BIG JIM letters (creak on the item beat, slam 1 beat later, on the descending E line) · `slam` items inside
  *       304-332 → Big Jim's fists (escalating) · breakables: look 'pin' → pins (giant = a STRIKE), 'lens' → lens
  *       cracks escalating to 4 over however many lenses, 'skylight' → the skylight, 'glass' giant or the 'window' at
@@ -29,11 +30,13 @@
  *     drop, and the drop gets its cheer.
  */
 import type { StageSound } from './mix';
-import type { SongDef } from './song';
+import { type SongDef, chordAt } from './song';
 
 export type AudioCue =
   | { type: 'hush'; from: number; to: number; db?: number }
-  | { type: 'at'; beat: number; sound: StageSound }
+  /** `rate`: a pitch multiplier on every layer (a chord-fitted glint); `tag`: skip it while StageAudio.skipTags has it
+   *  (a canister already found stops teasing) */
+  | { type: 'at'; beat: number; sound: StageSound; rate?: number; tag?: string }
   | { type: 'onSmash'; beat: number; sound: StageSound }
   | { type: 'onMiss'; beat: number; sound: StageSound };
 
@@ -61,6 +64,7 @@ type AnyItem = {
   giant?: boolean;
   high?: boolean;
   action?: { type?: string; beat?: number };
+  from?: number;
 };
 
 const near = (a: number, b: number, tol = 0.06): boolean => Math.abs(a - b) <= tol;
@@ -77,7 +81,19 @@ export function levelAudioCues(def: LevelLike, song?: SongDef): AudioCue[] {
     else if (it.name === 'marqueeSwap') out.push(at(it.beat, 'marquee'));
     else if (it.name === 'drop') out.push(at(it.beat, 'dropCheer'));
     else if (it.name === 'hush') out.push(hush(it.beat, it.beat + (num(it.beats) ? it.beats : 1)));
+    else if (/^colou?r(On|Burst)$/i.test(it.name ?? '')) out.push(at(it.beat, 'colorBurst'));
   }
+  // ---- the hidden film canisters' tease (iteration 7): a glint on each of the 4 beats before the held jump's takeoff
+  //      (the art winks on every beat of its tease window, render/canisterDraw.ts), rising up the chord to E7 — "look
+  //      up, jump here" — then silent (the pass has its own 'tease' answer); tagged by act order: a found one goes quiet
+  const cans = items.filter((it) => it.type === 'canister' && num(it.from)).sort((a, b) => a.from! - b.from!);
+  cans.forEach((it, i) => {
+    for (const [k, target] of [[4, 88], [3, 92], [2, 95], [1, 100]] as const) {
+      const b = it.from! - k;
+      const m = song ? nearestChordTone(song, b, target) : target;
+      out.push({ type: 'at', beat: b, sound: 'canisterGlint', rate: 2 ** ((m - 100) / 12), tag: `canister${i}` });
+    }
+  });
   // ---- the BIG JIM letters (the item's `index` if it has one, else the order)
   const topples = items.filter((it) => it.type === 'topple' && num(it.beat)).sort((a, b) => a.beat! - b.beat!);
   topples.forEach((it, i) => out.push(letterTopple(it.beat!, num(it.index) ? it.index : i)));
@@ -120,6 +136,16 @@ export function levelAudioCues(def: LevelLike, song?: SongDef): AudioCue[] {
     }
   }
   return dedupe(out);
+}
+
+/** the chord tone (of the harmony at `beat`) nearest MIDI `target` */
+export function nearestChordTone(song: SongDef, beat: number, target: number): number {
+  const pcs = new Set(chordAt(song, beat).map((t) => (((song.key.root + t) % 12) + 12) % 12));
+  for (let d = 0; d <= 6; d++) {
+    if (pcs.has((((target + d) % 12) + 12) % 12)) return target + d;
+    if (pcs.has((((target - d) % 12) + 12) % 12)) return target - d;
+  }
+  return target;
 }
 
 /** arrival beats of the level's thrown FIREBOMBS (their telegraph is the whoosh, not the bottle whistle) */

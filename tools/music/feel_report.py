@@ -94,13 +94,17 @@ def token_pitch(meta, singer):
             out["tension"] = out.get("tension", 0) + 1    # a wide 2nd / narrow 3rd against a bending singer: blue, not wrong
         elif d > 60:
             out["rub"] += 1
-            rubs.append({"beat": round(t["beat"], 2), "midi": t["midi"], "singer": round(float(np.median(v)), 2), "cents": round(d), "source": t["source"], "mode": t.get("mode")})
+            rubs.append({"beat": round(t["beat"], 2), "midi": t["midi"], "singer": round(float(np.median(v)), 2), "cents": round(d), "source": t["source"], "mode": t.get("mode"), "role": t.get("role")})
         else:
             out["harmony"] += 1                   # 35-60: a near-unison inside the singer's own vibrato/scoop
     sung = out["tokens"] - out["singerSilent"]
     out["rubPct"] = round(100 * out["rub"] / max(1, sung), 1)
     out["doubledPct"] = round(100 * out["doubled"] / max(1, sung), 1)
     out["rubs"] = rubs[:12]
+    roles = {}
+    for t in toks:
+        roles[t.get("role") or t["source"]] = roles.get(t.get("role") or t["source"], 0) + 1
+    out["roles"] = roles
     # timing: each token's sound vs its beat's nearest grid point (triplets + the swung and)
     sw = MR.BM["audio"]["swingRatio"]
     errs = []

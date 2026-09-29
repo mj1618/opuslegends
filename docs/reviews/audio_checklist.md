@@ -4,7 +4,9 @@
 the 10-item list in `docs/reviews/iter3.md` ("A human must listen for"), updated for iteration 4: act 2's own
 mechanic sounds, the act-3 sound set, THE HUSH before the drop, and THE FINALE on the final hit. Iteration 6 adds
 items 23–31: the run now starts at crowd 14 (the record full from beat 0), tokens sing the melody, the near-miss WHEW,
-the film canisters, the goons' flares and the poster's rank stings.*
+the film canisters, the goons' flares and the poster's rank stings. Iteration 7 adds items 32–38: the ending's stings
+now land WITH the picture (THE END on the iris, the billing on the stamp), a warm C for every finisher, tokens that
+answer instead of echoing, the roof's SLIM sign, the colour reel on beat 15 and the canister glints.*
 
 ## How to listen (about 20 minutes)
 
@@ -61,9 +63,21 @@ the film canisters, the goons' flares and the poster's rank stings.*
 | 26 | play it yourself, land a jump with your toes on a pit's far lip (or `?sloppy=1&autoplay=1` and wait for a "WHEW!") | **WHEW:** a quick audience gasp on the near-miss, then a rising "ooOOH" that swells into a short cheer on the next beat | Tension, then relief: "they saw that". **Bad:** the gasp sounds like a hiss or wind, or the cheer feels like a reward for sloppy play |
 | 27 | the film canisters: bar 43 (act 2, `?start=164`) and bar 79 on Big Jim's shoulder (`?start=304`), taking the high route | **Canister pickup:** a tin lid clank, the reel spinning up and a glass arpeggio of the band's chord | A treasure "you found it!" that is clearly different from a token. In tune with the chord |
 | 28 | `?start=80&autoplay=1` (strike the goons) and `?start=120&autoplay=1` (the turnaround, bars 32–33) | **Goons:** strike a goon and its part (the stomps, cowbell or gang HEY) jumps out of the mix for a beat, with its stinger (a bass-drum boom, a cowbell double, a piano glissando) on the part's next hit | The world plays the song and you knocked a player out: a flourish, on the beat. **Bad:** a volume jump that reads as a glitch |
-| 29 | finish a clean run (`?autoplay=1`) → the poster | **Rank S sting:** a piano run and tremolo chord over the projector running out, the house cheering as the stamp lands, and louder applause | A proud "THE END" |
-| 30 | finish a sloppy run (`?sloppy=1&autoplay=1`, or miss a lot yourself) → the poster | **Low-rank stings:** B polite, C a small ta-da and sparse claps, D a deflating "wah wah wah waaah", a lone clap and a cough, and the curtain-call applause dies away | Funny, not insulting. The applause level matches the billing |
+| 29 | finish a clean run (`?autoplay=1`) → the poster | **Replaced by items 32–33** (iteration 7: the stings are split and land on the picture) | |
+| 30 | finish a sloppy run → the poster | **Replaced by item 34** (a finisher is never billed D any more) | |
 | 31 | a full run from `?coldopen=1` | Overall loudness now that the run starts at 14 | The first 30 s don't feel quieter or thinner than the choruses by much (intro −15.2 LUFS vs chorus −13.2) |
+
+## Iteration 7 (new): stings on the picture, tokens that answer, the SLIM sign, the colour reel, the canister glints
+
+| # | Where | Listen for | Good sounds like |
+|---|---|---|---|
+| 32 | `?start=320&autoplay=1`, the final hit → **THE END** | The iris slams shut ~1 s after the hit and "THE END" burns in: the projector runs the leader out under a piano run + a tremolo E chord, **with** the card (not 2 s later over black) | The flourish IS the title card: it starts as the iris closes. **Bad:** it feels early (over the white-out) or late (after the card is up) |
+| 33 | same run, ~5 s after the hit → **the rank stamp** | The stamp's **thump** + the pianist's chord stab land exactly as the stamp slams onto the poster, then the house reacts (S roar, A cheer, B/C applause) and the curtain-call applause swells or settles to the billing | One hit: you SEE and HEAR the stamp together. **Bad:** a flam between the thump and the slam, or the reaction before the stamp |
+| 34 | finish a struggling run (`?jitter=160&late=0.2&autoplay=1`, or play badly and finish) → a **C** | **C is warm:** a soft rolled E6/9 chord, a music-box E on top, real applause that keeps going (no "wah wah", no lone claps) | "Good show, come back": kind, never a joke. The flop is gone for finishers |
+| 35 | `?start=80&autoplay=1` (chorus 1), `?start=272&autoplay=1` (chorus 4) | **The tokens sing the hook** ("Bad, bad Leroy Brown") on the singer's syllables, and the extra tokens between syllables (jump arcs, held notes) **answer** with a different chord note instead of repeating his note a triplet late | The tune in the pickups, in time with him; the in-between pickups sound like a pianist filling. **Bad:** any flam / "echo" of his syllable, or answers that sound random |
+| 36 | `?start=164&autoplay=1`, bars 44–45 (the roof's stop-time) | **The SLIM sign:** each stop-time strike makes a neon letter flicker on: a relay CLUNK + the tube buzzing up to a steady hum, the four letters climbing the chord (A, C#, E, G) | Satisfying and in tune: "you rewrote the sign". **Bad:** a mains hum that sounds like a fault, or the buzz fighting the record |
+| 37 | `?coldopen=1` or `?start=0&autoplay=1`, beat 15 (the first HEY) | **The colour reel:** rising air into the HEY and a soft bloom on it (glass bells up the E chord + the house going "aaah") as the film floods to colour | Subtle magic: the room lights up with the picture. **Bad:** a cheesy whoosh, or it masks the record's HEY |
+| 38 | `?start=32&autoplay=1` (canister 1 at the chimney, beat 43) and `?start=164` (170) | **The canister glints:** four tiny glass "tings" climbing the chord on the 4 beats before the held jump's takeoff; if you run under it, a falling "ting-ting" ("up there…"); quiet once found | A treasure whisper that makes you look up. **Bad:** you can't hear it at all, or it clutters the tokens |
 
 ## Measured (offline, clean player at FULL HOUSE): what each item should roughly be
 
@@ -97,6 +111,26 @@ Levels are momentary loudness vs the music under the sound. Commands:
     gets +1.5 to +4 dB, because its bus clip is already hot; its tonk stinger carries it.
   - **Poster (29–30):** each sting peaks at −14 to −16 LUFS momentary. The applause 3–6 s after the poster is −27 LUFS
     for S, −31 for A and −38 for D. True peak ≤ −6 dBTP.
+
+- **Iteration 7** (`node src/audio/lab/mixlab.mjs --prefix=polish` → `tools/music/polish_report.py`; the tokens in the REAL
+  game: `node src/audio/lab/tokenprobe.mjs` on a `--dist=dist-audio` build):
+  - **The ending (32–34):** in game (`stage.endingLog`, 3 bot runs) THE END sounds 0.96–1.04 s after the audio hit (the
+    renderer's 0.9 s + the frame it latches the hit), the rank sting 4.91–4.99 s (stamp at 4.85 s); the stamp's thump
+    lands −2..0 ms from the slam (lab). Stings (momentary max, 2.5 s): S −13.9, A −15.6, B −17.4, C −17.8 LUFS over a
+    −23.4 applause bed; the curtain call 1–4 s after the stamp S −24.5, A −25.2, B −27.7, C −28.1 LUFS (C no longer
+    dies away); true peak −1.7 dBTP. Bots' billing now: autoplay A, sloppy B, ±130 C.
+  - **Tokens (35):** before (iteration 6 layout, autoplay + sloppy): 39 % of the singing tokens were an echo (sounding
+    120 ms — one triplet — or 1/3+ beat after his syllable), chorus coverage 29–37 %. Now (the re-laid `lumSing` choruses
+    + the answer rule): **0 echoes** in autoplay / sloppy / ±130 (0 of 529–654 tokens), chorus coverage 94–98 %
+    (chorus 4: 83–94 %), verses 53–63 %; pickups land a median 13–23 ms early (sloppy chorus 4: 3 ms); 7 % (autoplay) / 15–19 %
+    (±130 / sloppy) come ≤ 40 ms after their beat (sung at once, fused), 0.4 / 2–3 % later (grid / at once: answers). Pitch vs the singer (lab, pYIN): rubs act 1 1.2 %, the
+    chorus scene 0 %, act 3 11.8 % (8 of 68: mostly the outro ad-libs and the lane's own doubles where he scoops; answers
+    0 of 43 in act 1, 2 of 32 in act 3). Level unchanged: −10.4 dB under the music, chorus mix +0.2 LU.
+  - **The sign (36):** each letter −9 dB vs the music (−8.3 max), −4 to −9 dB in its band; no limiting.
+  - **The colour reel (37):** whoosh −14 dB (−1.5 dB in its 4 kHz band: heard as air), bloom −14 dB; beats 13–19
+    −14.2 LUFS, no limiting, −2.3 dBTP.
+  - **Glints (38):** −18 dB vs the music (up to +2 dB in their 1.4–2.8 kHz band: a sparkle, not a line), the tease
+    −16 dB.
 
 Things the numbers cannot tell you: whether the hush reads as "on purpose", whether the letters' pitch line is
 musical, whether the finale feels *huge* rather than just loud, and whether any of this is fun.

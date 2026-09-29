@@ -40,6 +40,7 @@ build_original.py      the ORIGINAL recording: per-beat tempo map, lanes, the le
 token_lanes.py         iteration 6: the `tokenMelody` (what a collected token sings, measured against the singer)
                        and `piano` lanes merged into both beat maps without a full rebuild (original/tokens.py)
 feel_report.py         analysis of the mix lab's iteration-6 scenes (`mixlab.mjs --prefix=feel`)
+polish_report.py       analysis of the mix lab's iteration-7 scenes (`mixlab.mjs --prefix=polish`): the ending's stings, the SLIM sign, the colour reel, the canister glints
 original/              beatgrid.py (hit-locked smooth grid), timegrid.py (beat<->time on a per-beat map),
                        lanes.py (drums/bass/vocal/transcription lanes), overlay.py (overlay arrangement)
 producer/score.py      the DSL (Score, Section, Track, swing, humanize, automation, stops, markers)
@@ -400,6 +401,10 @@ set), the near-miss `whew_gasp` / `whew_relief` (a rising "ooOOH" into a cheer: 
 (tin lid + reel ratchet + a glass arpeggio of that chord), the poster's `theend_big` / `theend` / `theend_small`
 (a piano run + tremolo E chord over the projector running out), `rank_flop` ("wah wah wah waaah"), `claps_sparse`,
 and the bar pianist's `piano_gliss`.
+`polish` (iteration 7, `instruments/fx_polish.py`, merged the same way): the poster's `rank_stamp` (the billing stamp's
+thump, ON the slam) + the tier stabs `rank_S/A/B/C` (C is warm: a soft rolled E6/9), the roof sign's `neon_on_A3/Cs4/E4/G4`
+(relay clunk + a neon tube striking and buzzing AT PITCH), the colour reel's `color_whoosh` (a riser that peaks at its
+end) + `color_bloom` (air, glass bells, the house's "aaah": vocals.py `AAH`), and `canister_glint` (a glass star-glint at E7).
 
 `flags` lists anything outside targets.
 
@@ -415,6 +420,9 @@ the reward"). `stage_report.py <dir>` analyses the act-2/3 scenes (`mixlab.mjs -
 vs the music, THE HUSH and THE FINALE (CLAUDE.md "Level audio cues"). `feel_report.py <dir>` analyses iteration 6's
 scenes (`--prefix=feel`): the start at crowd 14, tokens vs the music and vs the SINGER's pitch at that moment
 (doubled / consonant harmony / rub), WHEW, canister, goon stingers + flare depth, the poster by rank.
+`polish_report.py <dir>` analyses iteration 7's (`--prefix=polish`): THE END + the rank sting by billing (level, where the
+stamp's thump lands vs the slam, the curtain call after it), the roof sign's letters, the colour reel, the glints. The
+tokens' timing in the REAL game (bots on a build): `node src/audio/lab/tokenprobe.mjs --dist=dist-audio`.
 
 ## The original recording (`build_original.py`)
 

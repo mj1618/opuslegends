@@ -276,37 +276,103 @@ export const STAGE_SFX = {
   ],
   goonPiano: [{ id: 'piano_gliss', db: -10, align: true }],
   goonShouts: [{ id: 'hey_crowd', db: -12, align: true }],
+  // ---- iteration 7 (tools/music/sfx.py --set=polish, instruments/fx_polish.py)
+  /** THE COLOUR REEL (setPiece colorBurst, the record's first HEY on 15): the air rises for 1.43 beats (the file PEAKS at
+   *  its end, ~0.53 s) and the bloom (air + glass bells up the E chord + the house's delighted 'aaah') opens ON the beat —
+   *  subtle: the record's HEY and the player's strike are the hit */
+  colorBurst: [
+    { id: 'color_whoosh', db: -17, beats: -1.43 },
+    { id: 'color_bloom', db: -15, align: true },
+  ],
+  /** a hidden canister's tease: a tiny glass star-glint on each of the 4 beats before its takeoff (the art winks on
+   *  every beat of its tease window), rising up the chord to E7, pitched by the cue (audio/cues.ts) */
+  canisterGlint: [{ id: 'canister_glint', db: -21, align: true }],
+  /** the hero passed UNDER a canister (game 'tease'): the glint answers twice, falling ("up there...") */
+  canisterTease: [
+    { id: 'canister_glint', db: -18, align: true },
+    { id: 'canister_glint', db: -21, beats: 0.5, rate: 2 ** (-5 / 12), align: true },
+  ],
 } satisfies Record<string, StageLayer[]>;
+
+/**
+ * THE ROOF SIGN (iteration 7, game 'sign'): each stop-time strike rewrites one neon letter of BIG JIM's to SLIM — the
+ * letter FLICKERS ON: a relay clunk + the tube striking and buzzing AT PITCH. Letter `index` 0..3 plays the chord's
+ * tones upward from its root (A7 on the roof: A3 C#4 E4 G4, the sampled pitches), so the four hits spell an arpeggio.
+ * On the strike's beat when the press was early (<= 150 ms), else at once, like the bells.
+ */
+export const SIGN_SFX = { db: -11 } as const;
 
 export type StageSound = keyof typeof STAGE_SFX;
 
 /**
  * TOKENS SING THE MELODY (iteration 6, audio/tokenMelody.ts): the token voice's level (dB on the SFX bus, like
  * GRADE_SFX) and timing. `lateSec`: a late / loose token waits for the next grid point only if it is this close;
- * `snapBeats`: a token laid this close to a triplet / swung-8th grid point sings on it. Measured (mix lab, the real
+ * `snapBeats`: a token laid this close to a triplet / swung-8th grid point sings on it; `fuseSec` (iteration 7): picked up
+ * up to this long AFTER its own beat it sings at once as if on it (identical attacks <= ~30-40 ms apart fuse; measured in
+ * the real game, 7 % (autoplay) / 15-19 % (sloppy, ±130) of pickups land 0-40 ms late, 0.4 / 2-3 % later:
+ * src/audio/lab/tokenprobe.mjs). Measured (mix lab, the real
  * level's tokens): -9..-11 dB under the music at each token (the Great bell's level), ~-4 dB in its own band.
  */
-export const TOKEN_SFX = { db: -16, lateSec: 0.07, earlySec: 0.15, snapBeats: 0.17 } as const;
+export const TOKEN_SFX = { db: -16, lateSec: 0.07, earlySec: 0.15, snapBeats: 0.17, fuseSec: 0.04 } as const;
 
 /** a smashed goon's part FLARES (Conductor.flareStem): +db over its crowd level (>= -10 dB absolute) for holdBeats,
  *  gliding back over as long; the overlay bus's soft clip caps the transients, so it reads as ~+4 dB louder */
 export const GOON_FLARE = { db: 9, holdBeats: 1 } as const;
 
 /**
- * THE POSTER (iteration 6): the end-of-reel one-sheet's stings by rank letter (seconds after the poster appears; the
- * stamp slams ~0.75 s in: render/screens.ts drawEndScreen). `applauseDb` re-levels the finale's curtain-call applause
- * (already ringing from the final hit) — the house claps as hard as your billing: S roars, D goes quiet.
+ * THE ENDING (iteration 7, review iter6 fix 4: the stings land WITH the picture). The renderer owns the ending's clock and
+ * tells the audio when its two picture beats land (game events emitted by render/renderer.ts endingCues, `inS` ahead):
+ *   'theEnd'      the iris has shut and THE END burns in  -> THE_END_SFX: the projector runs the leader out under the
+ *                 pianist's flourish (the same for every finisher: the film ended, the billing is not out yet)
+ *   'posterStamp' the rank stamp SLAMS onto the one-sheet -> POSTER_SFX[letter]: the stamp's thump + the pianist's tier
+ *                 stab ON the slam + the house's reaction, and the finale's curtain-call applause (still ringing from the
+ *                 final hit) re-levelled to the billing (`applauseDb`): S roars, C claps warmly.
+ * A FINISHER is never billed D (game/rank.ts floors a finished run at C; StageAudio floors it again): C is WARM — a soft
+ * rolled E6/9 and real applause, a good night out, never a joke. D (the deflating "wah wah waaah") is only for a run
+ * that walked out.
  */
 export interface PosterLayer {
   id: SampleId;
   db: number;
-  /** seconds after the poster appears */
+  /** seconds after the cue's moment (the iris shut / the stamp's slam) */
   at: number;
+  /** land the sample's attack ON that moment (manifest onsetSec) */
+  align?: boolean;
 }
+export const THE_END_SFX: PosterLayer[] = [{ id: 'theend', db: -9, at: 0 }];
 export const POSTER_SFX: Record<'S' | 'A' | 'B' | 'C' | 'D', { layers: PosterLayer[]; applauseDb: number }> = {
-  S: { layers: [{ id: 'theend_big', db: -8, at: 0 }, { id: 'crowd_mega_cheer', db: -12, at: 0.72 }], applauseDb: 2 },
-  A: { layers: [{ id: 'theend', db: -9, at: 0 }, { id: 'crowd_cheer_swell', db: -13, at: 0.55 }], applauseDb: -2 },
-  B: { layers: [{ id: 'theend', db: -11, at: 0 }, { id: 'crowd_applause', db: -16, at: 0.7 }], applauseDb: -7 },
-  C: { layers: [{ id: 'theend_small', db: -12, at: 0.1 }, { id: 'claps_sparse', db: -12, at: 0.8 }], applauseDb: -16 },
-  D: { layers: [{ id: 'rank_flop', db: -11, at: 0.1 }, { id: 'claps_sparse', db: -14, at: 1.9 }], applauseDb: -40 },
+  S: {
+    layers: [
+      { id: 'rank_stamp', db: -8, at: 0, align: true },
+      { id: 'rank_S', db: -8, at: 0, align: true },
+      { id: 'crowd_mega_cheer', db: -12, at: 0.08, align: true },
+    ],
+    applauseDb: 2,
+  },
+  A: {
+    layers: [
+      { id: 'rank_stamp', db: -9, at: 0, align: true },
+      { id: 'rank_A', db: -9, at: 0, align: true },
+      { id: 'crowd_cheer_swell', db: -13, at: 0.06, align: true },
+    ],
+    applauseDb: -1,
+  },
+  B: {
+    layers: [
+      { id: 'rank_stamp', db: -10, at: 0, align: true },
+      { id: 'rank_B', db: -10, at: 0, align: true },
+      { id: 'crowd_applause', db: -15, at: 0.1, align: true },
+    ],
+    applauseDb: -4,
+  },
+  C: {
+    layers: [
+      { id: 'rank_stamp', db: -11, at: 0, align: true },
+      { id: 'rank_C', db: -11.5, at: 0, align: true },
+      { id: 'crowd_applause', db: -15, at: 0.15, align: true },
+    ],
+    applauseDb: -7,
+  },
+  /** walked out (never a finisher): the pianist's deflating "wah wah wah waaah" and the house goes quiet */
+  D: { layers: [{ id: 'rank_flop', db: -11, at: 0 }, { id: 'claps_sparse', db: -14, at: 1.8 }], applauseDb: -40 },
 };
