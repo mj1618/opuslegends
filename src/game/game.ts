@@ -25,6 +25,7 @@ import { AudioSystem } from '../audio/audioSystem';
 import { Conductor } from '../audio/conductor';
 import { placeholderSong } from '../audio/placeholderSong';
 import { analyzeBeatAlignment, beatAlignmentForSong, chordAt, collectibleNote, laneBeats, loadSongBuffer, loadSongStems, makeTempoMap, type SongDef } from '../audio/song';
+import { levelBigStrikes } from '../audio/cues';
 import { Sfx } from '../audio/sfx';
 import { StageAudio } from '../audio/stage';
 import { SyncProbe } from '../audio/syncProbe';
@@ -201,6 +202,8 @@ export class Game {
   popups: Popup[] = [];
   /** dubbed subtitle flashed on the song's shouts ("HEY!") */
   subtitle = { text: '', t: 0 };
+  /** strike targets that land the HEAVY hit (giants, the break shot, the final hit: audio/cues.ts levelBigStrikes) */
+  private bigStrikes: number[] = [];
   /** Perfect-sweep freeze-frame overlay (s remaining) */
   freezeFx = 0;
 
@@ -282,6 +285,7 @@ export class Game {
     this.level = buildLevel(this.levelDef, this.tempo, this.song);
     // the level's audio cues: act 3's hush + world sounds, act 2's mechanic voices (audio/cues.ts)
     this.stage.useLevel(this.levelDef, this.song);
+    this.bigStrikes = levelBigStrikes(this.levelDef, this.song);
     this.mech = new Mechanics(this.level, this.mechHost(), this.song);
     this.judge = new Judge(this.level.actions, this.tempo);
     this.background = new Background(params.seed);
@@ -311,8 +315,9 @@ export class Game {
     };
     this.input.onGesture(() => void this.audio.unlock());
     for (const cue of this.level.fx) this.conductor.at(cue.beat, () => this.fireFx(cue.fx, cue.amount));
-    // the audience yells with the band: a dubbed subtitle on every shout in the song map
-    for (const e of this.song.map?.lanes.shouts ?? []) this.conductor.at(e.beat, () => (this.subtitle = { text: `${e.word ?? 'HEY'}!`, t: 0.45 }));
+    // the house hits with the band (iteration 9b: the shouts lane's slots are HIT accents now): a comic-book sound
+    // effect on every one in the song map (the big ones WHAM, the light HUP jabs BAM)
+    for (const e of this.song.map?.lanes.shouts ?? []) this.conductor.at(e.beat, () => (this.subtitle = { text: /^(HUP|HA)$/i.test(e.word ?? '') ? 'BAM!' : 'WHAM!', t: 0.45 }));
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && this.scene === 'play' && !this.paused) this.setPaused(true);
     });
@@ -1354,7 +1359,7 @@ export class Game {
         this.particles.emit({ x, y: y - 10, count: fire ? 26 : 14, speed: [150, fire ? 700 : 500], angle: -Math.PI / 2, spread: fire ? 1.2 : 2.4, life: [0.25, 0.6], size: [6, 14], color: fire ? '#FF4A3D' : kind === 'ballHit' ? '#3A302A' : '#CFE8E0', shape: PShape.Spark, gravity: fire ? -200 : 1600, drag: 2, shrink: 1 });
         if (this.stage.mechFx(kind)) return;
         if (fire) this.sfx.stomp();
-        else this.sfx.hit();
+        else this.sfx.hurt();
       },
       telegraph: (kind, beat) => {
         const t = this.conductor.ctxTimeAtSongTime(this.tempo.beatToTime(beat));
@@ -2057,7 +2062,15 @@ export class Game {
 
   private onPlayerStrike(): void {
     this.logAction('strike', this.controls.strikePressTime);
-    this.sfx.strike(this.quantizedWhen('strike'), this.crowd.count >= 4);
+    this.sfx.strike(this.quantizedWhen('strike'), this.crowd.count >= 4, this.strikeIsBig());
+  }
+
+  /** this press was graded against a heavy target (a giant, the break shot, the final hit): the heavy hit */
+  private strikeIsBig(): boolean {
+    const r = this.judge.last.strike;
+    if (!r || Math.abs(this.stepTime - r.target.time) > 0.2) return false;
+    const b = r.target.action.beat;
+    return this.bigStrikes.some((x) => Math.abs(x - b) < 1e-3);
   }
 
   private onPlayerSlide(): void {

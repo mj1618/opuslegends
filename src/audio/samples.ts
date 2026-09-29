@@ -66,7 +66,6 @@ export const SAMPLE_ONSETS = {
   window_crash: 0.0001,
   // iteration 6 (tools/music/sfx.py --set=feel, instruments/fx_feel.py): the token voice, the near-miss WHEW, the film
   // canister, the poster's rank stings, the goon stingers (+ the core set's cowbell tonks and jukebox boom)
-  hey_crowd: 0.1118,
   crowd_applause: 0.104,
   unison_clack: 0.0001,
   tonk_lo: 0.0038,
@@ -119,15 +118,21 @@ export const SAMPLE_ONSETS = {
   color_whoosh: 0.1658,
   color_bloom: 0.0064,
   canister_glint: 0.0005,
-  // iteration 8 (tools/music/sfx.py --set=voices): the hero's strike HEY = one performer's natural takes, round-robin
-  hey_1: 0.027,
-  hey_2: 0.0131,
-  hey_3: 0.033,
-  hey_4: 0.0372,
+  // iteration 9b (tools/music/sfx.py --set=hits, instruments/fx_hits.py): every shouted HEY is a HIT now — the hero's
+  // strike (a pool-cue crack into a body-punch thump, round-robin), the heavy hits, the audience's stomp-clap hit
+  hit_1: 0.0024,
+  hit_2: 0.0021,
+  hit_3: 0.002,
+  hit_4: 0.0021,
+  hit_big_1: 0.0022,
+  hit_big_2: 0.0021,
+  hit_crowd: 0.0051,
 } as const;
 
-/** the hero's strike HEYs (round-robin; Sfx.hey) */
-export const HERO_HEYS: SampleId[] = ['hey_1', 'hey_2', 'hey_3', 'hey_4'];
+/** the hero's strike hits (round-robin; Sfx.hit) */
+export const HERO_HITS: SampleId[] = ['hit_1', 'hit_2', 'hit_3', 'hit_4'];
+/** the heavy strike hits (a heave, a giant, the break shot, the final hit; round-robin) */
+export const BIG_HITS: SampleId[] = ['hit_big_1', 'hit_big_2'];
 
 export type SampleId = keyof typeof SAMPLE_ONSETS;
 

@@ -288,7 +288,7 @@ LANE_DESC = {
     "stops": "beats where the whole band drops out",
     "energy": "one entry per bar: mixDb, per-stem dB, drum hit count, intensity 0..1",
     "cue": "landmarks (section starts, the breakdown, the last chorus, the fade)",
-    "shouts": "OVERLAY: gang HEY!/HUP! (our reward stem, stems/..../shouts.ogg); t = vowel onset",
+    "shouts": "OVERLAY: HIT accents in the vocal gaps (our reward stem, stems/..../shouts.ogg; iteration 9b: were gang HEY!/HUP!s, `word` names the slot: HEY = the big hit, HUP = a jab); t = the hit's attack",
     "stomps": "OVERLAY: stomps (reward stem)",
     "claps": "OVERLAY: hand claps (reward stem)",
     "cowbell": "OVERLAY: cowbell accents (reward stem)",
@@ -365,7 +365,7 @@ def stage_lanes():
 
 # ======================================================================================== overlay + encode
 OVERLAY_LEVELS = {"shouts": -17.0, "stomps": -19.0, "cowbell": -24.0}     # track LUFS (active parts)
-SHOUT_SENDS = {"room": 0.14}                                                # the gang in the bar's room, no hall
+SHOUT_SENDS = {"room": 0.08}                                                # the hits' own room + a touch of the bar's
 
 
 def render_overlay(G, place, n_samples, extra=None, only=None):
@@ -383,10 +383,12 @@ def render_overlay(G, place, n_samples, extra=None, only=None):
     s.bus("shouts", comp=dict(thresh=-18, ratio=2, attack_ms=5, release_ms=100))
     s.bus("stomps", comp=dict(thresh=-16, ratio=2.5, attack_ms=6, release_ms=90))
     s.bus("cowbell")
-    # iteration 8 ("the HEYs are a bit demonic"): a tight natural gang (SampledGangShouts caps a hit at 8 layers, one
-    # take per performer, +-1 st) in a SHORT dry-ish room - the old room .25 + 2.2 s dark hall .12 smeared it
-    hey = s.track("shouts", P.shouts(voices=8), bus="shouts", lufs=OVERLAY_LEVELS["shouts"],
-                  sends=SHOUT_SENDS, eq=[("hp", 160)])
+    # iteration 9b (user: "just change the 'heys' to more of a hitting sound effect"): the 'shouts' stem's slots are HIT
+    # accents now (instruments/fx_hits.py HitAccents: HEY = the house's boots + claps + a cue crack + a punch, HUP = a
+    # lighter jab); they carry their own short room, so only a touch of the bar's room
+    from instruments.fx_hits import HitAccents
+    hey = s.track("shouts", HitAccents(), bus="shouts", lufs=OVERLAY_LEVELS["shouts"],
+                  sends=SHOUT_SENDS, eq=[("hp", 50)])
     stp = s.track("stomps", P.kit(), bus="stomps", lufs=OVERLAY_LEVELS["stomps"], sends={"room": 0.3},
                   eq=[("hp", 45)])
     cow = s.track("cowbell", P.kit(levels={"cowbell": 0.5}), bus="cowbell", lufs=OVERLAY_LEVELS["cowbell"],
@@ -411,7 +413,7 @@ def render_overlay(G, place, n_samples, extra=None, only=None):
     return out
 
 
-OVERLAY_VS_ORIGINAL_DB = {"shouts": -7.0, "stomps": -9.0, "cowbell": -14.0}   # in the choruses, gated LUFS
+OVERLAY_VS_ORIGINAL_DB = {"shouts": -5.0, "stomps": -9.0, "cowbell": -14.0}   # in the choruses, gated LUFS (9b: shouts = HIT accents, -7 -> -5: a transient reads quieter at the same LUFS)
 
 
 def calibrate_overlay(G, mix, ov, gains=None):
@@ -525,7 +527,7 @@ def stage_full():
 # Keep song beats [0, 130) then [246, 461): the jump happens on beat 3 of bar 33 -> beat 3 of bar 62. Both are the
 # 2nd bar of the identical B7 turnaround (bass B B C# D# -> E), so the bass walk continues and verse 3's vocal
 # pickup (bar 62 b3.67) follows naturally. The edit ends on the outro tag's resolution: song bar 115 beat 1 (edit
-# bar 86), with a band-stop button (the original fades under our final hit: stomps, gang HEY, cowbell, crash).
+# bar 86), with a band-stop button (the original fades under our final hit: stomps, the heavy hit, cowbell, crash).
 EDIT_KEEP = [(0, 130), (246, 461)]          # song beats, end exclusive
 EDIT_FINAL_SONG_BEAT = 456                  # song bar 115 beat 1 = edit beat 340
 EDIT_XFADE_MS = 24.0
@@ -582,9 +584,9 @@ def splice(x, G, keep=EDIT_KEEP, final_beat=EDIT_FINAL_SONG_BEAT, fade_beats=1.0
 
 
 def final_hit(tracks, ftb_edit_time):
-    """our button on the final beat: gang HEY, stomps, kick, crash, cowbell, crowd"""
+    """our button on the final beat: the HEAVY hit (iteration 9b: was a gang HEY), stomps, kick, crash, cowbell"""
     t = ftb_edit_time
-    tracks["shouts"].hit(t, "HEY", 1.0, voices=8)
+    tracks["shouts"].hit(t, "HEY", 1.0, voices=16)
     tracks["stomps"].hit(t, "stomp", 1.0, gang=5)
     tracks["stomps"].hit(t, "kick", 1.0)
     tracks["stomps"].hit(t, "crash", 1.0)
@@ -593,7 +595,8 @@ def final_hit(tracks, ftb_edit_time):
 
 
 def render_button(n, t_final):
-    """the edit's final hit at file time `t_final`, rendered alone: {shouts (+ the crowd's cheer), stomps, cowbell}"""
+    """the edit's final hit at file time `t_final`, rendered alone: {shouts (the heavy hit + the crowd's cheer), stomps,
+    cowbell}"""
     from producer.score import Score
     from producer.mix import Mixer
     from instruments.palette import Palette
@@ -604,7 +607,8 @@ def render_button(n, t_final):
     sc.bus("shouts")
     sc.bus("stomps")
     sc.bus("cowbell")
-    tr = {"shouts": sc.track("shouts", P.shouts(voices=8), bus="shouts", sends={"room": 0.18, "hall": 0.05}),
+    from instruments.fx_hits import HitAccents
+    tr = {"shouts": sc.track("shouts", HitAccents(), bus="shouts", sends={"room": 0.1, "hall": 0.05}),
           "stomps": sc.track("stomps", P.kit(), bus="stomps", sends={"room": 0.3, "hall": 0.15}),
           "cowbell": sc.track("cowbell", P.kit(), bus="cowbell", sends={"room": 0.2})}
     final_hit(tr, t_final)
@@ -781,8 +785,8 @@ def check_splice(y, GE):
 
 
 def stage_shouts():
-    """Iteration 8: re-render ONLY the gang-shout overlay (full song + the edit, with the final hit) and the edit's
-    licensed mix (its button carries the final HEY). The stomps/cowbell stems, the lanes and every other beat-map field
+    """Iteration 8 / 9b: re-render ONLY the 'shouts' overlay (iteration 9b: HIT accents, no voices; full song + the edit,
+    with the final hit) and the edit's licensed mix (its button carries the final heavy hit). The stomps/cowbell stems, the lanes and every other beat-map field
     stay as they are; the beat maps get the new shouts file sizes, gain and section levels."""
     from original.overlay import Place
     from original.timegrid import TimeGrid
@@ -806,7 +810,9 @@ def stage_shouts():
     fa = full["audio"]
     fa["files"]["shouts"]["bytes"] = os.path.getsize(pth)
     fa["overlayCalibration"]["appliedGainDb"]["shouts"] = round(gains["shouts"], 2)
+    fa["overlayCalibration"]["vsOriginalInChorusesDb"]["shouts"] = OVERLAY_VS_ORIGINAL_DB["shouts"]
     fa["overlayLevels"] = section_level_report(G, mix, {k: v.astype(np.float64) for k, v in ovf.items()})
+    full.setdefault("laneInfo", {}).setdefault("shouts", {})["description"] = LANE_DESC["shouts"]
     with open(full_p, "w") as f:
         json.dump(full, f, indent=1, separators=(",", ": "))
         f.write("\n")
@@ -826,6 +832,7 @@ def stage_shouts():
     encode(ove["shouts"], pth, 4)
     edit["audio"]["files"]["shouts"]["bytes"] = os.path.getsize(pth)
     edit["audio"]["overlayCalibration"] = fa["overlayCalibration"]
+    edit.setdefault("laneInfo", {}).setdefault("shouts", {})["description"] = LANE_DESC["shouts"]
     if os.path.exists(LIC):                       # licensed (gitignored): the record + the button, never committed
         y_mix = limiter(y + button_mix(btn, ne), SR, ceiling_db=-0.5)
         ogg = os.path.join(LIC, "jim_edit.ogg")

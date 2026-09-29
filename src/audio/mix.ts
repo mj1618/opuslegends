@@ -15,7 +15,8 @@
  * in LOUDNESS without its transients hitting the master limiter (the cowbell's stick click is ~20 dB over
  * its body; the clip shaves ~8 dB of that, which the ear reads as a driven, "mixed" cowbell).
  *
- *   shouts   the gang HEY!/HUP!s in the vocal gaps: -9 dB at 3 -> -3 dB at 12 -> 0 dB at FULL HOUSE
+ *   shouts   the HIT accents in the vocal gaps (iteration 9b: were gang HEY!/HUP!s; the stem keeps its name): -9 dB
+ *            at 3 -> -3 dB at 12 -> 0 dB at FULL HOUSE
  *   stomps   stomps + hand claps join once the crowd is on its feet: silent <= 5, -14 dB at 6 -> 0 dB at 20
  *   cowbell  the hot streak: silent < 12, -12 dB at 12 -> +5 dB at FULL HOUSE (with presence EQ + clip)
  *   bonus    placeholder song only: organ + harmony lead at FULL HOUSE
@@ -201,18 +202,20 @@ export const GRADE_SFX = {
 } as const;
 
 /**
- * The hero's strike HEY (Sfx.hey, iteration 8: real shouts, tools/music/sfx.py --set=voices): one performer's natural
- * takes round-robin (hey_1..4), the audience's tight gang (hey_crowd) doubling it when the crowd is up (every strike at
- * a crowd >= 4), louder on a Heave's roar. dB on the SFX bus (+6 dB). `catchUpSec`: a HEY fired with no lead time
- * starts into its /h/ pre-roll keeping this much of it, so the vowel isn't late. Measured: the `hey_*` mix-lab scenes.
+ * The hero's strike HIT (Sfx.hit; iteration 9b, the user: "just change the 'heys' to more of a hitting sound effect"):
+ * a pool-cue CRACK into a body-punch THUMP + a short room tail, round-robin (hit_1..4, tools/music/sfx.py --set=hits,
+ * instruments/fx_hits.py); the audience's stomp-clap hit (hit_crowd) joins it when the crowd is up (every strike at a
+ * crowd >= 4); a Heave, a giant, the break shot and the final hit play a HEAVY hit (hit_big_1..2) instead. dB on the
+ * SFX bus (+6 dB). Measured: the `hit_*` mix-lab scenes (tools/music/hit_report.py).
  */
-export const HEY_SFX = {
-  heroDb: -18.5,
-  crowdDb: -25,
-  /** a Heave (Hup-Hup-HEY complete): the hero + the whole house */
-  roarHeroDb: -15.5,
-  roarCrowdDb: -18,
-  catchUpSec: 0.012,
+export const HIT_SFX = {
+  heroDb: -8,
+  crowdDb: -15,
+  /** a heavy hit (a Heave / a giant / the break shot / the final hit): the big variant + the whole house */
+  bigDb: -6.5,
+  bigCrowdDb: -11,
+  /** a Heave graded after its strike already sounded: the heavy layer joins if the strike is at most this old (s) */
+  lateBigSec: 0.12,
 } as const;
 
 /**
@@ -276,13 +279,13 @@ export const STAGE_SFX = {
     { id: 'marquee_clank', db: -14, beats: 1, rate: 2 ** (7 / 12), align: true },
   ],
   /**
-   * THE FINAL HIT (the edit's 340: gang HEY x16 + crash + stomps, baked in): the iris slams ON it with the mega cheer,
+   * THE FINAL HIT (the edit's 340: the heavy hit stack + crash + stomps, baked in; iteration 9b: no gang HEY): the iris slams ON it with the mega cheer,
    * the film snaps and runs out on the next beat (THE END burns in), the curtain-call applause carries the ring-out
    * into the results poster (the SFX bus outlives the music's fade).
    */
   finale: [
     { id: 'iris_slam_big', db: -9.5, align: true },
-    // the house ERUPTS half a beat after the hit (a reaction; its gang YEAH on the beat doubled the record's HEY)
+    // the house ERUPTS half a beat after the hit (a reaction, not a second hit on the beat)
     { id: 'crowd_mega_cheer', db: -8, beats: 0.5, align: true },
     { id: 'film_runout', db: -4, beats: 1 },
     { id: 'crowd_applause_long', db: -11, beats: 2, align: true },
@@ -316,12 +319,16 @@ export const STAGE_SFX = {
     { id: 'tonk_hi', db: -8, beats: 0.659, align: true },
   ],
   goonPiano: [{ id: 'piano_gliss', db: -10, align: true }],
-  // (iteration 8: the re-rendered gang is +3.5 LU hotter per peak: -12 -> -15.5 keeps the stinger's level)
-  goonShouts: [{ id: 'hey_crowd', db: -15.5, align: true }],
+  // (iteration 9b: the HEY goon's gang shout is a HIT: the house's stomp-clap + a heavy cue whack, on the shouts part's
+  //  next hit; -26 LUFS momentary like the old gang HEY at -15.5)
+  goonShouts: [
+    { id: 'hit_crowd', db: -9, align: true },
+    { id: 'hit_big_2', db: -15, align: true },
+  ],
   // ---- iteration 7 (tools/music/sfx.py --set=polish, instruments/fx_polish.py)
-  /** THE COLOUR REEL (setPiece colorBurst, the record's first HEY on 15): the air rises for 1.43 beats (the file PEAKS at
+  /** THE COLOUR REEL (setPiece colorBurst, the overlay's first HIT accent on 15): the air rises for 1.43 beats (the file PEAKS at
    *  its end, ~0.53 s) and the bloom (air + glass bells up the E chord + the house's delighted 'aaah') opens ON the beat —
-   *  subtle: the record's HEY and the player's strike are the hit */
+   *  subtle: the overlay's accent and the player's strike are the hit */
   colorBurst: [
     { id: 'color_whoosh', db: -17, beats: -1.43 },
     { id: 'color_bloom', db: -15, align: true },

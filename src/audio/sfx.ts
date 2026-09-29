@@ -3,8 +3,8 @@
  * All pitched SFX that should sound musical take a MIDI note chosen by the caller from the
  * song's key/harmony (see collectibleNote in song.ts).
  */
-import { HEY_SFX, dbToGain } from './mix';
-import { HERO_HEYS, SampleBank, type SampleId } from './samples';
+import { HIT_SFX, dbToGain } from './mix';
+import { BIG_HITS, HERO_HITS, SampleBank, type SampleId } from './samples';
 import { mtof } from './song';
 
 export class Sfx {
@@ -12,11 +12,14 @@ export class Sfx {
   private out: AudioNode;
   private noise: AudioBuffer;
   enabled = true;
-  /** play the hero's HEY from the recorded takes when StageAudio's sample bank has them (false = the synth: A/B) */
-  sampledHey = true;
-  /** round-robin over HERO_HEYS (a shuffled cycle, never the same take twice in a row) */
-  private heyOrder: SampleId[] = [];
-  private lastHey: SampleId | null = null;
+  /** play the hero's strike HIT from the rendered samples when StageAudio's sample bank has them (false = the synth: A/B) */
+  sampledHit = true;
+  /** round-robin cycles (shuffled, never the same variant twice in a row) over HERO_HITS / BIG_HITS */
+  private cycles = new Map<readonly SampleId[], { order: SampleId[]; last: SampleId | null }>();
+  /** the last strike hit: its ctx time (the SMACK), when it was fired, whether it was already heavy */
+  private lastHit = { at: -1, fired: -1, big: false, crowd: false };
+  /** a Heave graded BEFORE its strike sounded: the next strike until this ctx time is heavy */
+  private bigUntil = -1;
 
   constructor(ctx: BaseAudioContext, out: AudioNode) {
     this.ctx = ctx;
@@ -85,78 +88,77 @@ export class Sfx {
     this.burst('bandpass', f * 1.5, f * 1.2, 0.02, 0.08, 6, t);
   }
 
-  /** Cue Sweep = foley whoosh-thwack + Kid Cue's "HEY!" (formant blip); the audience doubles it when 4+ stand. */
-  strike(when?: number, crowd = false, heave = false): void {
+  /**
+   * Cue Sweep = the swing's air (only with lead time: it rises INTO the hit) + the strike HIT on `when` (see hit()).
+   * `crowd`: the house hits with you. `big`: the heavy variant (a giant, the break shot, the final hit; a Heave graded
+   * just before this strike makes it heavy too, see roar()).
+   */
+  strike(when?: number, crowd = false, big = false): void {
     if (!this.enabled) return;
     const t = this.at(when);
-    this.burst('bandpass', 700, 2600, 0.09, 0.22, 1.2, t); // whoosh
-    this.burst('highpass', 2500, 5000, 0.03, 0.25, 1, t + 0.02); // thwack
-    this.hey(t, crowd ? 4 : 1, heave ? 1.6 : 1);
+    if (t - this.ctx.currentTime > 0.05) this.burst('bandpass', 900, 2400, 0.06, 0.06, 1.2, t - 0.06); // the swing
+    const heavy = big || this.ctx.currentTime <= this.bigUntil;
+    this.bigUntil = -1;
+    this.hit(t, crowd, heavy);
   }
 
   /**
-   * The hero's "HEY!" at `when` (vowel ON it; no lead time = skip into the /h/): a recorded take, round-robin (one
-   * performer's natural takes, dry, bright), + the audience's gang when `voices` > 1 (louder on a roar: `voices` >= 5).
-   * Without the samples: a synth fallback (one bright unison voice on /e/ after a breathy /h/).
+   * The strike HIT at `when` (iteration 9b; were the hero's HEY takes): a pool-cue CRACK into a body-punch THUMP + a
+   * short room tail, round-robin over hit_1..4 (heavy: hit_big_1..2), + the audience's stomp-clap hit when `crowd`.
+   * Without the samples: a synth fallback (a noise crack + a pitched thump).
    */
-  hey(when?: number, voices = 1, vol = 1): void {
+  hit(when?: number, crowd = false, big = false): void {
     if (!this.enabled) return;
     const t = this.at(when);
-    const bank = this.sampledHey ? SampleBank.forContext(this.ctx) : undefined;
-    if (bank && HERO_HEYS.some((id) => bank.has(id))) {
-      const roar = voices >= 5;
-      const o = { align: true, catchUp: HEY_SFX.catchUpSec };
-      bank.play(this.nextHey(bank), this.out, t, { ...o, gain: dbToGain(roar ? HEY_SFX.roarHeroDb : HEY_SFX.heroDb) * vol });
-      if (voices > 1) bank.play('hey_crowd', this.out, t, { ...o, gain: dbToGain(roar ? HEY_SFX.roarCrowdDb : HEY_SFX.crowdDb) * vol });
+    this.lastHit = { at: t, fired: this.ctx.currentTime, big, crowd };
+    const bank = this.sampledHit ? SampleBank.forContext(this.ctx) : undefined;
+    const pool = big ? BIG_HITS : HERO_HITS;
+    if (bank && pool.some((id) => bank.has(id))) {
+      bank.play(this.next(pool, bank), this.out, t, { align: true, gain: dbToGain(big ? HIT_SFX.bigDb : HIT_SFX.heroDb) });
+      if (crowd || big) bank.play('hit_crowd', this.out, t, { align: true, gain: dbToGain(big ? HIT_SFX.bigCrowdDb : HIT_SFX.crowdDb) });
       return;
     }
-    this.synthHey(t, vol);
+    this.synthHit(t, big);
   }
 
-  private nextHey(bank: SampleBank): SampleId {
-    if (this.heyOrder.length === 0) {
-      const ids = HERO_HEYS.filter((id) => bank.has(id));
+  /**
+   * A Heave (a completed Hup-Hup-HEY): the strike is HEAVY. The game grades the press before the strike sounds, so
+   * this marks the next strike (within 0.25 s) heavy; if the strike already sounded light (<= lateBigSec ago), the
+   * heavy layer joins it on the same beat.
+   */
+  roar(): void {
+    if (!this.enabled) return;
+    const now = this.ctx.currentTime;
+    const h = this.lastHit;
+    if (h.fired >= 0 && now - h.fired <= HIT_SFX.lateBigSec) {
+      if (!h.big) this.hit(Math.max(h.at, now), true, true);
+    } else this.bigUntil = now + 0.25;
+  }
+
+  private next(pool: readonly SampleId[], bank: SampleBank): SampleId {
+    let c = this.cycles.get(pool);
+    if (!c) this.cycles.set(pool, (c = { order: [], last: null }));
+    if (c.order.length === 0) {
+      const ids = pool.filter((id) => bank.has(id));
       for (let i = ids.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [ids[i], ids[j]] = [ids[j], ids[i]];
       }
-      if (ids.length > 1 && ids[0] === this.lastHey) ids.push(ids.shift() as SampleId);
-      this.heyOrder = ids;
+      if (ids.length > 1 && ids[0] === c.last) ids.push(ids.shift() as SampleId);
+      c.order = ids;
     }
-    this.lastHey = this.heyOrder.shift() as SampleId;
-    return this.lastHey;
+    c.last = c.order.shift() as SampleId;
+    return c.last;
   }
 
-  /** synth fallback: a breathy /h/ then ONE bright voice on /e/ (a tight unison, no pitch stack), falling a semitone */
-  private synthHey(t: number, vol: number): void {
-    const dur = 0.2;
-    const out = this.ctx.createGain();
-    out.gain.setValueAtTime(0, t);
-    out.gain.linearRampToValueAtTime(0.2 * vol, t + 0.008);
-    out.gain.setValueAtTime(0.2 * vol, t + dur * 0.55);
-    out.gain.linearRampToValueAtTime(0, t + dur);
-    out.connect(this.out);
-    const src = this.ctx.createGain();
-    [[600, 1, 6], [1900, 0.8, 8], [2700, 0.55, 9], [3500, 0.3, 9]].forEach(([fq, k, q]) => {
-      const bp = this.ctx.createBiquadFilter();
-      bp.type = 'bandpass';
-      bp.frequency.value = fq;
-      bp.Q.value = q;
-      const g = this.ctx.createGain();
-      g.gain.value = k;
-      src.connect(bp).connect(g).connect(out);
-    });
-    for (const cents of [-6, 6]) {
-      const o = this.ctx.createOscillator();
-      o.type = 'sawtooth';
-      o.frequency.setValueAtTime(262, t);
-      o.frequency.exponentialRampToValueAtTime(247, t + dur);
-      o.detune.value = cents;
-      o.connect(src);
-      o.start(t);
-      o.stop(t + dur + 0.02);
-    }
-    this.burst('bandpass', 1800, 2600, 0.05, 0.1 * vol, 1.2, Math.max(this.ctx.currentTime, t - 0.03)); // the /h/
+  /** synth fallback: a leather-tip crack (a 1 ms noise band + a wood ring) into a pitched body thump */
+  private synthHit(t: number, big: boolean): void {
+    const k = big ? 1.4 : 1;
+    this.burst('bandpass', 2800, 2600, 0.012, 0.5 * k, 0.9, t); // the tip snap
+    this.tone('sine', 1320, 1300, 0.03, 0.08 * k, t, 0.0003); // the shaft
+    this.tone('sine', 2870, 2850, 0.02, 0.04 * k, t, 0.0003);
+    this.tone('sine', big ? 150 : 200, big ? 50 : 70, big ? 0.22 : 0.12, 0.3 * k, t + 0.0015, 0.0008); // the thump
+    this.burst('lowpass', 900, 250, big ? 0.12 : 0.07, 0.25 * k, 0.7, t + 0.0015); // the body
   }
 
   /** pendulum targets chime, pitched to the chord */
@@ -225,13 +227,6 @@ export class Sfx {
     this.burst('bandpass', 900, 400, 0.3, 0.2, 1);
   }
 
-  /** the crowd roars a completed Hup-Hup-HEY */
-  roar(): void {
-    if (!this.enabled) return;
-    this.hey(this.t, 5, 1.8);
-    this.burst('bandpass', 700, 1500, 0.6, 0.12, 0.6);
-  }
-
   // (grade, miss, stumble-crowd, death-crowd and checkpoint sounds live in audio/stage.ts: StageAudio)
 
   /** @deprecated StageAudio.onGrade plays the Perfect bell (kept so older call sites still compile) */
@@ -297,7 +292,8 @@ export class Sfx {
   punch(): void {
     this.burst('bandpass', 700, 2500, 0.1, 0.25, 1.5);
   }
-  hit(): void {
+  /** the hero is hit by something (a bottle, a ball): a bonk (was hit(); that name is the strike HIT now) */
+  hurt(): void {
     this.tone('square', 220, 55, 0.14, 0.18);
     this.tone('sine', 900, 300, 0.05, 0.2);
     this.burst('bandpass', 1800, 600, 0.12, 0.35, 0.8);

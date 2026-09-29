@@ -4,7 +4,7 @@
  * 164 BPM, 4/4, E blues, SHUFFLE (swung 8ths at SWING of the beat), and the stab/shout grid the
  * level is built on. Swap it for the producer's render with songFromBeatmap() (a data change).
  *
- *   bar 0        pickup: cowbell + stomp count-in, gang HEY! on beat 4            (beats 0-3)
+ *   bar 0        pickup: cowbell + stomp count-in, a HIT on beat 4                 (beats 0-3)
  *   bars 1-4     intro: fuzz boogie riff + stomp                                   (4-19)
  *   bars 5-8     intro: + bass, piano, cowbell, full kit                           (20-35)
  *   bars 9-16    verse 1a: melody over the groove, turnaround stab + HEY on 16 b4  (36-67)
@@ -12,7 +12,7 @@
  *   bars 25-32   chorus 1 (DESIGN chorus template C1..C8, melody from the transcription)
  *   bar 33       final hit + ring-out                                             (132-)
  *
- * Stems: main mix (everything but shouts/bonus), 'shouts' (gang HEY!/HUP!, volume = crowd),
+ * Stems: main mix (everything but shouts/bonus), 'shouts' (HIT accents on the HEY!/HUP! slots, volume = crowd),
  * 'bonus' (organ + harmony lead, faded in during BIG CATCH). Every note is placed via the
  * TempoMap, so onsets land exactly on the (swung) grid (verify with analyzeBeatAlignment / probe).
  */
@@ -346,39 +346,33 @@ async function renderChunk(tempo: TempoMap, part: Part, barFrom: number, barTo: 
       }
   };
 
-  // ------------------------------------------------------------ gang shout (formant synth)
+  // ------------------------------------------------------------ the shouts stem's HIT accents (iteration 9b: were a
+  // formant-synth gang HEY): a cue CRACK (tip snap + wood ring) into a punch THUMP + a few loose hand claps; 'HUP' = a
+  // lighter jab, a long 'HEY' (beats >= 2) = the heavy hit
   const shout = (t: number, word: string, beats: number) => {
-    const vowel = word === 'HUP' ? [640, 1190, 2390] : [530, 1840, 2480];
-    const dur = word === 'HUP' ? 0.13 : Math.min(0.55, 0.2 + (beats - 1) * 0.3);
-    const out = ctx.createGain();
-    out.gain.setValueAtTime(0, t);
-    out.gain.linearRampToValueAtTime(1, t + 0.004);
-    out.gain.setTargetAtTime(0, t + dur * 0.6, dur * 0.15);
-    out.connect(comp);
-    const src = ctx.createGain();
-    src.gain.value = 1;
-    const vel = [1, 0.5, 0.3];
-    vowel.forEach((fq, i) => {
-      const bp = ctx.createBiquadFilter();
-      bp.type = 'bandpass';
-      bp.frequency.value = fq;
-      bp.Q.value = 7;
-      const g = ctx.createGain();
-      g.gain.value = vel[i] * 0.9;
-      src.connect(bp).connect(g).connect(out);
-    });
-    for (const [f0, det] of [[190, -10], [220, 6], [247, -4], [165, 12], [208, 0]]) {
+    const light = word === 'HUP';
+    const heavy = !light && beats >= 2;
+    const k = light ? 0.7 : heavy ? 1.3 : 1;
+    noiseHit(t, 'bandpass', 2800, 0.9, 0.9 * k, 0.012); // the tip snap
+    for (const [fq, a, d] of [[1320, 0.25, 0.03], [2870, 0.12, 0.02]]) {
       const o = ctx.createOscillator();
-      o.type = 'sawtooth';
-      o.frequency.setValueAtTime(f0 * 1.06, t);
-      o.frequency.exponentialRampToValueAtTime(f0 * 0.94, t + dur);
-      o.detune.value = det;
-      o.connect(src);
+      o.frequency.value = fq;
+      const g = ctx.createGain();
+      env(g.gain, t, a * k, 0.0003, d);
+      o.connect(g).connect(comp);
       o.start(t);
-      o.stop(t + dur * 1.5 + 0.02);
+      o.stop(t + d + 0.05);
     }
-    // consonant burst (h / p) right on the onset
-    noiseHit(t, 'bandpass', 1600, 1, 0.25, 0.03);
+    const o = ctx.createOscillator(); // the thump
+    o.frequency.setValueAtTime(heavy ? 150 : 200, t);
+    o.frequency.exponentialRampToValueAtTime(heavy ? 50 : 70, t + (heavy ? 0.2 : 0.1));
+    const g = ctx.createGain();
+    env(g.gain, t + 0.0015, 0.9 * k, 0.0008, heavy ? 0.2 : 0.1);
+    o.connect(g).connect(comp);
+    o.start(t);
+    o.stop(t + 0.3);
+    noiseHit(t + 0.0015, 'lowpass', 900, 0.7, 0.5 * k, heavy ? 0.12 : 0.07); // the body
+    for (let i = 0; i < (light ? 2 : 4); i++) noiseHit(t + i * 0.004, 'bandpass', 1250, 0.9, 0.35 * k, 0.03, ((i % 2) * 2 - 1) * 0.5); // claps
   };
 
   // ============================================================ SCORE

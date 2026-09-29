@@ -209,19 +209,23 @@ SCENARIOS.push(
   { name: 'chorus_tone3', from: 262, to: 280, crowd: 14, tone: true, nosfx: true, level: true, mute: ['shouts', 'stomps', 'cowbell'] },
   { name: 'chorus_tone3_off', from: 262, to: 280, crowd: 14, tone: true, nosfx: true, level: true, liftOff: true, mute: ['shouts', 'stomps', 'cowbell'] },
 );
-// ---- the hero's strike HEY (iteration 8: real takes, Sfx.hey): chorus 1 at FULL HOUSE, a HEY on every 2nd beat (the
-// hero alone, + the audience, a Heave's roar) with the samples and with the old synth (`_synth`); `_sfx` = the HEYs alone
-// (no music), `_music` = the music alone. `tools/music/hey_report.py`: loudness / centroid / low-mids vs presence / tail
-// per HEY, vs the music in 1-4 kHz, the vowel's timing on the beat; the death groan.
-const heyEvents = range(88, 120, 2).map((beat, i) => ({ beat, hey: i % 8 === 7 ? 5 : i % 2 ? 4 : 1 }));
-const heyScene = { from: 84, to: 122, crowd: 21, events: heyEvents };
+// ---- the strike HIT (iteration 9b: the HEYs became hits, Sfx.hit): chorus 1 at FULL HOUSE, a hit on every 2nd beat
+// (the hero alone, + the audience's stomp-clap, the heavy hit) with the samples and with the synth fallback (`_synth`);
+// `_sfx` = the hits alone (no music), `_music` = the music alone, `_stem` = the shouts overlay stem alone (its HIT
+// accents at FULL HOUSE, the record muted). `tools/music/hit_report.py`: loudness vs the music, transient punch (crest,
+// attack), spectrum, tail, the SMACK's timing on the beat, true peak + the limiter; the overlay accents vs the record.
+const hitEvents = range(88, 120, 2).map((beat, i) => ({ beat, hit: i % 8 === 7 ? 3 : i % 2 ? 2 : 1 }));
+const hitScene = { from: 84, to: 122, crowd: 21, events: hitEvents };
 SCENARIOS.push(
-  { name: 'hey_mix', ...heyScene },
-  { name: 'hey_sfx', ...heyScene, mute: MUSICSTEMS, nosfx: false },
-  { name: 'hey_synth_sfx', ...heyScene, mute: MUSICSTEMS, synthHey: true },
-  { name: 'hey_music', from: 84, to: 122, crowd: 21, nosfx: true },
+  { name: 'hit_mix', ...hitScene },
+  { name: 'hit_sfx', ...hitScene, mute: MUSICSTEMS, nosfx: false },
+  { name: 'hit_synth_sfx', ...hitScene, mute: MUSICSTEMS, synthHit: true },
+  { name: 'hit_music', from: 84, to: 122, crowd: 21, nosfx: true },
+  { name: 'hit_stem', from: 84, to: 132, crowd: 21, nosfx: true, mute: ['record', 'stomps', 'cowbell'] },
+  { name: 'hit_record', from: 84, to: 132, crowd: 21, nosfx: true, mute: ['shouts', 'stomps', 'cowbell'] },
+  { name: 'hit_full', from: 84, to: 132, crowd: 21, nosfx: true },
   // the death groan (StageAudio.onDeath: the ooh at GRADE_SFX.groanRate) alone
-  { name: 'hey_groan', from: 88, to: 96, crowd: 21, mute: MUSICSTEMS, events: [{ beat: 89, death: true }] },
+  { name: 'hit_groan', from: 88, to: 96, crowd: 21, mute: MUSICSTEMS, events: [{ beat: 89, death: true }] },
 );
 const only = args.only ? new Set(String(args.only).split(',')) : null;
 const prefix = args.prefix ? String(args.prefix).split(',') : null;
@@ -278,11 +282,11 @@ if (!args['no-report']) {
   const py = join(root, 'tools/music/.venv/bin/python');
   const names = metas.map((m) => m.name);
   let status = 0;
-  if (names.some((n) => !n.startsWith('act') && !n.startsWith('feel') && !n.startsWith('polish') && !n.startsWith('chorus') && !n.startsWith('hey'))) status ||= spawnSync(py, [join(root, 'tools/music/mix_report.py'), out], { stdio: 'inherit' }).status ?? 1;
+  if (names.some((n) => !n.startsWith('act') && !n.startsWith('feel') && !n.startsWith('polish') && !n.startsWith('chorus') && !n.startsWith('hit'))) status ||= spawnSync(py, [join(root, 'tools/music/mix_report.py'), out], { stdio: 'inherit' }).status ?? 1;
   if (names.some((n) => n.startsWith('act'))) status ||= spawnSync(py, [join(root, 'tools/music/stage_report.py'), out], { stdio: 'inherit' }).status ?? 1;
   if (names.some((n) => n.startsWith('feel'))) status ||= spawnSync(py, [join(root, 'tools/music/feel_report.py'), out], { stdio: 'inherit' }).status ?? 1;
   if (names.some((n) => n.startsWith('polish'))) status ||= spawnSync(py, [join(root, 'tools/music/polish_report.py'), out], { stdio: 'inherit' }).status ?? 1;
-  if (names.some((n) => n.startsWith('hey'))) status ||= spawnSync(py, [join(root, 'tools/music/hey_report.py'), out], { stdio: 'inherit' }).status ?? 1;
+  if (names.some((n) => n.startsWith('hit'))) status ||= spawnSync(py, [join(root, 'tools/music/hit_report.py'), out], { stdio: 'inherit' }).status ?? 1;
   if (names.some((n) => n.startsWith('chorus'))) status ||= spawnSync(py, [join(root, 'tools/music/chorus_report.py'), out], { stdio: 'inherit' }).status ?? 1;
   process.exit(status);
 }

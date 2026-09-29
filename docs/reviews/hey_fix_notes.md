@@ -1,5 +1,10 @@
 # The "demonic HEY" fix (playtest note: "the 'hey's are a bit demonic, fix them up")
 
+> **Superseded (iteration 9b).** The user then asked: "just change the 'heys' to more of a hitting sound effect". Every
+> shouted HEY / HUP in the game is now a percussive HIT (the strike, the audience layer, the 'shouts' overlay stem, the
+> goon stinger, the final hit): `tools/music/instruments/fx_hits.py`, `sfx.py --set=hits`, `tools/music/hit_report.py`;
+> see `docs/reviews/audio_checklist.md` items 43–48 and the CLAUDE.md audio notes. The notes below are history.
+
 ## Diagnosis (measured)
 
 1. **Overlay stem** (`stems/jim_edit_overlay/shouts.ogg`, `tools/music` `SampledGangShouts`): each HEY stacked 10-16

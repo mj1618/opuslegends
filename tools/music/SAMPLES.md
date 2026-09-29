@@ -74,6 +74,12 @@ walla, 2 min, CC0) and 480805 (a small group of men shouting, CC0).
 used as recorded (no pitch shift): one performer, so the hero keeps one voice. `hey_crowd` / `hup_1..2` are rendered with
 the iteration-8 gang above.
 
+**Iteration 9b ("just change the 'heys' to more of a hitting sound effect").** The game no longer plays any shouted
+voice: the strike (`hit_1..4`, `hit_big_1..2`), the audience layer (`hit_crowd`) and the 'shouts' overlay stem are HITS
+built by `instruments/fx_hits.py` from the libraries above — DRSKit (CC-BY 4.0: cross-stick, kick, floor tom, snare) and
+VCSL (CC0: solo hand clap, concert bass drum) — plus synthesis (tip snap, shaft modes, sub, room). No new downloads. The
+shout takes in this table are kept for the shelved cover (`songs/jim.py`) and the audience's non-HEY reactions only.
+
 **Gaps.** HEY and HUP have real *group* recordings. HO and HA are built only from solo takes, mostly from one
 performer (qubodup), and are thickened by pitch/time variation. WHOA has a single group layer; the other WHOA layers
 are nine takes from one performer. A proper gang-vocal session (6–8 people, each word ×4, close and room mics) would

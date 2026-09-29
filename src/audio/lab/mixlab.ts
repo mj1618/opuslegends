@@ -57,8 +57,8 @@ export interface LabEvent {
   sign?: number;
   /** the hero passed under a canister (game 'tease') */
   tease?: boolean;
-  /** the hero's HEY alone ON `beat` with this many voices (Sfx.hey: 1 = the hero, > 1 + the audience, >= 5 a roar) */
-  hey?: number;
+  /** the strike HIT alone ON `beat` (Sfx.hit): 1 = the hero, 2 = + the audience's stomp-clap hit, 3 = the heavy hit */
+  hit?: number;
   /** a death (StageAudio.onDeath: the groan) */
   death?: boolean;
   /** play a STAGE_SFX stack whose beat 0 is `soundBeat` (a level `at` cue: the colour burst, a canister glint) */
@@ -96,8 +96,8 @@ export interface Scenario {
   levelTokens?: boolean;
   /** the chorus lift bypassed (the pre-lift chain: booth -> trim), for the A/B (chorus_report.py) */
   liftOff?: boolean;
-  /** the hero's HEY from the old synth (Sfx.sampledHey = false), for the A/B (hey_report.py) */
-  synthHey?: boolean;
+  /** the strike hit from the synth fallback (Sfx.sampledHit = false), for the A/B (hit_report.py) */
+  synthHit?: boolean;
 }
 
 type Item = { type: string; beat?: number; style?: string; look?: string; giant?: boolean; action?: { type?: string; beat?: number } };
@@ -201,7 +201,7 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
     if (sc.noHush) stage.setCues(stage.audioCues.filter((c) => c.type !== 'hush'));
   }
   const synth = new Sfx(ctx, sfxOut);
-  if (sc.synthHey) synth.sampledHey = false;
+  if (sc.synthHit) synth.sampledHit = false;
   cond.onPlay((b) => stage.armLift(b)); // as StageAudio.forGame
   cond.play(t0, lead, 0.005);
   stage.setCrowd(sc.crowd, true);
@@ -244,9 +244,9 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
     if (e.sign !== undefined) stage.onSign({ index: e.sign, beat: e.beat });
     if (e.tease) stage.onTease({ beat: e.beat });
     if (e.sound) stage.playSound(e.sound, e.soundBeat ?? e.beat, false, true, e.rate ?? 1);
-    if (e.hey) synth.hey(clock.ctxAtBeat(e.beat), e.hey);
+    if (e.hit) synth.hit(clock.ctxAtBeat(e.beat), e.hit >= 2, e.hit >= 3);
     if (e.death) stage.onDeath();
-    const other = e.hey || e.death || e.strike || e.smash || e.missTarget || e.mech || e.fx || e.token || e.loose || e.whew || e.canister || e.goon || e.poster || e.theEnd || e.stamp || e.sign !== undefined || e.tease || e.sound;
+    const other = e.hit || e.death || e.strike || e.smash || e.missTarget || e.mech || e.fx || e.token || e.loose || e.whew || e.canister || e.goon || e.poster || e.theEnd || e.stamp || e.sign !== undefined || e.tease || e.sound;
     if (!e.grade && !e.miss && !e.stumble && !e.checkpoint && e.crowd === undefined && !other) stage.beatTick(e.beat);
   }
   const out = await ctx.startRendering();
@@ -283,7 +283,7 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
       mechs: evs.filter((e) => e.mech || e.fx).map((e) => ({ kind: e.mech ?? e.fx, arrive: e.arrive ?? e.beat })),
       // iteration 6: what each token sang (song time of its sound = `when`), the feel events
       tokens,
-      heys: evs.filter((e) => e.hey).map((e) => ({ beat: e.beat, voices: e.hey })),
+      hits: evs.filter((e) => e.hit).map((e) => ({ beat: e.beat, kind: e.hit })),
       feel: evs.filter((e) => e.whew || e.canister || e.goon || e.poster).map((e) => ({ beat: e.beat, whew: e.whew, canister: e.canister, goon: e.goon, poster: e.poster })),
       // iteration 7: the ending's picture beats, the sign letters, the teases, the cue sounds (song time of each)
       polish: evs

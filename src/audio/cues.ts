@@ -138,6 +138,33 @@ export function levelAudioCues(def: LevelLike, song?: SongDef): AudioCue[] {
   return dedupe(out);
 }
 
+/**
+ * The strike targets whose hit is HEAVY (iteration 9b, Sfx.strike `big`: the heavy hit variant instead of the light one):
+ * the GIANT breakables (kegs, pins, busts, lenses, the glass wall), THE BREAK SHOT (a strike target inside a hush) and
+ * the strike on the song's `final_hit` cue. Beats of the targets' intended actions, sorted. (A Heave is heavy too, but
+ * that is decided by the grade: Sfx.roar.)
+ */
+export function levelBigStrikes(def: LevelLike, song?: SongDef): number[] {
+  const items = def.items as AnyItem[];
+  const num = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
+  const beatOf = (it: AnyItem): number | undefined =>
+    it.action?.type === 'strike' && num(it.action.beat) ? it.action.beat : it.type === 'breakable' && num(it.beat) ? it.beat : undefined;
+  const out = new Set<number>();
+  for (const it of items) {
+    const b = beatOf(it);
+    if (num(b) && it.type === 'breakable' && it.giant) out.add(b);
+  }
+  for (const c of levelAudioCues(def, song)) if (c.type === 'onSmash' && c.sound === 'breakKrak') out.add(c.beat);
+  const fin = song?.map?.lanes.cue?.find((c) => c.name === 'final_hit')?.beat;
+  if (fin !== undefined) {
+    for (const it of items) {
+      const b = beatOf(it);
+      if (num(b) && near(b, fin, 0.1)) out.add(b);
+    }
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
 /** the chord tone (of the harmony at `beat`) nearest MIDI `target` */
 export function nearestChordTone(song: SongDef, beat: number, target: number): number {
   const pcs = new Set(chordAt(song, beat).map((t) => (((song.key.root + t) % 12) + 12) % 12));

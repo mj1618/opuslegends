@@ -2475,7 +2475,7 @@
     "path": "stems/jim_overlay/shouts.ogg",
     "repoPath": "assets/audio/stems/jim_overlay/shouts.ogg",
     "overlay": true,
-    "bytes": 391542
+    "bytes": 324123
    },
    "stomps": {
     "path": "stems/jim_overlay/stomps.ogg",
@@ -2507,12 +2507,12 @@
   },
   "overlayCalibration": {
    "vsOriginalInChorusesDb": {
-    "shouts": -7.0,
+    "shouts": -5.0,
     "stomps": -9.0,
     "cowbell": -14.0
    },
    "appliedGainDb": {
-    "shouts": 3.46,
+    "shouts": 7.68,
     "stomps": 1.82,
     "cowbell": -2.33
    },
@@ -2521,25 +2521,25 @@
   "overlayLevels": {
    "intro": {
     "original": -12.6,
-    "shouts": -17.3,
+    "shouts": -20.4,
     "stomps": -21.6,
     "cowbell": null
    },
    "verse1": {
     "original": -10.1,
-    "shouts": -18.3,
+    "shouts": -19.6,
     "stomps": -22.0,
     "cowbell": null
    },
    "prechorus1": {
     "original": -10.3,
-    "shouts": -17.2,
+    "shouts": -18.1,
     "stomps": -19.8,
     "cowbell": null
    },
    "chorus1": {
     "original": -10.1,
-    "shouts": -16.4,
+    "shouts": -19.9,
     "stomps": -21.0,
     "cowbell": -24.0
    },
@@ -2551,7 +2551,7 @@
    },
    "turnaround1": {
     "original": -10.4,
-    "shouts": -17.1,
+    "shouts": -18.8,
     "stomps": -19.8,
     "cowbell": -66.2
    },
@@ -2563,13 +2563,13 @@
    },
    "prechorus2": {
     "original": -10.0,
-    "shouts": -17.6,
+    "shouts": -19.3,
     "stomps": -19.9,
     "cowbell": null
    },
    "chorus2": {
     "original": -10.0,
-    "shouts": -16.6,
+    "shouts": -19.2,
     "stomps": -21.1,
     "cowbell": -24.0
    },
@@ -2581,25 +2581,25 @@
    },
    "turnaround2": {
     "original": -13.1,
-    "shouts": -17.4,
+    "shouts": -19.5,
     "stomps": -20.3,
     "cowbell": -66.1
    },
    "verse3": {
     "original": -10.7,
-    "shouts": -42.9,
+    "shouts": null,
     "stomps": -21.7,
     "cowbell": -31.6
    },
    "prechorus3": {
     "original": -10.1,
-    "shouts": -17.2,
+    "shouts": -18.1,
     "stomps": -19.8,
     "cowbell": -66.8
    },
    "chorus3": {
     "original": -9.4,
-    "shouts": -16.1,
+    "shouts": -19.5,
     "stomps": -21.1,
     "cowbell": -24.0
    },
@@ -2617,7 +2617,7 @@
    },
    "chorus4": {
     "original": -8.8,
-    "shouts": -16.6,
+    "shouts": -18.3,
     "stomps": -20.8,
     "cowbell": -22.8
    },
@@ -2629,7 +2629,7 @@
    },
    "outro": {
     "original": -12.3,
-    "shouts": -16.9,
+    "shouts": -19.9,
     "stomps": -21.3,
     "cowbell": -29.8
    }
@@ -43520,7 +43520,7 @@
    "count": 20
   },
   "shouts": {
-   "description": "OVERLAY: gang HEY!/HUP! (our reward stem, stems/..../shouts.ogg); t = vowel onset",
+   "description": "OVERLAY: HIT accents in the vocal gaps (our reward stem, stems/..../shouts.ogg; iteration 9b: were gang HEY!/HUP!s, `word` names the slot: HEY = the big hit, HUP = a jab); t = the hit's attack",
    "count": 35
   },
   "stomps": {

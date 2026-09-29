@@ -178,19 +178,31 @@ World y grows DOWN; the base ground top is y = 0.
   `onCheckpoint()`. Crowd moves are quantized to the NEXT BEAT and glide over ~1 beat (setTargetAtTime; filters
   swept in cents via `detune`). Low crowd (3) = the booth: record band-limited 320 Hz–3.4 kHz (4th-order), a
   1.7 kHz horn honk, width 0.2, −3 dB, projector wow+flutter (delay line), clatter + crackle bed; open at 14;
-  FULL HOUSE (20) = width ×1.15, overlays up (shouts 0 dB, stomps+claps 0 dB, cowbell +5 dB with presence EQ +
+  FULL HOUSE (20) = width ×1.15, overlays up (shouts = HIT accents 0 dB, stomps+claps 0 dB, cowbell +5 dB with presence EQ +
   clip), a cheer swell on the next downbeat and audience swells into vocal gaps. Grades: Perfect = jukebox bell
   on a chord tone (ping-pongs up the chord with the combo), Great = softer/duller bell, Good = silent; a missed
   REWARD = dull thunk on the next swung 8th + the film "snags" (music low-pass dip + 3 % pitch sag); stumble =
   record-scratch warble + audience "ooh"; death = tape-stop + groan (the ooh at `GRADE_SFX.groanRate` 0.94, −1 st;
-  it was 0.78, a "demon" groan); checkpoint = projector click on the beat. **The hero's strike HEY** (`Sfx.hey`,
-  iteration 8/9, `mix.ts` HEY_SFX): a real recorded take round-robin (`hey_1..4` = one performer's natural takes, no
-  resampling, dry, bright, 0.3 s; `tools/music/sfx.py --set=voices`) + the audience's gang (`hey_crowd`, the overlay's
-  de-demoned 8-voice gang) when the crowd is ≥ 4, both louder on a Heave's roar; Sfx borrows StageAudio's bank
-  (`SampleBank.forContext(ctx)`); a HEY fired with no lead time starts into its /h/ (`PlayOpts.catchUp`) so the vowel
-  isn't late; the synth fallback is one bright unison voice. Measured (`--prefix=hey` → `tools/music/hey_report.py`):
-  hero+gang −24.8 LUFS momentary (the old synth −23.2), centroid 2.6 kHz (1.7), low-mids −8 dB under presence (+4),
-  vowel ON the beat (±2 ms).
+  it was 0.78, a "demon" groan); checkpoint = projector click on the beat. **The hero's strike HIT** (`Sfx.strike` → `Sfx.hit`,
+  iteration 9b — the user: "just change the 'heys' to more of a hitting sound effect"; `mix.ts` HIT_SFX): no voice any
+  more — a pool-cue CRACK (leather tip snap + maple shaft ring + the kit's cross-stick) into a body-punch THUMP (kick
+  beater, a skin-slap clap pitched down, a pitched sub) + a short dark room tail, round-robin `hit_1..4`; the house's
+  stomp-clap (`hit_crowd`) joins when the crowd is ≥ 4; HEAVY variants `hit_big_1..2` (+ concert bass drum, snare crack,
+  deeper sub, longer tail) for a Heave (`Sfx.roar` marks the next strike heavy — the grade comes before the strike
+  sounds — or adds the heavy layer to one ≤ 120 ms old), the giants, the break shot and the final hit
+  (`cues.ts levelBigStrikes` → `Game.strikeIsBig`, by the judged target's beat). Rendered by `tools/music/sfx.py
+  --set=hits` (`instruments/fx_hits.py`: DRSKit + VCSL from the sample cache + synthesis); the old `hey_*` / `hup_*`
+  voices are gone. Sfx borrows StageAudio's bank (`SampleBank.forContext(ctx)`); the synth fallback is a noise crack +
+  a pitched thump (the old `Sfx.hit` bonk is `Sfx.hurt`). Measured (`--prefix=hit` → `tools/music/hit_report.py`): hero
+  −24.1 LUFS momentary (the HEY −24.8), + house −22.8, heavy −20.3; crest 15 dB, rise 2.6 ms, the SMACK ON the beat
+  (≤ 0.4 ms); first 20 ms −9 dB broadband but +1 dB in 1–5 kHz vs the music (the crack cuts, the thump sits under the
+  kit); limiter max 1.8 dB on heavy hits (2.7 % of blocks > 0.5 dB with a hit every 2nd beat). **The 'shouts' overlay
+  stem is HIT accents too** (9b; the stem, lane and reward logic keep their names): `build_original.py --stage shouts`
+  renders the lane's slots with `fx_hits.HitAccents` (HEY = the house's boots + claps + a cue crack + a punch, heavy at
+  ≥ 14 voices; HUP = a light jab) and the edit's final-hit button as the heavy stack (also baked, quieter, into the
+  local licensed edit); calibrated −5 dB under the record in the choruses (was −7 for the gang). Measured at crowd 21:
+  accents −6.7 dB under the record (first 150 ms), −4.7 in 1–5 kHz, −11 under 150 Hz, on the lane beat (−1 ms). The
+  synth placeholder's shouts stem is a synth hit too; the dubbed subtitle on the lane reads WHAM! / BAM!.
   The film delay line rests at 6 ms: `AudioSystem.outputDelay` (= film + limiter) is the clock's
   `conductor.outputDelay`, and `conductor.ctxTimeAtSongTime` adds `filmDelay` so beat-scheduled SFX land on the
   music. Measured (offline render of the real graph, chorus 1): booth −18.6 LUFS → crowd 10 −15.1 → open −14.3 →
@@ -265,7 +277,8 @@ World y grows DOWN; the base ground top is y = 0.
   cowbell (overlay lanes) / piano (the record's own piano hits, `piano` lane) / shouts; `stage.goons` = the level's
   jabbers → part; a strike graded on a jabber's beat = `stage.goonHit(part, beat)`: the part's overlay FLARES
   (`Conductor.flareStem`: a parallel path, +9 dB over its crowd level, ≥ −10 dB absolute, 1 beat; the bus clip makes
-  it ~+4..5 dB) and its stinger (`jukebox_boom` / `unison_clack` / the cowbell tonks / `piano_gliss` / `hey_crowd`)
+  it ~+4..5 dB) and its stinger (`jukebox_boom` / `unison_clack` / the cowbell tonks / `piano_gliss` / `hit_crowd` +
+  `hit_big_2`)
   lands ON the part's next hit. **The start at crowd 14** (the record full from beat 0): intro −15.2 LUFS (−16.9 at the
   old 8, −15.7 at 12), −2.3 dBTP, no limiting; verse 1 at 14 with bells −13.4 LUFS, limiter max 0.2 dB; the overlays
   at 14 sit right (stomps −3.7 dB under the record at 63 Hz, shouts +3.4 in the gaps).
@@ -280,7 +293,7 @@ World y grows DOWN; the base ground top is y = 0.
 onset in the range, on the hero's INTENDED path — the hook ride / launch / jump in progress, else his floor — and drops arc
 tokens that would only echo a sung note 1/12..1/3 beat late: every chorus + tag, bars 5-8 and the roof sing; check with
 `node playtest/tokens.mjs [--report=<playtest out>]`: chorus coverage 100 %, echo 0 %), `signLetter` (the roof sign),
-`crowd { forgive }`, `hint { glyph }`, set-pieces `colorBurst` (15: the film comes to colour on the first HEY),
+`crowd { forgive }`, `hint { glyph }`, set-pieces `colorBurst` (15: the film comes to colour on the first HIT accent),
 `miniBounce` (31: a cab roof pops Slim off the bar-8 pits, landing 33), `slimSign` (172-184). `RuntimeLevel.pits` = every
 lethal pit (`top` = its lip's y, `gauntlet` on Big Jim 304-332) for the art's danger language; `signLetters`, `glyphs`.
 **Levels are authored in musical time** (`level/types.ts`, helpers in `level/dsl.ts`):
@@ -352,8 +365,8 @@ src/
            samples.ts     sampled one-shots (assets/audio/sfx, tools/music/sfx.py) with onset alignment
            lab/mixlab.*   offline render of the real audio graph (OfflineAudioContext in headless Chromium)
            placeholderSong.ts  164 BPM E shuffle synth track in the real form (pickup + 32 bars,
-                          chorus stab/HEY grid), rendered in 2-bar chunks, + 'shouts' & 'bonus' stems
-           sfx.ts         synthesized SFX (+ the hero's sampled HEY)   audioSystem.ts  AudioContext, buses, master limiter
+                          chorus stab/HEY grid), rendered in 2-bar chunks, + 'shouts' (HIT accents) & 'bonus' stems
+           sfx.ts         synthesized SFX (+ the hero's sampled strike HIT)   audioSystem.ts  AudioContext, buses, limiter
            syncProbe.ts   AudioWorklet onset probe (live check that music plays where the clock says;
                           on the original it listens to the stomps overlay stem vs its own lanes)
   level/   types.ts       level schema               dsl.ts   authoring helpers (spikeHop, gapHop, gapJump, jabber,

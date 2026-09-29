@@ -8,7 +8,9 @@ the film canisters, the goons' flares and the poster's rank stings. Iteration 7 
 now land WITH the picture (THE END on the iris, the billing on the stamp), a warm C for every finisher, tokens that
 answer instead of echoing, the roof's SLIM sign, the colour reel on beat 15 and the canister glints. Iteration 9 adds
 items 39–45: the chorus lift (the music louder, brighter and wider in every chorus) and the de-demoned voices (the
-hero's strike HEY is now a real recorded shout, the death groan only a semitone down).*
+hero's strike HEY is now a real recorded shout, the death groan only a semitone down). **Iteration 9b** (the user: "just
+change the 'heys' to more of a hitting sound effect"): every shouted HEY / HUP is now a HIT — items 43–44 are rewritten
+and 46–48 are new.*
 
 ## How to listen (about 20 minutes)
 
@@ -52,7 +54,7 @@ hero's strike HEY is now a real recorded shout, the death groan only a semitone 
 | 18 | `?start=304&autoplay=1`, beats 309–310 | Big Jim's **fist slams** (E1 sub, escalating) | Earth-shaking on headphones, still present on a laptop. **Bad:** the sub swamps the bass line, or the fists disappear on small speakers |
 | 19 | `?start=304&autoplay=1` (317) and `?start=320&autoplay=1` (325) | The two **lens cracks** on the HEY answers, escalating: a crack + web + a chrome ring on E, then a full burst ringing on B | Each crack is the "prize" of its Hup-Hup-HEY, and the second is clearly bigger. **Bad:** the first is too quiet to notice |
 | 20 | `?start=320&autoplay=1`, 333–335 | The usher's **marquee clanks** (three, up the E triad) | A small, bright detail, and in tune |
-| 21 | `?start=320&autoplay=1`, **THE FINAL HIT (340) → the poster** | The record's gang HEY + crash + stomps with our layers: the **iris slam** (an iron clang on E, just under the record's hit), the **mega cheer** erupting half a beat later, the **film snapping and flapping** off the reel (341), then **curtain-call applause** that keeps going as the music fades and the results poster comes up | HUGE, and still clean: the HEY and the crash stay on top, with no crunch or distortion and no "squashed" pumping. The applause carries you into the poster and thins out (about 9 s). **Bad:** distortion on the hit, the iris masking the HEY, the cheer too early or late, or the applause too loud or too long over the poster |
+| 21 | `?start=320&autoplay=1`, **THE FINAL HIT (340) → the poster** | The button's HEAVY HIT (9b: was a gang HEY) + crash + stomps with our layers: the **iris slam** (an iron clang on E, just under the record's hit), the **mega cheer** erupting half a beat later, the **film snapping and flapping** off the reel (341), then **curtain-call applause** that keeps going as the music fades and the results poster comes up | HUGE, and still clean: the hit and the crash stay on top, with no crunch or distortion and no "squashed" pumping. The applause carries you into the poster and thins out (about 9 s). **Bad:** distortion on the hit, the iris masking the hit, the cheer too early or late, or the applause too loud or too long over the poster |
 | 22 | a full run from `?coldopen=1` to the poster, on the TV | Overall loudness through act 3 | No section jumps out as louder or harsher than chorus 1. Act 3's SFX sit "just under the record" |
 
 ## Iteration 6 (new): the record from beat 0, tokens that sing, WHEW, canisters, goons, the poster
@@ -64,7 +66,7 @@ hero's strike HEY is now a real recorded shout, the death groan only a semitone 
 | 25 | `?coldopen=1` bars 1–4 (no vocal) and `?start=236&autoplay=1` (the breakdown, bars 61–68) | Tokens between sung phrases: they climb and fall through the band's chord | A pleasant arpeggio that follows the chords. **Bad:** a random ding |
 | 26 | play it yourself, land a jump with your toes on a pit's far lip (or `?sloppy=1&autoplay=1` and wait for a "WHEW!") | **WHEW:** a quick audience gasp on the near-miss, then a rising "ooOOH" that swells into a short cheer on the next beat | Tension, then relief: "they saw that". **Bad:** the gasp sounds like a hiss or wind, or the cheer feels like a reward for sloppy play |
 | 27 | the film canisters: bar 43 (act 2, `?start=164`) and bar 79 on Big Jim's shoulder (`?start=304`), taking the high route | **Canister pickup:** a tin lid clank, the reel spinning up and a glass arpeggio of the band's chord | A treasure "you found it!" that is clearly different from a token. In tune with the chord |
-| 28 | `?start=80&autoplay=1` (strike the goons) and `?start=120&autoplay=1` (the turnaround, bars 32–33) | **Goons:** strike a goon and its part (the stomps, cowbell or gang HEY) jumps out of the mix for a beat, with its stinger (a bass-drum boom, a cowbell double, a piano glissando) on the part's next hit | The world plays the song and you knocked a player out: a flourish, on the beat. **Bad:** a volume jump that reads as a glitch |
+| 28 | `?start=80&autoplay=1` (strike the goons) and `?start=120&autoplay=1` (the turnaround, bars 32–33) | **Goons:** strike a goon and its part (the stomps, cowbell or the HIT accents) jumps out of the mix for a beat, with its stinger (a bass-drum boom, a cowbell double, a piano glissando, the house's stomp-clap + a heavy whack) on the part's next hit | The world plays the song and you knocked a player out: a flourish, on the beat. **Bad:** a volume jump that reads as a glitch |
 | 29 | finish a clean run (`?autoplay=1`) → the poster | **Replaced by items 32–33** (iteration 7: the stings are split and land on the picture) | |
 | 30 | finish a sloppy run → the poster | **Replaced by item 34** (a finisher is never billed D any more) | |
 | 31 | a full run from `?coldopen=1` | Overall loudness now that the run starts at 14 | The first 30 s don't feel quieter or thinner than the choruses by much (intro −15.2 LUFS vs chorus −13.2) |
@@ -78,10 +80,10 @@ hero's strike HEY is now a real recorded shout, the death groan only a semitone 
 | 34 | finish a struggling run (`?jitter=160&late=0.2&autoplay=1`, or play badly and finish) → a **C** | **C is warm:** a soft rolled E6/9 chord, a music-box E on top, real applause that keeps going (no "wah wah", no lone claps) | "Good show, come back": kind, never a joke. The flop is gone for finishers |
 | 35 | `?start=80&autoplay=1` (chorus 1), `?start=272&autoplay=1` (chorus 4) | **The tokens sing the hook** ("Bad, bad Leroy Brown") on the singer's syllables, and the extra tokens between syllables (jump arcs, held notes) **answer** with a different chord note instead of repeating his note a triplet late | The tune in the pickups, in time with him; the in-between pickups sound like a pianist filling. **Bad:** any flam / "echo" of his syllable, or answers that sound random |
 | 36 | `?start=164&autoplay=1`, bars 44–45 (the roof's stop-time) | **The SLIM sign:** each stop-time strike makes a neon letter flicker on: a relay CLUNK + the tube buzzing up to a steady hum, the four letters climbing the chord (A, C#, E, G) | Satisfying and in tune: "you rewrote the sign". **Bad:** a mains hum that sounds like a fault, or the buzz fighting the record |
-| 37 | `?coldopen=1` or `?start=0&autoplay=1`, beat 15 (the first HEY) | **The colour reel:** rising air into the HEY and a soft bloom on it (glass bells up the E chord + the house going "aaah") as the film floods to colour | Subtle magic: the room lights up with the picture. **Bad:** a cheesy whoosh, or it masks the record's HEY |
+| 37 | `?coldopen=1` or `?start=0&autoplay=1`, beat 15 (the first HIT accent) | **The colour reel:** rising air into the hit and a soft bloom on it (glass bells up the E chord + the house going "aaah") as the film floods to colour | Subtle magic: the room lights up with the picture. **Bad:** a cheesy whoosh, or it masks the hit |
 | 38 | `?start=32&autoplay=1` (canister 1 at the chimney, beat 43) and `?start=164` (170) | **The canister glints:** four tiny glass "tings" climbing the chord on the 4 beats before the held jump's takeoff; if you run under it, a falling "ting-ting" ("up there…"); quiet once found | A treasure whisper that makes you look up. **Bad:** you can't hear it at all, or it clutters the tokens |
 
-## Iteration 9 (new): the chorus lift, the real strike HEY, the softer groan
+## Iteration 9 (new): the chorus lift, the strike (9b: a HIT, no voice), the softer groan, the HIT accents
 
 | # | Where | Listen for | Good sounds like |
 |---|---|---|---|
@@ -89,9 +91,12 @@ hero's strike HEY is now a real recorded shout, the death groan only a semitone 
 | 40 | a full run, verses 1 and 3 (`?start=32&autoplay=1`, `?start=132&autoplay=1`) | **The verses are 1 dB quieter than before** (the lift's headroom) | The verses still feel full and punchy; your SFX sit a hair more forward. **Bad:** the verses feel limp or small next to the choruses |
 | 41 | `?start=256&autoplay=1`, beat 272 (the drop after THE HUSH) | Chorus 4 **steps** into the lift ON the drop (no ramp through the hush) | The drop hits even harder than before (+17.5 dB from the hushed record). **Bad:** a click on the drop, or the hush sounding less deep |
 | 42 | `?start=96&autoplay=1&miss=98` (die inside chorus 1) | The respawn count-in + rewind inside a chorus: the music comes back AT the chorus level | No swell from quiet to loud after the respawn, no jump |
-| 43 | `?start=32&autoplay=1` (the strikes in bars 13–20) and any chorus | **The hero's strike HEY** is now a real man's shout, four takes alternating (never the same one twice running), short and dry, with the audience's gang behind it | A person, not a machine: natural pitch, varied, bright, ON the beat with the swing. **Bad:** still "demonic" (a growl, a pitch stack), a machine-gun of one sample, too loud or too present over Croce, or a flam against the snare |
-| 44 | `?start=196&autoplay=1` (the Heave through the window, beat 202) | The **Heave's roar**: the hero's HEY + the whole house, ~2 dB bigger than a strike | A crowd shouting WITH you. **Bad:** harsh, or a wall of noise |
+| 43 | `?start=32&autoplay=1` (the strikes in bars 13–20) and any chorus | **9b: the hero's strike is a HIT**, no voice: a pool-cue CRACK (leather tip + maple shaft) into a body-punch THUMP with a short room tail, four variants alternating (never the same twice running); with the crowd up (≥ 4) the house stomps + claps with it | Meaty and satisfying, a whack you feel, ON the beat, just under Croce (the crack pokes out, the thump sits in the kit). **Bad:** a drum-machine clap, a thin click, a boomy thud that fights the kick/bass, a machine-gun of one sample, or a flam against the snare |
+| 44 | `?start=196&autoplay=1` (the Heave through the window, beat 202) | **The Heave's heavy hit:** the big variant (+ concert bass drum, a snare crack, a deeper sub, a longer tail) + the house | Clearly bigger than a strike (~4 LU), a knockout. **Bad:** a sub boom that makes the limiter duck the record, or a flam (the heavy layer arriving after the light one) |
 | 45 | die anywhere (e.g. `?start=96&autoplay=1&miss=98`) | **The death groan** is now only a semitone below the "ooh" (it was 4.3 st down) | A disappointed audience "ohhh". **Bad:** still slowed-down / demonic, or now too cheerful |
+| 46 | `?start=80&autoplay=1`: the walk-up 84–86 (HUP HUP HEY), chorus 1's gaps (93, 94, 102), the turnaround 126–130 | **9b: the overlay's HIT accents** (the old gang-shout slots): a light jab on each HUP, a big stomp + clap + cue-crack + punch stack on each HEY; they come up with the crowd like the shouts did | Punctuation that sounds like part of the band: the house hitting the accents, not a sound-effects track. **Bad:** clutter over the stomps/claps stem, a sub thud under the bass, or the accents disappearing under the record |
+| 47 | `?start=112&autoplay=1` (the walkdown giants 112–115), `?start=256&autoplay=1` (the break shot 271.65), the Big Jim blows 317/325, the final hit 340 | **Heavy hits on the big targets:** every giant, the break shot and the final strike play the heavy variant | The biggest moments hit hardest. **Bad:** four giants in a row become a wall of boom |
+| 48 | `?start=120&autoplay=1` (the turnaround goons, strike the HEY goon on 128) | The HEY goon's stinger: the house's stomp-clap + a heavy whack on the part's next hit, the accents flaring +4.6 dB | A flourish ON the beat. **Bad:** it sounds like a second, late strike |
 
 ## Measured (offline, clean player at FULL HOUSE): what each item should roughly be
 
@@ -146,8 +151,8 @@ Levels are momentary loudness vs the music under the sound. Commands:
   - **Glints (38):** −18 dB vs the music (up to +2 dB in their 1.4–2.8 kHz band: a sparkle, not a line), the tease
     −16 dB.
 
-- **Iteration 9** (`node src/audio/lab/mixlab.mjs --prefix=chorus` → `tools/music/chorus_report.py`; `--prefix=hey` →
-  `tools/music/hey_report.py`):
+- **Iteration 9** (`node src/audio/lab/mixlab.mjs --prefix=chorus` → `tools/music/chorus_report.py`; 9b: `--prefix=hit`
+  → `tools/music/hit_report.py`):
   - **The chorus lift (39–42)**, music only at crowd 14 (LUFS; before the lift in brackets): intro −17.6 (−16.6),
     verse 1 −15.2 (−14.2), pre-chorus −15.0 (−14.0), **chorus 1 −12.3 (−14.1)**, tag −16.3 (−15.5); verse 3 −15.8
     (−14.8), pre-chorus −14.9 (−14.0), **chorus 3 −11.6 (−13.4)**, tag −15.3 (−14.6); breakdown −16.1 (−15.1), **chorus 4
@@ -160,10 +165,21 @@ Levels are momentary loudness vs the music under the sound. Commands:
     shaved energy −25 dB re the music (listen for crunch here: item 39). True peak ≤ −0.28 dBTP except chorus 4's synth
     strike bursts (+0.08). Tone test through every ramp and the drop's step: no clicks. The hush: −12.0 dB, the KRAK +9.8
     dB over it, the drop +17.5 dB; the finale +1.8 LU on the hit, limiter max 0.6 dB (was 2.7).
-  - **The strike HEY (43–44)**, chorus 1 at FULL HOUSE: hero + gang −24.8 LUFS momentary (the old synth −23.2),
-    centroid 2.6 kHz (old 1.7), low-mids 8 dB under presence (old 4 dB over), silent 0.35 s after the beat (−35 dB), the
-    vowel on the beat ±2 ms (old +5..+17 ms), −5.7 dB under the music in 1–4 kHz (old −10.6); the roar −20.7 (old
-    −22.7). **Groan (45):** playback rate 0.78 → 0.94.
+  - ~~The strike HEY (43–44)~~ (iteration 9, replaced in 9b): hero + gang −24.8 LUFS momentary, −5.7 dB under the
+    music in 1–4 kHz. **Groan (45):** playback rate 0.78 → 0.94.
+  - **9b: the strike HIT (43–44, 47)**, chorus 1 at FULL HOUSE, a hit every 2nd beat (`hit_*` scenes): hero −24.1 LUFS
+    momentary (the HEY it replaced −24.8), + the house −22.8, heavy −20.3 (+3.8 LU over a strike). Transient punch: crest
+    15 dB over the first 100 ms, 10→90 % rise 2.6 ms (hero) / 5.5 (+ house) / 6.8 (heavy); the SMACK ON the beat 0.0–0.4
+    ms. Spectrum re the 0.5–2 kHz mids: hero sub −2 dB, low-mids −6.5, presence −6; heavy sub +10. Tail: −42 dB (hero) /
+    −20 dB (heavy) 0.15–0.4 s after. Vs the music: the first 20 ms −9 dB broadband but **+1 dB in 1–5 kHz** (the crack
+    cuts through, the thump sits under the kit), the first 100 ms −12.7 / −7.4 in 1–5 kHz; heavy −1.7 / +2.2 (20 ms).
+    Limiter with a hit every 2nd beat: > 0.5 dB on 2.7 % of 10 ms blocks, max 1.8 dB on the heavy / house hits (music
+    alone: 0), beat-locked 0.35 dB; true peak −0.6 dBTP. The synth fallback (no samples) −26 LUFS.
+  - **9b: the overlay's HIT accents (46)**, chorus 1 at crowd 21: each accent in its first 150 ms −6.7 dB under the
+    record broadband (HUP jabs −8..−10, HEYs −3.6..−6.9), −4.7 dB in 1–5 kHz, −10.9 dB under 150 Hz (off the bass); on
+    the lane beat −1.2 ms mean (−4..0); crest 17 dB. The full mix there +1.5 dB over the record, true peak −2.0 dBTP, no
+    limiting. Stem calibration: −5 dB under the record in the choruses (gated LUFS; the gang HEY was −7), gain +7.7 dB.
+  - **9b: goons (48):** the goon stingers median −10.9 dB vs the music, the shouts part's flare +4.6 dB.
 
 Things the numbers cannot tell you: whether the hush reads as "on purpose", whether the letters' pitch line is
 musical, whether the finale feels *huge* rather than just loud, and whether any of this is fun.
