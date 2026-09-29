@@ -12,3 +12,4 @@ tools/music/samples_cache/
 assets/audio/licensed/
 dist-*
 playtest/out-*
+dist-pages

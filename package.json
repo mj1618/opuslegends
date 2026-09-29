@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "playtest": "node playtest/playtest.mjs",
-    "rubric": "node playtest/rubric.mjs"
+    "rubric": "node playtest/rubric.mjs",
+    "deploy": "bash scripts/deploy-pages.sh"
   },
   "devDependencies": {
     "playwright": "^1.63.0",
