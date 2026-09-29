@@ -23,6 +23,11 @@ Every decision is judged by whether it makes the level more fun to play.
 - Music: the game plays the ORIGINAL Jim Croce recording (user-supplied, gitignored under `assets/audio/licensed/`,
   never commit it). Our music pipeline (`tools/music/`) only makes the beat map, overlay reward stems and SFX.
 
+## Deploy
+- Live build: https://mj1618.github.io/opuslegends/ (repo github.com/mj1618/opuslegends, public).
+- `npm run deploy` builds and force-pushes `dist-pages/` to the `gh-pages` branch. It ships the licensed 2:04 edit
+  only if present locally (full-length recording stripped). The orchestrator pushes `main` + deploys after each iteration.
+
 ## Sub-agent rules
 - Stay inside the scope you were given; don't rewrite systems you weren't asked to touch.
 - Keep `npm run build` and `npm run playtest` green before finishing.
