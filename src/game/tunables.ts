@@ -231,6 +231,17 @@ export const Tun = {
     bigCatchAt: 20,
     /** the projection booth opens fully at this crowd (audio/mix.ts BOOTH): below it the record plays thin (report: boothBeats) */
     boothBelow: 14,
+    /**
+     * THE FORGIVING HOUSE (iteration 7, review iter6 fix 1: one stumble used to cost a whole chorus's FULL HOUSE). In a
+     * FORGIVING stretch (a chorus section of the song under a cap ≥ bigCatchAt, or a `crowd { forgive }` item such as the
+     * roof's stop-time):
+     *   - HOLD: once the house has been full in the stretch, the decay rests at bigCatchAt instead of restAt — FULL HOUSE
+     *     doesn't evaporate; only a miss / stumble / death knocks it out (the moment is heard, then…)
+     *   - RALLY: `rallyHits` consecutive Great+ presses (or a Heave) inside the stretch refill the house to
+     *     bigCatchAt + dropBonus ("the crowd forgives"); the run count restarts after each rally
+     */
+    rallyHits: 4,
+    holdFull: true,
   },
 
   /**
@@ -352,6 +363,21 @@ export const Tun = {
   hints: {
     after: 2,
     beats: 5,
+    /** iteration 7 (review iter6 fix 7): no failure hint from this beat on (◆304: the boss fight is no place for a tip) */
+    until: 304,
+  },
+
+  /**
+   * THE JUDGE FOLLOWS THE HERO (iteration 7, review iter6 fix 1): while the hero is BEHIND the music line (a ledge
+   * scramble, a stumble's knockback, a respawn run-up) the world arrives late, so a press made when the hero reaches the
+   * thing is graded against the grid shifted by that lag (the better of the two), and targets expire that much later —
+   * a scramble no longer turns the next 3-5 on-the-spot presses into phantom misses. Lag capped at `maxLagBeats`.
+   */
+  judgeLag: {
+    enabled: true,
+    maxLagBeats: 0.75,
+    /** ignore lags below this (px): the surge's normal ripple */
+    minLagPx: 6,
   },
 
   slide: {

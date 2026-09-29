@@ -73,6 +73,9 @@ World y grows DOWN; the base ground top is y = 0.
 - **Timing judge** (`game/judge.ts`): each hop/strike PRESS is graded against the nearest intended
   action (Perfect ±33 / Great ±85 / Good ±135 ms, early +10). Grades drive score, feedback, the combo and the
   crowd (`game/crowd.ts`, skill meter → the music reward via `audio/stage.ts`) — never physics.
+  **The judge follows the hero** (iteration 7, `Tun.judgeLag`): while the hero is BEHIND the music line (a ledge
+  scramble, a knockback, a respawn run-up) a press is graded against the grid shifted by that lag when it fits better, and
+  targets expire that much later (lag ≤ 0.75 beat) — a scramble no longer turns the next 3-5 presses into phantom misses.
 - **Game events** (`game/events.ts`, iteration 3): `game.events.on(type, fn)` — grade / miss / combo / crowd /
   fullHouse / stumble / death / burn (lunge, pull, caught; `threat`) / setPiece / smash (giant index) / hint, emitted from
   the fixed-step sim. Pollable state: `game.crowd.{value,count,norm,bigCatch}`, `game.combo` / `comboPeak`
@@ -82,15 +85,22 @@ World y grows DOWN; the base ground top is y = 0.
   `whew` = a NEAR-MISS (`Tun.whew`): 'lip' = a jump landed with its toes within 40 ms of a lethal lip (a pit's far side,
   a lift / post edge), 'coyote' = took off with < 40 ms of coyote time left over a lethal pit, 'graze' = passed a spike
   within 12 px; ≤ 1 per 0.75 beat, launches / hook rides never count; `canister` = a hidden film canister picked up.
+  **Iteration 7:** `rally` (the crowd forgives: 4 Great+ in a row refilled a chorus; `fullHouse` carries `cause`
+  drop / rally / play), `sign` (the roof's neon rewritten one letter per stop-time hit — `index` 0..3 of SLIM, `lit`;
+  poll `game.sign`), `tease` (the first canister a newcomer runs under: "SOMETHING UP THERE?", + a 'tease' stamp),
+  `finish` (`rank`, `finisher`; `game.finalRank` from then on) — stamp kinds + 'rally' (ENCORE!) / 'tease'.
   **Film canisters** (`canister` items → `RuntimeLevel.canisters`, `Game.collectCanister`): 3, one per act, at the APEX
   of a HELD jump where the song line only asks for a tap hop (43 the chimney, 170 the roof's searchlight, 315 Big Jim's
-  shoulder over the lapel); clue = 2 tokens up the held arc + a glint on the 2 beats before the takeoff
+  shoulder over the lapel); clue = a TRAIL of tokens every 1/6 beat up the held arc out of a hop's reach (iteration 7) + a glint on the 2 beats before the takeoff
   (`render/canisterDraw.ts` placeholder). Checkpoints snapshot them; `stats.canisters/canistersTotal`; `?hunt=1`
   (`playtest --hunt`) makes the bot hold those jumps; `slack.mjs --canisters` checks each is off the song line, reachable
   and survivable (`--scout` lists every tap hop that survives being held). **The rank** (`game/rank.ts`,
   `Game.rank()`, report `rank`): crowd time 27 + timing 27 + tokens 18 + deaths 18 + canisters 10 → S ≥ 92 BOX-OFFICE
   SMASH · A ≥ 85 CRITICS' PICK · B ≥ 68 CULT CLASSIC · C ≥ 45 B-MOVIE · D STRAIGHT TO VIDEO (a flawless run with no
-  canister is an A). No in-run falls/stumbles counter (the poster has it).
+  canister is an A). No in-run falls/stumbles counter (the poster has it). Iteration 7: Good counts 0.4 in the timing
+  part (was 0.25); a FINISHER floors at C (`rank.finisher` / `floored`: D is for walking out, never for the one who
+  struggled to the end); `rank.next` = the next billing up, the points short and the cheapest source (`hint`: canisters
+  while any are unfound) for the poster's replay pointer.
 - **Crowd = skill meter** (`Tun.crowd`): wakes at **14** (iteration 6: the booth's open point — the record plays FULL
   from beat 0), Perfect +1 · Great +0.5 · Good +0.25 · Miss −2 · stumble −4 · death −6; it RESTS at 14 (`restAt`):
   above it decays 0.3/beat (+0.04 per member over 14), below it recovers 0.12/beat — thin sound is the COST of misses
@@ -98,6 +108,11 @@ World y grows DOWN; the base ground top is y = 0.
   the meter (a new act's verse) never clamps: the excess glides down 1/beat (no FULL HOUSE → 16 cliff at a seam).
   **The drop** (`Game.chorusDrop`): a clean (all Great+) Hup-Hup-HEY in the 8 beats before a chorus cap (≥ 20), or a
   crowd item's `earn` beats graded Great+, fills the house 0.5 beat early so FULL HOUSE lands ON the chorus downbeat.
+  **The forgiving house** (iteration 7, `Tun.crowd.rallyHits` / `holdFull`, `Game.updateForgive` / `rallyStep`): in a
+  FORGIVING stretch — a chorus section under a cap ≥ 20, or a `crowd { forgive }` item (the roof's stop-time, cap 21,
+  172-184) — once the house has been full the decay rests at 20 instead of 14 (FULL HOUSE doesn't evaporate; a miss /
+  stumble still knocks it out), and 4 consecutive Great+ presses (or a Heave) refill it to 21 (the RALLY). One stumble
+  no longer costs a whole chorus: sloppy and ±130 bots hold ≥ 20 FULL HOUSE beats in every chorus.
 - **The Burn** (`Tun.chaser`, `Game.updateChaser`): its front sits `gap` beats behind the music line (rest 1.75).
   Every stumble PULLS it 0.75 beat closer, every missed reward 0.2 (after it rises), clean play relaxes it
   (+0.04/beat, +0.06 per hit); it LUNGES 0.3 beat on every drum fill (`fills` lane). Two stumbles close together
@@ -113,8 +128,10 @@ World y grows DOWN; the base ground top is y = 0.
   **Threat (iteration 6):** `chaser.threat` 0..1 = how far it's pulled in from its rest (0.5 beat = 1). Its fill lunge
   scales with it (at rest a fill is a pulse, not a surge), 'lunge' events fire only with threat > 0, and a pull only
   FLARES it at threat ≥ 0.5 (a single missed reward doesn't; a stumble or two misses do). It crying wolf was noise.
-- **Failure hints**: 6 first-appearance prompts in the level (3 in act 1, 3 in act 2: `hint` items); anything else
-  is taught by placement + `Game.FAIL_HINTS`, shown once after the player fails the same thing twice.
+- **Failure hints**: first-appearance prompts are `hint` items — iteration 7: only TWO banners (bar 1: all three verbs;
+  bar 18: the knee-slide); the other teaches are `hint { glyph }` items → `RuntimeLevel.glyphs` (an on-object glyph for
+  the art: bar 3's bottle X, act 2's bottle / rope X, the balls' HOP). Anything else is taught by placement +
+  `Game.FAIL_HINTS`, shown once after the player fails the same thing twice — never from ◆304 on (`Tun.hints.until`).
 - **Mix** (`audio/audioSystem.ts`, `audio/mix.ts`): music (record at unity + overlay stems) → **projection
   booth** (`audio/booth.ts`) ┐ + SFX (+6 dB) → trim (**−4 dB headroom**, cancels the limiter makeup) → soft
   limiter (DynamicsCompressor, −2.5 dB) → tanh soft clip (safety, −0.6 dBFS ceiling: un-oversampled, so it sits low
@@ -199,6 +216,13 @@ World y grows DOWN; the base ground top is y = 0.
   placeholder 0.67, the original 0.659; beatmap `audio.swingRatio`). Everything on an
   "and" (slam-platform lifts, jabber bows, 8th lum rows) reads it.
 
+**Iteration 7 level items / runtime fields:** `lumSing { from, to }` (the builder lays a token ON every `tokenMelody`
+onset in the range, on the hero's INTENDED path — the hook ride / launch / jump in progress, else his floor — and drops arc
+tokens that would only echo a sung note 1/12..1/3 beat late: every chorus + tag, bars 5-8 and the roof sing; check with
+`node playtest/tokens.mjs [--report=<playtest out>]`: chorus coverage 100 %, echo 0 %), `signLetter` (the roof sign),
+`crowd { forgive }`, `hint { glyph }`, set-pieces `colorBurst` (15: the film comes to colour on the first HEY),
+`miniBounce` (31: a cab roof pops Slim off the bar-8 pits, landing 33), `slimSign` (172-184). `RuntimeLevel.pits` = every
+lethal pit (`top` = its lip's y, `gauntlet` on Big Jim 304-332) for the art's danger language; `signLetters`, `glyphs`.
 **Levels are authored in musical time** (`level/types.ts`, helpers in `level/dsl.ts`):
 x = beat × pixelsPerBeat. Obstacles declare an *intended action* `{type:'jump'|'strike'|'slide', beat, hold}`,
 which drives the autoplay bot, the timing judge, scansion marks, debug markers, timing stats and playtest
@@ -317,6 +341,7 @@ src/
 playtest/playtest.mjs     headless autoplay run → video, screenshots, report.json
 tools/vite/audioAssets.mjs  serves assets/audio/ at `audio/` (dev/preview) + copies it into builds
 playtest/probe.mjs        quick state probe: node playtest/probe.mjs "<query>" <secs> [shot.png|-] [js-expr]
+playtest/tokens.mjs       tokens vs the sung melody per section (on-onset / echo / coverage; --report= drops uncollected)
 ```
 
 **Songs** (`?song=edit|full|placeholder`, default `edit`; `audio/songs.ts`): the game plays the ORIGINAL

@@ -579,3 +579,37 @@ floor for finishers, roof stop-time redesign (strikes rewrite the neon sign), no
 canisters; (b) audio: split THE END flourish / rank sting timing, token echo fix; (c) art: lethal look for gauntlet
 pits, colour-burst intro on beat 15, SLIM neon rewrite, stronger speed layer + foreground instrument goons, chorus-1 /
 Lanes contrast, trimmed ending.
+
+### Iteration 7 — gameplay notes
+- **Forgiving FULL HOUSE** (`Tun.crowd.rallyHits` / `holdFull`): in a chorus (or the roof's `forgive` stop-time) a full
+  house no longer evaporates (the decay rests at 20, only misses / stumbles knock it out) and 4 Great+ in a row (or a
+  Heave) refill it ('rally' event, 'ENCORE!' stamp). **The judge follows the hero** (`Tun.judgeLag`): behind the music
+  line (scramble / knockback / run-up) presses are graded against the lagged grid and targets expire later — post-scramble
+  presses now grade g/p instead of 3-5 phantom misses. FULL HOUSE beats ch1/ch3/ch4, iter6 → iter7 (run totals, replays
+  after a death count): sloppy s1-3 17/7/32 · 5/32/32 · 31/25/32 → 28/32/26 · 25/32/37 · 32/31/32; ±130 s1-3 17/2/26 ·
+  0/8/0 · 11/32/0 → 24/21/66 · 40/37/32 · 31/37/84; ±160 29 total → 45 / 35 / 27. Autoplay 32/32/32 (unchanged).
+- **Choruses sing** (`lumSing` items, `playtest/tokens.mjs`): a token on every sung onset along Slim's real path in
+  choruses 1/3/4 + tags + bars 5-8 + the roof; late-echo arc tokens dropped. Chorus coverage 21/33/26 % → **100 %**
+  (129/129 notes, sounding ±60 ms: tokens are touched ~70 ms early and sing ON their beat), echo 42 % → **0 %**; tags
+  52 → 100 %, verses 44 → 59 %. Rubric gates unchanged (tokens aren't actions).
+- **Gauntlet**: Big Jim's fist tops −0.30 → −0.35 beat: the 309 hop −105 → −120 ms (the 310.8 hotspot; 0 ±130 deaths
+  there in 3 seeds; ◆304 ±130 expected 0.53 → 0.44); 312/318/326/330 keep their teeth. `RuntimeLevel.pits` exposes every
+  lethal pit (`top`, `gauntlet`) for the art's lethal skin. Chorus 4: the 280 hop onto the fallen I −80 → −95 (two −80
+  exams one bar apart killed a sloppy bot twice in one pass: rubric A9); 276 / 284 stay the −80 exam.
+- **Rank**: a finisher floors at C (±160 bots: C 41.9 / 42.7 / 42.6 floored, was D 40.2); Good 0.25 → 0.4; `rank.next`
+  (next billing, points short, cheapest source); `game.finalRank` + a 'finish' event for the sting / stamp.
+- **Intro**: `colorBurst` set-piece on 15 (the first HEY); bar 8 = pit · pit → a cab roof pops Slim on the HEY (31,
+  a neon crate struck on it), the BIG sign at the top of the pop (32), landing 33 (`miniBounce`); one banner for all
+  three verbs (bar 3's X → a glyph).
+- **Roof (bars 42-49)**: the 4 stop-time hits (172, 174, 176, the line on 178.66) rewrite the neon to SLIM ('sign'
+  events, `game.sign`), `slimSign` set-piece, cap 21 `forgive` 172-184 (a clean stop-time fills the house: autoplay rally
+  on 177, FULL HOUSE 177-184), sung tokens, +3 reward actions (165 neon, 168 hop, 177 hop): 20 → 23 actions.
+- **Noise**: failure hints stop at ◆304 (`Tun.hints.until`); banners 6 → 2 (act 2's bottle / rope / balls teaches are
+  `glyph` hints → `RuntimeLevel.glyphs`, for the art).
+- **Canisters**: the clue is a trail (tokens every 1/6 beat up the held arc, out of a hop's reach); the first canister a
+  newcomer runs under raises 'tease' ("SOMETHING UP THERE?" + a stamp) until one has ever been found (localStorage).
+- **Validation**: autoplay 0 deaths / 304 of 304 actions / PASS with the hidden gate; `--hunt` 3/3 canisters, S 99.9;
+  rubric **11/11** per act and whole (with the 3 sloppy reports). Bots (deaths act1/2/3, rank): sloppy 0/0/0 B 81.7 ·
+  1/0/1 B 76.0 · 0/0/0 B 83.6; ±130 1/1/3 C 63.1 · 2/1/1 C 65.9 · 2/1/5 C 62.2; ±160+20 % 3/5/16 · 2/2/3 · 3/4/5, all C
+  (floored). slack expected deaths: sloppy 0.53 → 0.52, ±130 6.72 → 6.45. Deaths still cluster in chorus 4's wells
+  (276.8 / 284.8) and the act-1 lift run (127) — the intended exams.

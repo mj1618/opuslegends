@@ -33,6 +33,16 @@
  *             completed Hup-Hup-HEY), 'giant' (a giant smash: kegs, pins, busts, lenses, the final hit), 'whew'
  *             (a near-miss), 'canister' (a film canister found). `text` = a suggested caption
  *   canister  (iteration 6) a hidden FILM CANISTER picked up (`found` of `total` this run; one per act, on a high route)
+ *   rally     (iteration 7) THE CROWD FORGIVES: `hits` consecutive Great+ presses (or a Heave, `heave`) in a forgiving
+ *             stretch (a chorus / the roof's stop-time) refilled the house to FULL HOUSE (a 'fullHouse' on follows with
+ *             cause 'rally'). Presentation: the audience jumps back up
+ *   sign      (iteration 7) the ROOF SIGN (bars 44-45, the stop-time): a strike on a stop-time hit rewrote one neon letter
+ *             — `index` 0..3 of `word` (SLIM), `letter` = the new letter, `lit` = letters rewritten so far this attempt
+ *             (poll `game.sign` for the state). A missed hit leaves that letter as it was (BIG JIM's)
+ *   tease     (iteration 7) the hero passed UNDER a hidden film canister without taking it — the first time this run
+ *             (and only until the player has ever found one): "SOMETHING UP THERE?" (a 'tease' stamp at the canister too)
+ *   finish    (iteration 7) the run reached the end: `rank` (the poster's letter, floored at C for a finisher) and
+ *             `finisher` true. `game.finalRank` holds it from here on (audio: the rank sting; art: the stamp)
  */
 import type { Grade } from './judge';
 
@@ -41,7 +51,9 @@ export interface GameEventMap {
   miss: { verb: 'jump' | 'strike'; beat: number; failKind: 'death' | 'stumble' | 'none'; source: string };
   combo: { broken: number; reason: 'good' | 'miss' | 'stumble' | 'death' };
   crowd: { value: number; count: number; norm: number; delta: number; fullHouse: boolean };
-  fullHouse: { on: boolean; beat: number };
+  /** `cause` (iteration 7): what filled it — 'drop' (a clean Hup-Hup-HEY into a chorus), 'rally' (the crowd forgives),
+   *  'play' (the meter climbed there); omitted when it drops out */
+  fullHouse: { on: boolean; beat: number; cause?: 'drop' | 'rally' | 'play' };
   stumble: { cause: string; beat: number };
   death: { cause: string; beat: number };
   /** `threat` 0..1 (iteration 6): how far the Burn is pulled in from its rest (0 = at rest: a lunge there is harmless
@@ -53,10 +65,14 @@ export interface GameEventMap {
   whew: { kind: WhewKind; beat: number; x: number; y: number; ms: number };
   stamp: { kind: StampKind; beat: number; x: number; y: number; text: string; combo: number };
   canister: { index: number; found: number; total: number; beat: number; x: number; y: number };
+  rally: { beat: number; hits: number; heave: boolean; value: number };
+  sign: { index: number; letter: string; word: string; lit: number; beat: number; x: number; y: number };
+  tease: { index: number; beat: number; x: number; y: number; text: string };
+  finish: { beat: number; rank: import('./rank').RunRank; finisher: boolean };
 }
 
 export type WhewKind = 'lip' | 'coyote' | 'graze';
-export type StampKind = 'firstPerfect' | 'streak' | 'heave' | 'giant' | 'whew' | 'canister';
+export type StampKind = 'firstPerfect' | 'streak' | 'heave' | 'giant' | 'whew' | 'canister' | 'rally' | 'tease';
 
 export type GameEventType = keyof GameEventMap;
 type Listener<K extends GameEventType> = (e: GameEventMap[K]) => void;

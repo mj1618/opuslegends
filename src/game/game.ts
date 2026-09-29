@@ -36,6 +36,7 @@ import { clamp, overlaps, type Rect } from '../engine/math';
 import { params } from '../engine/params';
 import { Ease, TweenManager } from '../engine/tween';
 import { BOUNCE, JABBER, type RuntimeLevel, buildLevel, cameraGroundAt, cameraZoomAt, crowdCapAt, launchVelocity, slamState } from '../level/build';
+import type { CrowdCap } from './entities';
 import { gameLevel } from '../level/index';
 import type { LevelDef } from '../level/types';
 import { Background } from '../render/background';
@@ -62,6 +63,8 @@ export type Scene = 'loading' | 'title' | 'play' | 'end';
 export type Phase = 'coldOpen' | 'countIn' | 'run' | 'dying' | 'finished';
 
 const LATENCY_KEY = 'opuslegends.latencyMs';
+/** set once the player has ever found a film canister (iteration 7: the 'something up there?' tease stops) */
+const CANISTER_KEY = 'opuslegends.canisterFound';
 
 export interface Popup {
   text: string;
@@ -126,6 +129,26 @@ export class Game {
   private resyncDue = false;
   /** chorus drops (cap-rise beats) already paid this attempt */
   private dropsDone = new Set<number>();
+  /**
+   * THE FORGIVING HOUSE (iteration 7, Tun.crowd.rallyHits / holdFull): the forgiving stretch we're in (a chorus section's
+   * start beat, or a `forgive` cap's beat; null outside), whether the house has been full in it (HOLD) and the run of
+   * consecutive Great+ presses in it (RALLY)
+   */
+  private forgiveKey: number | null = null;
+  private houseHeld = false;
+  private rallyRun = 0;
+  private rallies = 0;
+  /** what is filling the house right now (the 'fullHouse' event's cause) */
+  private fullCause: 'drop' | 'rally' | null = null;
+  /**
+   * THE ROOF SIGN (iteration 7): what the neon over the roof spells — `letters[i]` = the rewritten letter or null (still
+   * BIG JIM's), `lit` = how many are rewritten. Presentation polls this; 'sign' events fire on each rewrite
+   */
+  sign: { word: string; letters: (string | null)[]; lit: number } = { word: '', letters: [], lit: 0 };
+  /** the poster's rank, frozen when the run reaches the end (iteration 7; null before) — also on the 'finish' event */
+  finalRank: RunRank | null = null;
+  /** the 'something up there?' canister tease already shown this run (iteration 7) */
+  private teased = false;
   /** a paid drop opens its chorus cap early (until its downbeat) */
   private dropCapBeat = -Infinity;
   /** thrown bottles batted back / phrases heaved this run (and at the last checkpoint): the poster counts */
@@ -270,7 +293,7 @@ export class Game {
       this.events.emit('crowd', { value: v, count: this.crowd.count, norm: this.crowd.norm, delta: dv, fullHouse: full });
       if (full !== this.wasFullHouse) {
         this.wasFullHouse = full;
-        this.events.emit('fullHouse', { on: full, beat: this.worldBeat });
+        this.events.emit('fullHouse', full ? { on: true, beat: this.worldBeat, cause: this.fullCause ?? 'play' } : { on: false, beat: this.worldBeat });
       }
     };
     this.lungeBeats = laneBeats(this.song, 'fills').sort((a, b) => a - b);
@@ -368,6 +391,13 @@ export class Game {
     this.stats.phrasesTotal = this.level.phrases.filter((ph) => ph.beats[0] >= start - 1e-6).length;
     this.stats.canistersTotal = this.level.canisters.filter((c) => c.beat >= start - 1e-6).length;
     this.snapCanisters = new Set();
+    this.finalRank = null;
+    this.teased = false;
+    this.sign = { word: '', letters: [], lit: 0 };
+    this.rallies = 0;
+    this.forgiveKey = null;
+    this.houseHeld = false;
+    this.rallyRun = 0;
     this.perfectPhrase = -1;
     this.nextStreak = 0;
     this.level.checkpoints.forEach((cp, i) => {
@@ -461,6 +491,7 @@ export class Game {
       c.collectT = c.collected ? 99 : 0;
     }
     this.graze.clear();
+    this.resetSign(beat);
     for (const b of L.bouncePads) if (b.beat >= beat - 0.5) b.used = false;
     for (const sg of L.signs) if (sg.beat >= beat - 0.5) sg.hit = false;
     this.inPool = false;
@@ -574,7 +605,7 @@ export class Game {
     // the Burn restarts at rest (respawnMinGap) and ignores the first stumble: it can't catch you twice in a row
     this.burnGrace = Tun.chaser.respawnGraceStumbles;
     if (this.pendingHint) {
-      this.showFailHint(this.pendingHint, beat - Tun.flow.countInBeats + 0.5);
+      if (beat < Tun.hints.until) this.showFailHint(this.pendingHint, beat - Tun.flow.countInBeats + 0.5);
       this.pendingHint = null;
     }
     this.deliverResyncOffer();
@@ -587,6 +618,9 @@ export class Game {
     this.player.mode = 'finished';
     this.stats.finished = true;
     this.stats.finishedAt = performance.now();
+    // the poster's billing, frozen now (a finisher floors at C: game/rank.ts) — for the audio's sting and the art's stamp
+    this.finalRank = this.rank();
+    this.events.emit('finish', { beat: round3(this.worldBeat), rank: this.finalRank, finisher: true });
     if (!this.stage.hasFinale) this.sfx.finish(this.song.key.root + 24); // (the edit's final hit has its own stack)
     this.flashScreen('#fff6c0', 0.6);
     this.camera.addTrauma(0.3);
@@ -967,10 +1001,12 @@ export class Game {
     p.musicX = this.conductor.playing && this.phase === 'run' ? beatW * this.level.ppb : NaN;
     // top run speed + jump physics follow the TEMPO MAP (x = beat * ppb, so speed = ppb / spb(beat))
     p.setTempo(this.tempo.secondsPerBeatAt(beatW));
-    // grade presses (score/feedback/crowd only — the controller never sees this)
+    // grade presses (score/feedback/crowd only — the controller never sees this); iteration 7: against the hero's world
+    // when he is behind the music line (a scramble / knockback: Tun.judgeLag)
+    const lag = this.judgeLag();
     if (this.phase === 'run') {
-      if (this.controls.jumpPressed) this.gradePress('jump', this.controls.jumpPressTime);
-      if (this.controls.strikePressed) this.gradePress('strike', this.controls.strikePressTime);
+      if (this.controls.jumpPressed) this.gradePress('jump', this.controls.jumpPressTime, lag);
+      if (this.controls.strikePressed) this.gradePress('strike', this.controls.strikePressTime, lag);
     }
     this.updateSlams(beatW);
     this.preStep.coyote = p.coyote;
@@ -993,7 +1029,7 @@ export class Game {
       return;
     }
     if (this.phase !== 'run') return;
-    for (const miss of this.judge.expire(t0)) this.onMissTarget(miss.action);
+    for (const miss of this.judge.expire(t0, lag)) this.onMissTarget(miss.action);
     // surge recovery measurement
     if (Number.isFinite(this.recoverFrom) && p.stumbleLock <= 0 && p.musicX - p.x < 4) {
       this.stats.recoveries.push(round3(this.tempo.timeToBeat(t0) - this.tempo.timeToBeat(this.recoverFrom)));
@@ -1007,9 +1043,24 @@ export class Game {
   /** song time at the start of the current sim step (for action logging) */
   private stepTime = 0;
 
+  /**
+   * THE JUDGE FOLLOWS THE HERO (iteration 7, Tun.judgeLag): seconds the hero is BEHIND the music line (0 on the grid) —
+   * after a ledge scramble, a knockback or a slow respawn run-up the world reaches him late, and a press made where the
+   * thing is must not be a phantom miss
+   */
+  private judgeLag(): number {
+    const J = Tun.judgeLag;
+    const p = this.player;
+    if (!J.enabled || this.phase !== 'run' || !Number.isFinite(p.musicX)) return 0;
+    const px = p.musicX - p.x;
+    if (px < J.minLagPx) return 0;
+    return Math.min(px, J.maxLagBeats * this.level.ppb) / Math.max(1, p.runSpeed);
+  }
+
   /** per-step musical bookkeeping while running: crowd decay, set-piece cues, report traces */
   private beatTick(beatW: number, dBeat: number): void {
-    this.crowd.decay(dBeat);
+    this.updateForgive(beatW);
+    this.crowd.decay(dBeat, this.forgiveKey !== null && this.houseHeld && Tun.crowd.holdFull ? Tun.crowd.bigCatchAt : Infinity);
     this.chorusDrop(beatW);
     this.runBeats += dBeat;
     if (this.crowd.value < Tun.crowd.boothBelow) this.boothBeats += dBeat;
@@ -1051,7 +1102,9 @@ export class Game {
       this.dropsDone.add(c.beat);
       this.dropCapBeat = c.beat;
       this.crowd.setCap(c.cap);
+      this.fullCause = 'drop';
       this.crowd.set(Math.max(this.crowd.value, C.bigCatchAt + C.dropBonus));
+      this.fullCause = null;
       this.log('drop', { beat: c.beat });
     }
   }
@@ -1068,6 +1121,80 @@ export class Game {
     }
     if (earn?.length) return earn.every((b) => this.level.actions.some((a) => Math.abs(a.beat - b) < 1e-6 && clean(this.judge.gradeAt(b, a.type))));
     return false;
+  }
+
+  /** the crowd item in effect at `beat` (the last one at or before it) */
+  private capItemAt(beat: number): CrowdCap | null {
+    let c: CrowdCap | null = null;
+    for (const k of this.level.crowdCaps) {
+      if (beat < k.beat - 1e-6) break;
+      c = k;
+    }
+    return c;
+  }
+
+  /**
+   * THE FORGIVING HOUSE (iteration 7, review iter6 fix 1): which forgiving stretch the world beat is in — a CHORUS of the
+   * song under a cap ≥ bigCatchAt (key = the section's start), or a `crowd { forgive }` stretch (key = its beat) — and
+   * whether the house has been full in it (the HOLD). Entering a new stretch restarts the rally count.
+   */
+  private updateForgive(beatW: number): void {
+    const C = Tun.crowd;
+    const cap = this.capItemAt(beatW < this.dropCapBeat ? this.dropCapBeat : beatW);
+    let key: number | null = null;
+    if (cap && cap.cap >= C.bigCatchAt) {
+      if (cap.forgive) key = cap.beat;
+      else {
+        const sec = this.song.sectionAt?.(beatW);
+        if (sec && sec.name.startsWith('chorus')) key = sec.startBeat;
+        // the drop fills the house half a beat before the chorus downbeat: that half beat belongs to the chorus
+        else if (beatW >= this.dropCapBeat - C.dropLeadBeats - 1e-6 && beatW < this.dropCapBeat) key = this.song.sectionAt?.(this.dropCapBeat + 1e-3)?.startBeat ?? this.dropCapBeat;
+      }
+    }
+    if (key !== this.forgiveKey) {
+      this.forgiveKey = key;
+      this.rallyRun = 0;
+      this.houseHeld = key !== null && this.crowd.bigCatch;
+    }
+    if (key !== null && this.crowd.bigCatch) this.houseHeld = true;
+  }
+
+  /** a Great+ press / a miss inside a forgiving stretch: the rally count (Tun.crowd.rallyHits → the house refills) */
+  private rallyStep(clean: boolean, heave: boolean, beat: number): void {
+    if (this.forgiveKey === null) return;
+    this.rallyRun = clean ? this.rallyRun + 1 : 0;
+    const C = Tun.crowd;
+    if ((this.rallyRun < C.rallyHits && !heave) || this.crowd.bigCatch || this.crowd.cap < C.bigCatchAt) return;
+    const hits = this.rallyRun;
+    this.rallyRun = 0;
+    this.rallies++;
+    this.fullCause = 'rally';
+    this.crowd.set(Math.max(this.crowd.value, C.bigCatchAt + C.dropBonus));
+    this.fullCause = null;
+    this.houseHeld = true;
+    this.events.emit('rally', { beat, hits, heave, value: round3(this.crowd.value) });
+    this.stamp('rally', beat, 'ENCORE!');
+    this.log('rally', { beat, hits, heave });
+  }
+
+  /** the roof sign's state from `beat` on: letters rewritten before it stay (a rewind replays what's ahead) */
+  private resetSign(beat: number): void {
+    const S = this.level.signLetters;
+    if (!S.length) return;
+    const word = S[S.length - 1].word;
+    if (this.sign.word !== word) this.sign = { word, letters: word.split('').map(() => null), lit: 0 };
+    for (const l of S) if (l.beat >= beat - 1e-6) this.sign.letters[l.index] = null;
+    this.sign.lit = this.sign.letters.filter((x) => x !== null).length;
+  }
+
+  /** a stop-time strike graded on a sign letter's beat rewrites that letter (iteration 7, the roof: BIG JIM's → SLIM) */
+  private signHit(beat: number): void {
+    const l = this.level.signLetters.find((k) => Math.abs(k.beat - beat) < 1e-6);
+    if (!l || this.sign.letters[l.index] !== null) return;
+    this.sign.letters[l.index] = l.letter;
+    this.sign.lit = this.sign.letters.filter((x) => x !== null).length;
+    this.events.emit('sign', { index: l.index, letter: l.letter, word: l.word, lit: this.sign.lit, beat, x: this.player.x, y: this.player.y });
+    this.log('sign', { index: l.index, letter: l.letter, lit: this.sign.lit });
   }
 
   private startSetPiece(name: string, beat: number, beats: number): void {
@@ -1355,6 +1482,8 @@ export class Game {
     for (const c of L.canisters) {
       if (c.collected || Math.abs(c.x - p.x) > 200) continue;
       if (circleRect(c.x, c.y, c.r, hurt)) this.collectCanister(c, beatW);
+      // iteration 7 (review iter6 fix 9): passing UNDER one the first time (for a player who never found one) teases it
+      else if (!this.teased && p.x > c.x && p.y > c.y + 60) this.teaseCanister(c, beatW);
     }
     // --- lums (generous circle vs box)
     const cx = p.x;
@@ -1385,8 +1514,8 @@ export class Game {
     if (p.y > Tun.flow.killY) this.die('pit');
   }
 
-  private gradePress(verb: 'jump' | 'strike', t: number): void {
-    const r = this.judge.press(verb, t);
+  private gradePress(verb: 'jump' | 'strike', t: number, lag = 0): void {
+    const r = this.judge.press(verb, t, lag);
     if (!r) return;
     this.onGrade(r);
   }
@@ -1431,6 +1560,8 @@ export class Game {
       }
     }
     this.events.emit('grade', { grade: r.grade as 'perfect' | 'great' | 'good', verb: a.type === 'strike' ? 'strike' : 'jump', beat: a.beat, errMs: r.errMs, combo: this.combo, heave, x: p.x, y: p.y });
+    if (a.type === 'strike') this.signHit(a.beat);
+    this.rallyStep(r.grade !== 'good', heave, a.beat);
     // the NOTABLE ones get a stamp (iteration 6): a Heave, a streak milestone, the first Perfect of a 4-bar phrase
     if (heave) this.stamp('heave', a.beat, 'HEAVE!');
     else if (this.combo >= this.streakTarget()) {
@@ -1452,6 +1583,7 @@ export class Game {
     // isn't free); missed threats already cost a stumble / a life
     this.crowd.add(-Tun.crowd.perMiss);
     this.breakCombo('miss');
+    this.rallyRun = 0;
     // (the assist: after `missFeedOffAfter` Burn catches in this checkpoint segment, missed rewards stop feeding it)
     if (a.failKind === 'none' && this.chaser.active && this.burnCatches < Tun.chaser.missFeedOffAfter) this.feedBurn(Tun.chaser.missPull);
     this.events.emit('miss', { verb: a.type === 'strike' ? 'strike' : 'jump', beat: a.beat, failKind: a.failKind, source: a.source });
@@ -1483,6 +1615,7 @@ export class Game {
     if (this.combo > 0) this.events.emit('combo', { broken: this.combo, reason });
     this.combo = 0;
     this.nextStreak = 0;
+    this.rallyRun = 0;
   }
 
   /** the combo at which the next streak stamp fires (Tun.stamps.streaks, then every streakEvery) */
@@ -1580,6 +1713,7 @@ export class Game {
     c.collected = true;
     c.collectT = 0;
     this.stats.canisters = this.level.canisters.filter((k) => k.collected).length;
+    if (!params.autoplay) safeSetLocal(CANISTER_KEY, '1');
     this.sfx.chime(this.song.key.root + 48, true);
     this.camera.addTrauma(0.2);
     this.zoomPunch(0.04);
@@ -1588,6 +1722,17 @@ export class Game {
     this.events.emit('canister', { index: c.index, found: this.stats.canisters, total: this.stats.canistersTotal, beat: round3(beatW), x: c.x, y: c.y });
     this.stamp('canister', round3(beatW), `FILM CANISTER ${this.stats.canisters}/${this.stats.canistersTotal}`, c.x, c.y);
     this.log('canister', { index: c.index, beat: round3(beatW) });
+  }
+
+  /** "SOMETHING UP THERE?" — the first canister a newcomer runs under (once per run, until one has ever been found) */
+  private teaseCanister(c: FilmCanister, beatW: number): void {
+    this.teased = true;
+    if (safeGetLocal(CANISTER_KEY) !== null) return;
+    const text = 'SOMETHING UP THERE?';
+    this.events.emit('tease', { index: c.index, beat: round3(beatW), x: c.x, y: c.y, text });
+    // (the stamp sits just above the canister: the feedback layer draws stamps ~215 px over their y)
+    this.stamp('tease', round3(beatW), text, c.x, c.y + 180);
+    this.log('tease', { index: c.index, beat: round3(beatW) });
   }
 
   /** the poster's RANK (iteration 6): crowd time + timing + tokens + deaths (+ film canisters) → letter + tier */
@@ -1624,6 +1769,8 @@ export class Game {
   };
 
   private noteFailure(key: string, death: boolean): void {
+    // iteration 7 (review iter6 fix 7): no tips in the boss fight (Tun.hints.until = ◆304)
+    if (this.worldBeat >= Tun.hints.until) return;
     this.fails[key] = (this.fails[key] ?? 0) + 1;
     if (this.fails[key] < Tun.hints.after || this.hintsShown.has(key) || !Game.FAIL_HINTS[key]) return;
     if (death) this.pendingHint = key; // shown on the respawn count-in
@@ -1743,6 +1890,7 @@ export class Game {
     }
     this.crowd.stumble();
     this.breakCombo('stumble');
+    this.rallyRun = 0;
     if (this.chaser.active || this.worldBeat >= this.level.chaserBeat) {
       if (this.burnGrace > 0) {
         this.burnGrace--;
@@ -2038,6 +2186,10 @@ export class Game {
       grades: { ...this.judge.counts },
       crowd: { end: this.crowd.count, endValue: round3(this.crowd.value), peak: this.crowd.peak, fullHouseBeats: round3(this.fullHouseBeats), runBeats: round3(this.runBeats), boothBeats: round3(this.boothBeats), fullHouseBySection: Object.fromEntries(Object.entries(this.fullHouseBySection).map(([k, v]) => [k, round3(v)])), trace: this.crowdTrace },
       combo: { peak: this.comboPeak, end: this.combo },
+      /** iteration 7: the forgiving house's refills this run, and the tokens the run left behind (beats; tokens.mjs --report) */
+      rallies: this.rallies,
+      lumsMissed: L.lums.filter((l) => !l.collected && !l.skipped).map((l) => round3(l.beat)),
+      sign: { ...this.sign },
       burn: { ...this.burnStats, minMarginBeats: round3(this.burnStats.minMarginBeats), endGap: round3(this.chaser.gap) },
       failHints: [...this.hintsShown],
       /** final grade per judge target [beat, grade] (split the grades by act / section) */

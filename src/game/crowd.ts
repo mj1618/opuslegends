@@ -97,15 +97,20 @@ export class Crowd {
     this.add(-Tun.crowd.stumbleLoss);
   }
 
-  /** the meter cools while nobody feeds it (called every sim step with the beats elapsed); above a lowered cap it glides down */
-  decay(beats: number): void {
+  /**
+   * the meter cools while nobody feeds it (called every sim step with the beats elapsed); above a lowered cap it glides
+   * down. `holdAt` (iteration 7, the forgiving house): a meter at or above it cools only down to it (a held FULL HOUSE
+   * doesn't evaporate in a chorus; misses still knock it out, and below it the normal decay applies)
+   */
+  decay(beats: number, holdAt = Infinity): void {
     if (beats <= 0) return;
     const C = Tun.crowd;
     let v = this.value;
     if (v > this.cap) v = Math.max(this.cap, v - C.capGlidePerBeat * beats);
     // iteration 6: the meter RESTS at restAt (the booth's open point): it cools down to it from above and drifts back up
     // to it from below — thin sound is what a miss / stumble / death costs, for a few bars, not the default
-    if (v > C.restAt) v = Math.max(C.restAt, v - (C.decayPerBeat + C.decaySlope * Math.max(0, v - C.decayKnee)) * beats);
+    const rest = v >= holdAt - 1e-6 ? Math.max(C.restAt, holdAt) : C.restAt;
+    if (v > rest) v = Math.max(rest, v - (C.decayPerBeat + C.decaySlope * Math.max(0, v - C.decayKnee)) * beats);
     else if (v < C.restAt && v < this.cap) v = Math.min(C.restAt, this.cap, v + C.recoverPerBeat * beats);
     if (v !== this.value) this.set(v, true);
   }

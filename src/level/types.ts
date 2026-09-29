@@ -151,7 +151,18 @@ export type BigJimPose = 'hidden' | 'rise' | 'brace' | 'reeling' | 'knockedBack'
  * exposes `game.setPiece` while it lasts): 'bigLaunch' (bar 9: the launch onto the neon roofs, apex on the
  * sky-flip), 'chorusShot' (bar 23: the chorus is a different SHOT), 'walkdown' (bar 29: the giant keg smash).
  */
-export type ActOneSetPiece = 'bigLaunch' | 'chorusShot' | 'walkdown';
+export type ActOneSetPiece = 'bigLaunch' | 'chorusShot' | 'walkdown' | ActSevenSetPiece;
+/**
+ * Iteration 7 set-pieces (presentation cues; Game emits them as `setPiece` events like the rest):
+ *   colorBurst  15 (bar 4 b4, the record's first HEY, 1 beat): the silent film COMES TO COLOUR — bars 1-4 sepia, from the
+ *               HEY on neon on, bulbs chasing, the stoop band playing (the BIG pendulum on 15 is the marquee's switch)
+ *   miniBounce  31 (bar 8 b4, the HEY, 2 beats): a cab roof pops Slim ~250 px off the second pit, landing on 33 (a
+ *               preview of the big launch on 34)
+ *   slimSign    172 (bar 44, the roof's stop-time, 12 beats → 184): the neon over the roof reads BIG JIM's; each stop-time
+ *               hit rewrites one letter (game 'sign' events / `game.sign`) until it reads SLIM; Big Jim's glint (180)
+ *               answers by ripping it down
+ */
+export type ActSevenSetPiece = 'colorBurst' | 'miniBounce' | 'slimSign';
 /** thrown-bottle styles: 'bottle' = strike it ON the beat (bat it back), 'firebomb' = hop its flames ON the beat */
 export type ThrowStyle = 'bottle' | 'firebomb';
 /** hook-ride skins (act 2, src/game/mech/hook.ts): 'rope' hoists you up, 'line' = a laundry line / cable, 'cradle' = a
@@ -209,7 +220,8 @@ export type LevelItem =
   /** scansion marks (∪ – on the ground) on/off from `beat`; bar lines stay on */
   | { type: 'marks'; beat: number; on: boolean }
   /** HUD hint shown from `beat` for `beats` (first-appearance tutorial text) */
-  | { type: 'hint'; beat: number; text: string; beats?: number; icon?: string }
+  /** `glyph` (iteration 7): not a banner — an on-object glyph on the thing at `beat` (RuntimeLevel.glyphs, for the art) */
+  | { type: 'hint'; beat: number; text: string; beats?: number; icon?: string; glyph?: boolean }
   /**
    * Breakable target (bottle / glass / crate / neon letter) standing `h` px above the ground-level
    * surface, placed so a strike pressed ON `beat` smashes it (±~200 ms). Pure reward: it bursts into
@@ -235,7 +247,16 @@ export type LevelItem =
    * ending in the 8 beats before it, or by every action on the `earn` beats graded Great+ (e.g. act 3's break shot):
    * earned → FULL HOUSE lands ON `beat`
    */
-  | { type: 'crowd'; beat: number; cap: number; floor?: number; earn?: number[] }
+  | { type: 'crowd'; beat: number; cap: number; floor?: number; earn?: number[]; forgive?: boolean }
+  /**
+   * SUNG TOKENS (iteration 7, review iter6 fix 2 — Castle Rock's lums sing the riff): one token ON every `tokenMelody`
+   * onset in [from, to), placed on the hero's INTENDED path at that beat (the arc of the jump / launch / hook ride in
+   * progress, else his floor; `h` px over the feet line, default the arc tokens' height). Arc tokens in the range that
+   * would only ECHO a sung note (1/12..1/3 beat after it, on no onset) are dropped unless `keepEcho`.
+   */
+  | { type: 'lumSing'; from: number; to: number; h?: number; keepEcho?: boolean }
+  /** the ROOF SIGN (iteration 7): the strike graded on `beat` rewrites letter `index` of the neon to `letter` (→ `word`) */
+  | { type: 'signLetter'; beat: number; index: number; letter: string; word: string }
   /** design tag: traversal mode from `beat` (street, rooftops, launch, lifts, bar-top, …) — rubric B6 */
   | { type: 'mode'; beat: number; mode: string }
   /** design tag: the lane the level follows from `beat` (kick, vocal, fills, shouts, …) — rubric B7 */
@@ -293,6 +314,8 @@ export type LevelItem =
    * `node playtest/slack.mjs --level=src/level/index.ts#gameLevel --canisters` (reachable, survivable, off the song line).
    */
   | { type: 'canister'; from: number; dx?: number; dh?: number; clue?: boolean };
+/* (iteration 7, review iter6 fix 9) the canister's clue is a TRAIL: tokens every 1/4 beat up the held arc from where it
+ * clears the tap hop to just short of the canister, so the gold visibly keeps climbing out of reach of a hop */
 
 export interface LevelDef {
   id: string;

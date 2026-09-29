@@ -68,16 +68,22 @@ export class Judge {
     return null;
   }
 
-  /** Grade a press of `verb` at song time `t` (s). Returns null if no target is in range. */
-  press(verb: 'jump' | 'strike', t: number): JudgeResult | null {
+  /**
+   * Grade a press of `verb` at song time `t` (s). Returns null if no target is in range. `lag` (s, ≥ 0; iteration 7):
+   * the hero is that far BEHIND the music line (a scramble, a knockback): the press is graded against the grid shifted
+   * by the lag when that fits better (a press ON the spot the hero reaches late is on time for the world he is in).
+   */
+  press(verb: 'jump' | 'strike', t: number, lag = 0): JudgeResult | null {
     if (!Number.isFinite(t)) return null;
     let best: Target | null = null;
     let bestErr = Infinity;
+    const lagMs = Math.max(0, lag) * 1000;
     for (const tg of this.targets) {
       if (tg.consumed || tg.action.type !== verb) continue;
-      const err = (t - tg.time) * 1000;
-      if (err > 400) continue;
-      if (err < -400) break;
+      const raw = (t - tg.time) * 1000;
+      if (raw > 400 + lagMs) continue;
+      if (raw < -400) break;
+      const err = lagMs > 0 && Math.abs(raw - lagMs) < Math.abs(raw) ? raw - lagMs : raw;
       if (Judge.gradeFor(err) && Math.abs(err) < Math.abs(bestErr)) {
         best = tg;
         bestErr = err;
@@ -94,9 +100,9 @@ export class Judge {
     return r;
   }
 
-  /** Targets whose window has passed without a press become misses. Returns the new misses. */
-  expire(t: number): Target[] {
-    const late = (Tun.judge.goodMs + 5) / 1000;
+  /** Targets whose window has passed without a press become misses. Returns the new misses. `lag` (s): see press() */
+  expire(t: number, lag = 0): Target[] {
+    const late = (Tun.judge.goodMs + 5) / 1000 + Math.max(0, lag);
     const out: Target[] = [];
     for (const tg of this.targets) {
       if (tg.consumed) continue;

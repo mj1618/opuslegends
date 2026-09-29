@@ -260,4 +260,42 @@ export interface CrowdCap {
   cap: number;
   /** actions (beats) whose Great+ grades earn the chorus drop (FULL HOUSE on `beat`) */
   earn?: number[];
+  /** a FORGIVING stretch outside a chorus (iteration 7: the roof's stop-time): hold + rally (Tun.crowd.rallyHits) */
+  forgive?: boolean;
+}
+
+/**
+ * A LETHAL PIT (iteration 7, review iter6 fix 3): every hole in the floor, for the art's danger language (lacquer red +
+ * hot rim, drawn from its own lip — the gauntlet's pits sit ~1,500 px over the street). `top` = the higher lip's y,
+ * `lethal` is always true today (safe dips are floors, not pits); `gauntlet` = on Big Jim himself (bars 77-83).
+ */
+export interface Pit {
+  x0: number;
+  x1: number;
+  /** world y of the higher lip (the pit's visible top) */
+  top: number;
+  /** the beat at the pit's near lip */
+  beat: number;
+  lethal: true;
+  gauntlet: boolean;
+}
+
+/**
+ * A ROOF SIGN letter (iteration 7, review iter6 redesign bars 42-49): the strike graded on `beat` rewrites letter
+ * `index` of the neon sign to `letter` (BIG JIM's → SLIM, one per stop-time hit). Game emits 'sign' and exposes `game.sign`.
+ */
+export interface SignLetter {
+  beat: number;
+  index: number;
+  letter: string;
+  /** the word the sign ends up spelling */
+  word: string;
+}
+
+/** an ON-OBJECT tutorial glyph (iteration 7: the act-2 teaches that used to be banners): show `icon` on the thing at `beat` */
+export interface GlyphHint {
+  beat: number;
+  beats: number;
+  text: string;
+  icon?: string;
 }

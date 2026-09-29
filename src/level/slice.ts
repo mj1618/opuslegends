@@ -89,14 +89,16 @@ export const sliceLevel: LevelDef = {
     // ================================================================ BLOCK 1 — 42nd Street, golden hour
     // ---- bar 1: the band comes in (kick 1&3, snare 2&4)
     label(bar(1), 'INTRO — 42nd Street'),
-    hint(bar(1), '→ HOLD to run  ·  SPACE hop  (hold = big jump)', 'run', 8),
+    // iteration 7 (review iter6 fix 7 / redesign bars 1-8): ONE banner teaches all three verbs; bar 3's X is a glyph on
+    // the bottle itself (RuntimeLevel.glyphs)
+    hint(bar(1), '→ HOLD to run  ·  SPACE hop (hold = jump)  ·  X swing', 'run', 10),
     lumRowSwung(bar(1, 1) + 0.5, bar(1, 2) + 0.5),
     ...tokenHop(bar(1, 3)),
     // ---- bar 2
     ...tokenHop(bar(2, 1)),
     ...tokenJump(bar(2, 3)),
     // ---- bar 3: strike on the snare
-    hint(bar(3, 1) + 0.5, 'X  swing — smash on the snare', 'strike', 6),
+    { type: 'hint', beat: bar(3, 2), beats: 2, text: 'X', icon: 'strike', glyph: true },
     bottle(bar(3, 2)),
     ...tokenHop(bar(3, 3)),
     bottle(bar(3, 4)),
@@ -108,6 +110,9 @@ export const sliceLevel: LevelDef = {
     pendulum(bar(4, 4), true),
     fx(bar(4, 4), 'flash', 0.5),
     fx(bar(4, 4), 'zoom', 0.8),
+    // iteration 7 (review iter6 redesign bars 1-8): THE FILM COMES TO COLOUR on the record's first HEY — bars 1-4 are a
+    // sepia silent film; the BIG pendulum on 15 is the marquee's master switch (art: neon on, bulbs chase, the stoop band)
+    setPiece(bar(4, 4), 'colorBurst', 1),
 
     // ---- bar 5: VERSE 1 — the vocal enters, the Burn rises
     label(bar(5), 'VERSE 1 — the vocal'),
@@ -127,11 +132,19 @@ export const sliceLevel: LevelDef = {
     ...spikeHop(bar(7, 3)),
     bottle(and(bar(7, 4))),
     ...melodyTokens([[24.33, 59], [25.33, 55], [26.67, 55]]),
-    // ---- bar 8: block PEAK = the first LETHAL COMBINATION: a pit on 1, then a held jump over a long pit on the
-    // kick (3) smashing the BIG sign mid-air on the HEY (4): tap · hold · air-swing. Sloppy-safe timing ('teach')
+    // iteration 7: bars 5-8 SING the whole first verse line (a token on every sung note along Slim's path)
+    { type: 'lumSing', from: bar(5), to: bar(9) },
+    // ---- bar 8: block PEAK = the first LETHAL COMBINATION, 1-2-3-ACTION at the block scale: a pit on 1, a pit on the
+    // kick (3) — landing on a cab roof that POPS Slim ~250 px on the HEY (4) as he smashes its neon, the BIG sign smashed
+    // at the top of the pop on the downbeat (32), landing on 33: hop · hop · BOUNCE (iteration 7, review iter6 redesign:
+    // a mini-launch that previews the big one on 34; was a held jump over a long pit + an air strike). 'teach' timing
     ...gapHop(bar(8, 1), 'teach'),
-    ...jumpStrike(bar(8, 3), 'teach', true),
-    bottle(and(bar(8, 4)), 'glass'),
+    ...gapHop(bar(8, 3), 'teach'),
+    crate(bar(8, 4), 'neon'),
+    launch(bar(8, 4), 2),
+    setPiece(bar(8, 4), 'miniBounce', 2),
+    mode(bar(8, 4), 'launch'),
+    bottleHigh(bar(9, 1), 'neon', undefined, true),
     fx(bar(8, 4), 'flash', 0.5),
     fx(bar(8, 4), 'zoom', 0.8),
     fx(and(bar(8, 3)), 'bgPulse', 0.6),
@@ -144,6 +157,7 @@ export const sliceLevel: LevelDef = {
     fx(bar(9), 'bgPulse', 0.8),
     // ---- bar 9: THE BIG LAUNCH (wow 1): pad on the kick (3), a 3-beat flight over the held note (34.67) up to the
     // 250 px roof, ~650 px apex on the kick of bar 10 (the sky-flip) — smash neon on the snare (4) and at the apex
+    mode(bar(9, 2), 'street'),
     bottle(bar(9, 2)),
     launch(bar(9, 3), 3, ROOF_A),
     setPiece(bar(9, 3), 'bigLaunch', 3),
@@ -161,7 +175,8 @@ export const sliceLevel: LevelDef = {
     ...tokenHop(bar(10, 3)), // hop down to roof B
     raised(bar(10, 3) + 0.6, bar(12, 3) + 0.4, ROOF_B),
     bottle(bar(10, 4)), // (mid-drop: the step down to roof B lands after the beat — no hop here)
-    ...melodyTokens([[36.67, 57], [37.33, 56], [37.67, 55]]),
+    // (iteration 7: the descending vocal run sung on Slim's path — 36.67 rides the launch's last beat)
+    { type: 'lumSing', from: bar(10, 1) + 0.5, to: bar(10, 3) },
     // ---- bar 11: the alley (lethal, kick on 1) with a swung-pair bottle mid-air; a vent spike on 3
     ...gapHop(bar(11, 1), 'teach'),
     bottle(and(bar(11, 1)), 'glass'),
@@ -268,6 +283,9 @@ export const sliceLevel: LevelDef = {
 
     // ================================================================ CHORUS 1 (bar 23 = A on the downbeat)
     { type: 'crowd', beat: bar(23), cap: 24 },
+    // iteration 7 (review iter6 fix 2): THE CHORUS SINGS — a token ON every sung note of the hook, on Slim's path (the
+    // launch arc, the hops, the counter), and the arc tokens that only echoed Croce a triplet late are gone
+    { type: 'lumSing', from: bar(23), to: bar(32) },
     label(bar(23), 'CHORUS 1 — on the bar'),
     // THE CHORUS SHOT (wow 3): a new shot — wide (-20 %), the launch onto the counter, the BIG neon on the snare
     // at the top of the arc is the money shot (level `shot` fx: render/moments.ts punches the shot on it)

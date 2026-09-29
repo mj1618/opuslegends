@@ -28,7 +28,10 @@ import type {
   Enemy,
   FilmCanister,
   FxCue,
+  GlyphHint,
   PendulumTarget,
+  Pit,
+  SignLetter,
   Hazard,
   Hint,
   Label,
@@ -72,6 +75,12 @@ export interface RuntimeLevel {
   signs: LowSign[];
   /** crowd cap by beat (sorted); default Tun.crowd.max */
   crowdCaps: CrowdCap[];
+  /** every lethal pit (iteration 7: the art draws the danger language from these; sorted by x) */
+  pits: Pit[];
+  /** the roof sign's letters (iteration 7), by beat */
+  signLetters: SignLetter[];
+  /** on-object tutorial glyphs (iteration 7: hint items with `glyph`; banners stay in `hints`) */
+  glyphs: GlyphHint[];
   phrases: Phrase[];
   checkpoints: Checkpoint[];
   finishX: number;
@@ -248,6 +257,8 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
   const bouncePads: BouncePad[] = [];
   const signs: LowSign[] = [];
   const crowdCaps: CrowdCap[] = [];
+  const signLetters: SignLetter[] = [];
+  const glyphs: GlyphHint[] = [];
   const checkpoints: Checkpoint[] = [];
   const fx: FxCue[] = [];
   const cameraCues: CameraCue[] = [];
@@ -392,7 +403,10 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
         break;
       }
       case 'crowd':
-        crowdCaps.push({ beat: it.beat, cap: it.cap, earn: it.earn });
+        crowdCaps.push({ beat: it.beat, cap: it.cap, earn: it.earn, forgive: it.forgive });
+        break;
+      case 'signLetter':
+        signLetters.push({ beat: it.beat, index: it.index, letter: it.letter, word: it.word });
         break;
       case 'phrase':
         phrases.push({ beats: it.beats });
@@ -432,8 +446,18 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
         const beat = it.from + apexBeats + (it.dx ?? 0);
         const y = takeoffY - heightAt(prof, (beat - it.from) * spb) - Tun.player.height * 0.6 - (it.dh ?? 0);
         canisters.push({ id: id++, index: 0, from: it.from, beat, x: X(beat), y, r: CANISTER_R, collected: false, collectT: 0 });
-        // the CLUE: tokens up the held arc's rise, where it is clearly above the tap hop (a hop won't take them)
-        if (it.clue !== false) for (const db of [0.5, 0.8]) addLum(it.from + db, takeoffY - heightAt(prof, db * spb) - Tun.player.height * 0.6);
+        // the CLUE (iteration 7, review iter6 fix 9: a TRAIL, not 2 tokens): tokens every 1/6 beat up the held arc, from
+        // where it clears the tap hop's reach (a hop can't take them) to just short of the canister — the gold visibly
+        // keeps climbing out of a hop's reach
+        if (it.clue !== false) {
+          const tap = jumpProfile(0.15 * spb, runSpeed, ppb);
+          const ph = Tun.player.height;
+          for (let db = 1 / 6; db < beat - it.from - 0.1; db += 1 / 6) {
+            const held = heightAt(prof, db * spb);
+            if (held + 0.6 * ph - (heightAt(tap, db * spb) + ph) < 56) continue;
+            addLum(it.from + db, takeoffY - held - ph * 0.6);
+          }
+        }
         break;
       }
       case 'checkpoint': {
@@ -457,7 +481,8 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
         groundCues.push({ beat: it.beat, style: it.style });
         break;
       case 'hint':
-        hints.push({ beat: it.beat, beats: it.beats ?? 8, text: it.text, icon: it.icon });
+        if (it.glyph) glyphs.push({ beat: it.beat, beats: it.beats ?? 4, text: it.text, icon: it.icon });
+        else hints.push({ beat: it.beat, beats: it.beats ?? 8, text: it.text, icon: it.icon });
         break;
       case 'setPiece':
         setPieces.push({ beat: it.beat, name: it.name, beats: it.beats ?? 4 });
@@ -476,6 +501,30 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
     }
   }
   actions.sort((a, b) => a.beat - b.beat);
+  // ---------------------------------------------------------------- SUNG TOKENS (iteration 7): `lumSing` items
+  const sing = def.items.filter((it): it is Extract<typeof it, { type: 'lumSing' }> => it.type === 'lumSing');
+  if (sing.length) {
+    const onsets = song.lane?.('tokenMelody')?.beats?.() ?? [];
+    const feet = heroFeetY(def, actions, bouncePads, groundYNear, floorYAt, X, spb, runSpeed, ppb);
+    const lowSigns = def.items.filter((it): it is Extract<typeof it, { type: 'lowSign' }> => it.type === 'lowSign');
+    const drop = new Set<Lum>();
+    for (const it of sing) {
+      const ons = onsets.filter((b) => b >= it.from - 1e-6 && b < it.to - 1e-6);
+      const onOnset = (b: number) => ons.some((o) => Math.abs(b - o) <= 1 / 12 + 1e-6);
+      if (!it.keepEcho) {
+        for (const l of lums) {
+          if (l.beat < it.from - 1e-6 || l.beat >= it.to - 1e-6 || onOnset(l.beat)) continue;
+          if (ons.some((o) => l.beat - o > 1 / 12 && l.beat - o <= 1 / 3 + 0.05)) drop.add(l);
+        }
+      }
+      for (const o of ons) {
+        if (lums.some((l) => !drop.has(l) && Math.abs(l.beat - o) < 0.09)) continue;
+        const sliding = lowSigns.some((sg) => o >= sg.from - 0.5 && o <= sg.to + 0.1);
+        addLum(o, feet(o) - (sliding ? 26 : (it.h ?? Tun.player.height * 0.6)));
+      }
+    }
+    if (drop.size) for (let i = lums.length - 1; i >= 0; i--) if (drop.has(lums[i])) lums.splice(i, 1);
+  }
   // phrases: tag their actions; the final strike is a long "–" (the Heave)
   phrases.forEach((ph, pi) => {
     for (const b of ph.beats) {
@@ -494,7 +543,18 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
   bouncePads.sort((a, b) => a.beat - b.beat);
   signs.sort((a, b) => a.beat - b.beat);
   crowdCaps.sort((a, b) => a.beat - b.beat);
+  signLetters.sort((a, b) => a.beat - b.beat);
+  glyphs.sort((a, b) => a.beat - b.beat);
   checkpoints.sort((a, b) => a.beat - b.beat);
+  // every hole between floor spans is a LETHAL pit (iteration 7: exposed for the art; gauntlet = on Big Jim, 304-332)
+  const pits: Pit[] = [];
+  for (let i = 0; i + 1 < floors.length; i++) {
+    const f = floors[i];
+    const n = floors[i + 1];
+    if (n.x0 - f.x1 < 4) continue;
+    const beat = f.x1 / ppb;
+    pits.push({ x0: f.x1, x1: n.x0, top: Math.min(f.y, n.y), beat, lethal: true, gauntlet: beat >= 304 && beat < 332 });
+  }
   cameraCues.sort((a, b) => a.beat - b.beat);
   skyCues.sort((a, b) => a.beat - b.beat);
   marks.sort((a, b) => a.beat - b.beat);
@@ -518,6 +578,9 @@ export function buildLevel(def: LevelDef, tempo: TempoMap, song: SongDef): Runti
     bouncePads,
     signs,
     crowdCaps,
+    pits,
+    signLetters,
+    glyphs,
     phrases,
     checkpoints,
     finishX: X(finishBeat),
@@ -682,4 +745,57 @@ function launchArc(v: number, spb: number, dh: number, beats: number): [number, 
     if (vy > 0 && y <= dh) break;
   }
   return out;
+}
+
+/**
+ * The hero's INTENDED feet line (world y) by beat (iteration 7, for `lumSing`): the hook ride in progress (its path),
+ * else the launch flight in progress, else the jump in progress (the latest jump action whose airtime covers the beat,
+ * from its takeoff surface — never below a floor he'd have landed on), else his floor.
+ */
+function heroFeetY(
+  def: LevelDef,
+  actions: ActionMarker[],
+  pads: BouncePad[],
+  groundYNear: (x: number) => number,
+  floorYAt: (x: number) => number,
+  X: (b: number) => number,
+  spb: number,
+  runSpeed: number,
+  ppb: number,
+): (beat: number) => number {
+  const hooks = def.items.filter((it): it is Extract<typeof it, { type: 'hook' }> => it.type === 'hook');
+  const jumps = actions.filter((a) => a.type === 'jump');
+  const profs = new Map<number, ReturnType<typeof jumpProfile>>();
+  const prof = (hold: number) => {
+    const k = Math.round(hold * 1000);
+    if (!profs.has(k)) profs.set(k, jumpProfile(hold * spb, runSpeed, ppb));
+    return profs.get(k)!;
+  };
+  return (b: number) => {
+    for (const hk of hooks) {
+      const p = hk.path;
+      if (b < p[0][0] || b > p[p.length - 1][0]) continue;
+      for (let i = 1; i < p.length; i++) {
+        if (b > p[i][0]) continue;
+        const [ba, ha] = p[i - 1];
+        const [bb, hb] = p[i];
+        return -(ha + ((hb - ha) * (b - ba)) / Math.max(1e-6, bb - ba));
+      }
+    }
+    const floor = floorYAt(X(b));
+    const clamp = (y: number) => (Number.isNaN(floor) ? y : Math.min(y, floor));
+    for (const pad of pads) {
+      if (b < pad.beat || b >= pad.landBeat) continue;
+      const v = launchVelocity((pad.landBeat - pad.beat) * spb, pad.y - pad.landY, spb);
+      return clamp(pad.y - launchHeightAt(v, spb, (b - pad.beat) * spb));
+    }
+    for (let i = jumps.length - 1; i >= 0; i--) {
+      const a = jumps[i];
+      if (a.beat > b + 1e-6) continue;
+      const pr = prof(a.hold ?? 1);
+      if (b - a.beat >= pr.airtime / spb) break;
+      return clamp(a.groundY - heightAt(pr, (b - a.beat) * spb));
+    }
+    return groundYNear(X(b));
+  };
 }

@@ -71,8 +71,10 @@ const pendulumHigh = (beat: number, big = false): LevelItem => ({ type: 'pendulu
 const UP_EDGE = 0.55;
 /** post tops [from, to] relative to their beat: narrow enough that the gaps can't be walked (the 26 px ledge assist) */
 const POST_TOP = [-0.27, 0.28] as const;
-/** Big Jim's fists: slam-lift press tops, narrower than the dsl default (build.ts SLAM -0.42..0.36) */
-const SLAM_TOP = [-0.3, 0.26] as const;
+/** Big Jim's fists: slam-lift press tops, narrower than the dsl default (build.ts SLAM -0.42..0.36). Iteration 7 (review
+ * iter6 fix 3, the 310.8 hotspot: 3 of 5 struggling runs died there): the early side −0.30 → −0.35, so the 309 hop from
+ * fist to fist is −120/+150 ms (was −105); 312 / 318 / 326 / 330 keep the gauntlet's teeth */
+const SLAM_TOP = [-0.35, 0.26] as const;
 /** the knee's solid lip after the first fist (beats after its slam) */
 const KNEE = 0.42;
 class Terrain {
@@ -192,8 +194,10 @@ const FIT = {
   climb: [0.1, 0.66] as const,
   /** 318: the same across a FLAT notch (the landing comes sooner than going up, so the pit runs further) */
   notch: [0.1, 0.84] as const,
-  /** 280: up onto the fallen I after the strikes (was `lapel`, measured −80 once 275 stopped being a hop) */
-  ontoI: [0.1, 0.695] as const,
+  /** 280: up onto the fallen I after the strikes (was `lapel`, measured −80 once 275 stopped being a hop). Iteration 7:
+   * −80 → −95 (0.695 → 0.65) — two −80 exams one bar apart (276, 280) killed a ±85 sloppy bot twice in one chorus-4 pass
+   * (rubric A9: ≤ 1 per block); 276 and 284 stay the −80 exam */
+  ontoI: [0.1, 0.65] as const,
   /** 330 (iteration 6): flat, over the gap the snapped gold chain tore, after the medallion strike on 329 */
   chain: [0.09, 0.8] as const,
 };
@@ -335,6 +339,9 @@ export function act3Items(h0 = 950): LevelItem[] {
     // ================================================================ BLOCK 3 — SIGN FALLS (69-76). Follows: the shouts
     { type: 'checkpoint', beat: bar(69) },
     { type: 'crowd', beat: bar(69), cap: 24, earn: [271.65] }, // FULL HOUSE lands on the drop for a clean break shot
+    // iteration 7 (review iter6 fix 2): chorus 4 + tag 4 SING — a token on every sung note along the letters, the walkdown
+    // on Big Jim and the reveal (arc tokens that only echoed the singer are dropped)
+    { type: 'lumSing', from: bar(69), to: bar(78) },
     sky(bar(69), 'sunset'),
     { type: 'ground', beat: bar(69) + 1.4, style: 'roof' },
     setPiece(bar(69), 'drop', 2),

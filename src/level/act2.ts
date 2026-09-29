@@ -48,7 +48,8 @@ const bar = (n: number, beat = 1) => (n - 1) * 4 + (beat - 1);
 const fx = (beat: number, kind: FxKind, amount = 1): LevelItem => ({ type: 'fx', beat, fx: kind, amount });
 const mode = (beat: number, m: string): LevelItem => ({ type: 'mode', beat, mode: m });
 const follows = (beat: number, lane: string): LevelItem => ({ type: 'follows', beat, lane });
-const hint = (beat: number, text: string, beats = 6): LevelItem => ({ type: 'hint', beat, beats, text });
+/** an on-object tutorial glyph (iteration 7: act 2 teaches without banners; RuntimeLevel.glyphs, drawn by the art) */
+const glyph = (beat: number, text: string, icon: string, beats = 2): LevelItem => ({ type: 'hint', beat, beats, text, icon, glyph: true });
 const label = (beat: number, text: string): LevelItem => ({ type: 'label', beat, text });
 const setPiece = (beat: number, name: SetPieceName, beats = 4, extra: { h?: number; ahead?: number } = {}): LevelItem => ({ type: 'setPiece', beat, name, beats, ...extra });
 const TAP = 0.15;
@@ -290,7 +291,8 @@ export const act2Items: LevelItem[] = [
   fx(and(bar(35, 4)), 'bgPulse', 0.5),
   // ---- bar 36: the first ALLEY jumped UP a storey on the kick, the first THROWN BOTTLE batted on the snare, a flight
   // on 3-4, tokens on the fill (143.65)
-  hint(bar(35, 3), 'Bottles fly from the windows — SWING on the beat to bat them back!', 6),
+  // iteration 7 (review iter6 fix 7): the act-2 teaches are on-object GLYPHS, not banners
+  glyph(bar(36, 3), 'X', 'strike'),
   batBottle(bar(36, 3)),
   lumRowSwung(bar(36, 3) + 0.5, bar(36, 4) + 0.5, 70),
   // ---- bar 37: up on the E, a STOREY jump (held) on the A, up on the A#
@@ -308,7 +310,7 @@ export const act2Items: LevelItem[] = [
     floorAt,
   ),
   mode(bar(38, 1), 'ride'),
-  hint(bar(37, 3), 'SWING at the rope on the beat — it hauls you up!', 5),
+  glyph(bar(38, 1), 'X', 'strike'),
   { type: 'camera', beat: bar(38, 1), zoom: 0.8, beats: 2 },
   fx(bar(38, 1), 'zoom', 0.5),
   mode(bar(38, 3), 'climb'),
@@ -346,27 +348,44 @@ export const act2Items: LevelItem[] = [
   setPiece(bar(42), 'searchlights', 16),
   setPiece(bar(44), 'tenants', 8),
   label(bar(42), 'THE ROOF'),
-  // ---- bar 42: breather after the peak: a hop onto the roof, a swung token row, a held jump through tokens on the kick
+  // iteration 7 (review iter6 redesign bars 42-49, "rename the sign"): the roof SINGS (a token on every sung note of the
+  // verse along Slim's path), two more hops fill bars 43 and 45, and the stop-time hits REWRITE the neon (below)
+  { type: 'lumSing', from: bar(42), to: bar(47) },
+  // ---- bar 42: breather after the peak: a hop onto the roof, a neon tube on the snare, a swung token row, a held jump
+  // through tokens on the kick
   ...tokenHop(bar(42, 1)),
+  bottle(bar(42, 2), 'neon'),
   lumRowSwung(bar(42, 2) + 0.5, bar(42, 3), 70),
   ...tokenJump(bar(42, 3)),
-  // ---- bar 43: a swinging neon letter, a hop, tokens on the kick-and
+  // ---- bar 43: a hop on the kick, a swinging neon letter, a hop, tokens on the kick-and
+  ...tokenHop(bar(43, 1)),
   pendulum(bar(43, 2)),
   ...tokenHop(bar(43, 3)),
   // FILM CANISTER #2 (iteration 6): the roof's quiet stretch hides one — HOLD the hop on 170 and it's caught in the
   // searchlight over the water tower (tokens up the held arc are the clue)
   { type: 'canister', from: bar(43, 3) },
   lumRowSwung(and(bar(43, 3)), bar(43, 4) + 0.5, 60),
-  // ---- bar 44: STOP-TIME (the bass drops out): X · rest · X — big smashes; your hit is the sound
+  // ---- bar 44: STOP-TIME (the bass drops out): X · rest · X — big smashes; your hit is the sound. Iteration 7: THE SIGN —
+  // the roof's neon reads BIG JIM's; each stop-time hit (172, 174, 176, the line on 178.66) rewrites one letter until it
+  // reads SLIM (game 'sign' events / game.sign for the art; the tenants answer each hit), and a clean stop-time FILLS THE
+  // HOUSE: a forgiving stretch (cap 21) where 4 Great+ hits in a row bring FULL HOUSE for the verse's one open moment
   label(bar(44), 'STOP-TIME'),
+  { type: 'crowd', beat: bar(44), cap: 21, forgive: true },
+  { type: 'crowd', beat: bar(47), cap: 16 },
+  setPiece(bar(44), 'slimSign', 12),
+  { type: 'signLetter', beat: bar(44, 1), index: 0, letter: 'S', word: 'SLIM' },
+  { type: 'signLetter', beat: bar(44, 3), index: 1, letter: 'L', word: 'SLIM' },
+  { type: 'signLetter', beat: bar(45, 1), index: 2, letter: 'I', word: 'SLIM' },
+  { type: 'signLetter', beat: and(bar(45, 3)), index: 3, letter: 'M', word: 'SLIM' },
   crate(bar(44, 1), 'neon'),
   crate(bar(44, 3), 'neon'),
   ...tokenHop(bar(44, 4)),
   fx(bar(44, 1), 'bgPulse', 0.9),
   fx(bar(44, 3), 'bgPulse', 0.9),
-  // ---- bar 45: a big one on 1, then the LAUNDRY LINE: hook it on the held note (178.66) and glide over the light well
-  // (a miss drops you 60 px onto the well's floor: scramble out)
+  // ---- bar 45: a big one on 1, a hop, then the LAUNDRY LINE: hook it on the held note (178.66) and glide over the light
+  // well (a miss drops you 60 px onto the well's floor: scramble out)
   crate(bar(45, 1), 'neon'),
+  ...tokenHop(bar(45, 2)),
   ...hookRide(
     and(bar(45, 3)),
     'line',
@@ -449,6 +468,9 @@ export const act2Items: LevelItem[] = [
 
   // ================================================================ CHORUS 3 — THE DROP + the BLACKLIGHT LANES (bars 52-59)
   { type: 'crowd', beat: bar(52), cap: 24 },
+  // iteration 7 (review iter6 fix 2): the chorus + tag SING — a token on every sung note along the zip, the lanes, the
+  // sweep ride and the catwalk (arc tokens that only echoed the singer are dropped)
+  { type: 'lumSing', from: bar(52), to: bar(61) },
   { type: 'sky', beat: bar(52), preset: 'lanes' },
   label(bar(52), 'CHORUS 3 — the Blacklight Lanes'),
   follows(bar(52), 'kick'),
@@ -487,7 +509,7 @@ export const act2Items: LevelItem[] = [
   pin(bar(53, 3)),
   fx(bar(53, 2), 'flash', 0.4),
   fx(bar(53, 3), 'flash', 0.4),
-  hint(bar(52, 4), 'Bowling balls roll down the lanes — HOP them on the beat!', 5),
+  glyph(bar(53, 4), 'HOP', 'jump'),
   ...ball(bar(53, 4)),
   // ---- bar 54 (A7): hook the PINSETTER's sweep bar on the kick (lethal: the pinsetter pit) and ride it over, smashing a
   // rack of pins mid-ride on the snare; drop off on 3, a pin on the E (215)
