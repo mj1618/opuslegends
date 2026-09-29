@@ -24,11 +24,21 @@
   (−5.3 dB broadband, −0.9 dB in 300 Hz-4 kHz at the HEYs). HEY centroid 1034 → 1674 Hz, low-mid/presence −4.2 →
   −11.2 dB, tail −7.4 → −20.2 dB. Comparison: `playtest/out-audio/hey_before_after.mp3` (stem only, before then after).
 
-## Still to do
+## Done (iteration 9): the strike HEY, the one-shots, the groan
 
-- `sfx.ts`: play real `hey_1..3` (+ `hey_crowd` when the crowd is up) for the strike/roar instead of the synth cluster
-  (register StageAudio's SampleBank per AudioContext; start into the /h/ pre-roll when there is no lead time); make the
-  synth fallback a consonant, brighter unison. Add `hey_1..3` to `SAMPLE_ONSETS`.
-- `sfx.py`: add a `--set=voices` (merge) and re-render `hey_1..3`, `hey_crowd`, `hup_1..2` with the new gang.
-- `stage.ts` death groan: rate 0.78 → ~0.94.
-- Re-run `node playtest/playtest.mjs --dist=dist-audio --out=playtest/out-audio` and `mixlab.mjs`.
+- `sfx.py --set=voices` (merges into the manifest; `core`/`all` include it): `hey_1..4` = the hero's HEY, ONE
+  performer's natural takes (Mafon2 takes 12/17/20/27 of the cache, F0 268/233/250/281 Hz, never resampled), the /h/ +
+  0.24 s of vowel + a 70 ms fade (0.32-0.35 s), dry, EQ −2.5 dB 320 Hz / +3 dB 3 kHz / +2 dB shelf 7 kHz; `hey_crowd` =
+  the overlay's gang (8 layers) 0.65 s, dry; `hup_1..2` = 3-voice gang (1 group take). Old vs new (file analysis):
+  hero centroid 1.8-2.1 kHz → 2.1-2.5 kHz, length 0.46-0.79 s → 0.32-0.35 s; hey_crowd 1.9 → 3.3 kHz, low-mid/presence
+  −1.7 → −13.7 dB, 0.95 → 0.65 s.
+- `Sfx.hey`: plays `hey_1..4` round-robin (shuffled cycle, never the same take twice running) from StageAudio's bank
+  (`SampleBank.forContext`), + `hey_crowd` when the crowd is up, both louder on a Heave's roar (`mix.ts` HEY_SFX); a HEY
+  with no lead time starts into the /h/ (`PlayOpts.catchUp`, keeps 12 ms). Synth fallback: one bright unison voice on /e/
+  after a noise /h/ (no chromatic stack). `goonShouts` stinger −12 → −15.5 dB (the new gang file is +3.5 LU hotter).
+- Groan: `GRADE_SFX.groanRate` 0.78 → 0.94 (−4.3 st → −1 st), low-pass 1.4 → 1.6 kHz.
+- Measured in the real graph (`node src/audio/lab/mixlab.mjs --prefix=hey` → `tools/music/hey_report.py`, chorus 1 at
+  FULL HOUSE): hero + gang (every strike at crowd ≥ 4) −24.8 LUFS momentary (old synth −23.2), centroid 2.6 kHz (old
+  1.7), low-mids 8 dB UNDER presence (old 4 dB over), tail 0.35-0.65 s −35 dB, vowel on the beat ±2 ms (old synth
+  +5..+17 ms), −5.7 dB under the music in 1-4 kHz (old −10.6: brighter, more present at the same loudness); the Heave
+  roar −20.7 (old −22.7).

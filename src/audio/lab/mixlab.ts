@@ -9,7 +9,7 @@ import { gameLevel } from '../../level/index';
 import { AudioSystem } from '../audioSystem';
 import { Conductor } from '../conductor';
 import type { LevelLike } from '../cues';
-import { GOON_FLARE, STAGE_SFX, type StageSound } from '../mix';
+import { CHORUS_LIFT, GOON_FLARE, MIX, STAGE_SFX, type StageSound } from '../mix';
 import { Sfx } from '../sfx';
 import type { GoonPart } from '../goonParts';
 import { loadSongBuffer, loadSongStems, makeTempoMap } from '../song';
@@ -57,6 +57,10 @@ export interface LabEvent {
   sign?: number;
   /** the hero passed under a canister (game 'tease') */
   tease?: boolean;
+  /** the hero's HEY alone ON `beat` with this many voices (Sfx.hey: 1 = the hero, > 1 + the audience, >= 5 a roar) */
+  hey?: number;
+  /** a death (StageAudio.onDeath: the groan) */
+  death?: boolean;
   /** play a STAGE_SFX stack whose beat 0 is `soundBeat` (a level `at` cue: the colour burst, a canister glint) */
   sound?: StageSound;
   soundBeat?: number;
@@ -90,6 +94,10 @@ export interface Scenario {
   legacy?: boolean;
   /** a token pickup (60 ms early) for every token the REAL level lays in [from, to) (iteration 6) */
   levelTokens?: boolean;
+  /** the chorus lift bypassed (the pre-lift chain: booth -> trim), for the A/B (chorus_report.py) */
+  liftOff?: boolean;
+  /** the hero's HEY from the old synth (Sfx.sampledHey = false), for the A/B (hey_report.py) */
+  synthHey?: boolean;
 }
 
 type Item = { type: string; beat?: number; style?: string; look?: string; giant?: boolean; action?: { type?: string; beat?: number } };
@@ -142,6 +150,10 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
   ctx.destination.channelInterpretation = 'discrete';
   const audio = new AudioSystem(false, ctx);
   await audio.calibrate();
+  if (sc.liftOff) {
+    audio.booth.output.disconnect();
+    audio.booth.output.connect(audio.trim);
+  }
   // master (post-limiter, stereo) -> ch 0-1; pre-limiter (after the trim) -> ch 2-3
   const outMerge = ctx.createChannelMerger(4);
   const postSplit = ctx.createChannelSplitter(2);
@@ -175,6 +187,7 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
     ctx,
     booth: audio.booth,
     squeeze: audio.squeeze,
+    lift: audio.lift,
     sfxOut,
     song,
     clock,
@@ -188,6 +201,8 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
     if (sc.noHush) stage.setCues(stage.audioCues.filter((c) => c.type !== 'hush'));
   }
   const synth = new Sfx(ctx, sfxOut);
+  if (sc.synthHey) synth.sampledHey = false;
+  cond.onPlay((b) => stage.armLift(b)); // as StageAudio.forGame
   cond.play(t0, lead, 0.005);
   stage.setCrowd(sc.crowd, true);
 
@@ -229,7 +244,9 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
     if (e.sign !== undefined) stage.onSign({ index: e.sign, beat: e.beat });
     if (e.tease) stage.onTease({ beat: e.beat });
     if (e.sound) stage.playSound(e.sound, e.soundBeat ?? e.beat, false, true, e.rate ?? 1);
-    const other = e.strike || e.smash || e.missTarget || e.mech || e.fx || e.token || e.loose || e.whew || e.canister || e.goon || e.poster || e.theEnd || e.stamp || e.sign !== undefined || e.tease || e.sound;
+    if (e.hey) synth.hey(clock.ctxAtBeat(e.beat), e.hey);
+    if (e.death) stage.onDeath();
+    const other = e.hey || e.death || e.strike || e.smash || e.missTarget || e.mech || e.fx || e.token || e.loose || e.whew || e.canister || e.goon || e.poster || e.theEnd || e.stamp || e.sign !== undefined || e.tease || e.sound;
     if (!e.grade && !e.miss && !e.stumble && !e.checkpoint && e.crowd === undefined && !other) stage.beatTick(e.beat);
   }
   const out = await ctx.startRendering();
@@ -254,6 +271,9 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
       audioOffset: song.audioOffset,
       limiterDelay: audio.limiterDelay,
       limiterMakeup: audio.limiterMakeup,
+      // the chorus lift's soft clip ceiling (dBFS on the music bus) and the master trim after it (chorus_report.py)
+      liftClipDb: sc.liftOff ? null : CHORUS_LIFT.clipDb,
+      headroomDb: MIX.headroomDb,
       outputDelay: audio.outputDelay,
       samples: stage.samples.has('chime_E5'),
       // the act-2/3 scenes (tools/music/stage_report.py): the cues in effect, the stacks, what the player did
@@ -263,6 +283,7 @@ export async function render(sc: Scenario): Promise<{ sr: number; channels: stri
       mechs: evs.filter((e) => e.mech || e.fx).map((e) => ({ kind: e.mech ?? e.fx, arrive: e.arrive ?? e.beat })),
       // iteration 6: what each token sang (song time of its sound = `when`), the feel events
       tokens,
+      heys: evs.filter((e) => e.hey).map((e) => ({ beat: e.beat, voices: e.hey })),
       feel: evs.filter((e) => e.whew || e.canister || e.goon || e.poster).map((e) => ({ beat: e.beat, whew: e.whew, canister: e.canister, goon: e.goon, poster: e.poster })),
       // iteration 7: the ending's picture beats, the sign letters, the teases, the cue sounds (song time of each)
       polish: evs

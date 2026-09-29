@@ -66,7 +66,7 @@ export const SAMPLE_ONSETS = {
   window_crash: 0.0001,
   // iteration 6 (tools/music/sfx.py --set=feel, instruments/fx_feel.py): the token voice, the near-miss WHEW, the film
   // canister, the poster's rank stings, the goon stingers (+ the core set's cowbell tonks and jukebox boom)
-  hey_crowd: 0.1482,
+  hey_crowd: 0.1118,
   crowd_applause: 0.104,
   unison_clack: 0.0001,
   tonk_lo: 0.0038,
@@ -119,7 +119,15 @@ export const SAMPLE_ONSETS = {
   color_whoosh: 0.1658,
   color_bloom: 0.0064,
   canister_glint: 0.0005,
+  // iteration 8 (tools/music/sfx.py --set=voices): the hero's strike HEY = one performer's natural takes, round-robin
+  hey_1: 0.027,
+  hey_2: 0.0131,
+  hey_3: 0.033,
+  hey_4: 0.0372,
 } as const;
+
+/** the hero's strike HEYs (round-robin; Sfx.hey) */
+export const HERO_HEYS: SampleId[] = ['hey_1', 'hey_2', 'hey_3', 'hey_4'];
 
 export type SampleId = keyof typeof SAMPLE_ONSETS;
 
@@ -180,6 +188,12 @@ export interface PlayOpts {
   align?: boolean;
   /** fade out over 60 ms starting this many seconds after the start */
   cut?: number;
+  /**
+   * with `align`: when the aligned start is already past (a sound fired with no lead time), start INTO the file's
+   * pre-roll so its attack lands as close to `when` as it can, keeping at least this many seconds before the attack
+   * (a 3 ms fade-in): a shout's breathy /h/ is skipped instead of making the vowel late
+   */
+  catchUp?: number;
 }
 
 /** a playing (or scheduled) one-shot */
@@ -191,12 +205,21 @@ export interface SampleVoice {
   end: number;
 }
 
+const BANKS = new WeakMap<BaseAudioContext, SampleBank>();
+
 export class SampleBank {
   readonly ctx: BaseAudioContext;
   private bufs = new Map<SampleId, AudioBuffer>();
 
   constructor(ctx: BaseAudioContext) {
     this.ctx = ctx;
+    // the first bank on a context (StageAudio's) is the one the synth Sfx borrows for its sampled voices
+    if (!BANKS.has(ctx)) BANKS.set(ctx, this);
+  }
+
+  /** the (first) sample bank created on `ctx`, if any (Sfx plays the hero's HEYs from it) */
+  static forContext(ctx: BaseAudioContext): SampleBank | undefined {
+    return BANKS.get(ctx);
   }
 
   has(id: SampleId): boolean {
@@ -235,12 +258,20 @@ export class SampleBank {
     if (!buf) return null;
     const ctx = this.ctx;
     const rate = o.rate ?? 1;
-    const t = Math.max(when - (o.align ? SAMPLE_ONSETS[id] / rate : 0), ctx.currentTime);
+    const now = ctx.currentTime;
+    const onset = o.align ? SAMPLE_ONSETS[id] / rate : 0;
+    const t = Math.max(when - onset, now);
+    // catch-up: skip into the pre-roll (in output seconds) when the aligned start is past
+    const skip = o.align && o.catchUp !== undefined && when - onset < now ? Math.min(now - (when - onset), Math.max(0, onset - o.catchUp)) : 0;
     const s = ctx.createBufferSource();
     s.buffer = buf;
     s.playbackRate.value = rate;
     const g = ctx.createGain();
     g.gain.value = o.gain ?? 1;
+    if (skip > 0) {
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(o.gain ?? 1, t + 0.003);
+    }
     let tail: AudioNode = s;
     if (o.lp) {
       const f = ctx.createBiquadFilter();
@@ -250,7 +281,7 @@ export class SampleBank {
       tail = tail.connect(f);
     }
     tail.connect(g).connect(dest);
-    s.start(t);
+    s.start(t, skip * rate);
     if (o.cut !== undefined) {
       g.gain.setValueAtTime(o.gain ?? 1, t + o.cut);
       g.gain.linearRampToValueAtTime(0, t + o.cut + 0.06);
@@ -260,6 +291,6 @@ export class SampleBank {
       s.disconnect();
       g.disconnect();
     };
-    return { src: s, gain: g, start: t, end: t + buf.duration / rate };
+    return { src: s, gain: g, start: t, end: t + buf.duration / rate - skip };
   }
 }

@@ -70,6 +70,10 @@ female "Hey"), 852528/852535/852536 (CAT-FOX_ALEX "wooh" yells), 45606, 448705, 
 Downloaded but unused (candidates for later): 593436, 345083, 403908, 88401, 257579, 384401 (a 14-person crowd/mob
 walla, 2 min, CC0) and 480805 (a small group of men shouting, CC0).
 
+**Iteration 9 (the hero's strike HEY).** `hey_1..4` (`sfx.py --set=voices`) are four of Mafon2's single takes (CC0),
+used as recorded (no pitch shift): one performer, so the hero keeps one voice. `hey_crowd` / `hup_1..2` are rendered with
+the iteration-8 gang above.
+
 **Gaps.** HEY and HUP have real *group* recordings. HO and HA are built only from solo takes, mostly from one
 performer (qubodup), and are thickened by pitch/time variation. WHOA has a single group layer; the other WHOA layers
 are nine takes from one performer. A proper gang-vocal session (6–8 people, each word ×4, close and room mics) would

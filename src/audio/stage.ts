@@ -57,6 +57,7 @@ import { type Booth, type Squeeze, makeSoftClip } from './booth';
 import type { Conductor } from './conductor';
 import { type AudioCue, type LevelLike, levelAudioCues, levelFirebombs } from './cues';
 import { type GoonPart, PART_STEM, goonPartAt, nextPartHit } from './goonParts';
+import { type ChorusLift, type LiftSpan, chorusSpans, inChorus, liftAmount } from './lift';
 import { BOOTH, FULL_HOUSE, GOON_FLARE, GRADE_SFX, POSTER_SFX, SIGN_SFX, STAGE_BUS, STAGE_SFX, THE_END_SFX, TOKEN_SFX, type PosterLayer, type StageLayer, type StageSound, boothState, dbToGain } from './mix';
 import { CHIME_NOTES, NEON_NOTES, SampleBank, TOKEN_NOTES, type SampleId, type SampleVoice } from './samples';
 import { type SongDef, chordAt, mtof } from './song';
@@ -81,6 +82,8 @@ export interface StageHost {
   booth: Booth;
   /** the hush processor on the record (optional: no hush without it) */
   squeeze?: Squeeze;
+  /** the chorus lift on the music bus (optional: no lift without it) */
+  lift?: ChorusLift;
   /** SFX bus input (the theatre: not filtered by the booth) */
   sfxOut: AudioNode;
   song: SongDef;
@@ -151,6 +154,8 @@ export class StageAudio {
   private fullHouseArmed = true;
   private lastCheerBeat = -Infinity;
   private lastBoothKey = '';
+  /** the chorus lift's spans from the level's `speed` items (null: none, use the song's chorus sections) */
+  private levelSpans: LiftSpan[] | null = null;
   /** the level's audio cues (sorted by start beat) */
   private cues: AudioCue[] = [];
   /** `at` / `hush` cues are scheduled up to this beat */
@@ -212,6 +217,7 @@ export class StageAudio {
       ctx: audio.ctx,
       booth: audio.booth,
       squeeze: audio.squeeze,
+      lift: audio.lift,
       sfxOut: audio.sfx,
       song: c.song,
       clock,
@@ -219,6 +225,8 @@ export class StageAudio {
       flareOverlay: (stem, when, holdSec) => void c.flareStem(stem, when, GOON_FLARE.db, holdSec, holdSec),
     });
     c.onBeat((b) => stage.beatTick(b));
+    // the chorus lift: its whole envelope goes on the audio clock every time the music (re)starts
+    c.onPlay((b) => stage.armLift(b));
     // a pause / quit cuts the music: call off the cue sounds and the hush already on the clock (they re-arm when it
     // plays again). The end screen's fade keeps them (the finale's applause outlives the music).
     c.onStop((mode) => mode === 'cut' && stage.resetSchedule());
@@ -434,7 +442,8 @@ export class StageAudio {
     for (const t of this.foundSinceCheckpoint) this.skipTags.delete(t);
     this.foundSinceCheckpoint = [];
     this.resetSchedule();
-    this.play('crowd_ooh', this.host.clock.now() + 0.05, GRADE_SFX.groanDb, { rate: 0.78, lp: 1400 });
+    // the groan: the ooh a touch lower (0.94 = -1 st; it was 0.78 = -4.3 st, a slowed-down "demon" groan) and darker
+    this.play('crowd_ooh', this.host.clock.now() + 0.05, GRADE_SFX.groanDb, { rate: GRADE_SFX.groanRate, lp: 1600 });
   }
 
   /** Checkpoint: projector changeover — a click on the next beat and the cue-dot flare. */
@@ -445,6 +454,34 @@ export class StageAudio {
     this.play('burn_flare', g.when, GRADE_SFX.flareDb, { align: true });
   }
 
+  // ------------------------------------------------------------------ the chorus lift (audio/lift.ts)
+
+  /**
+   * The chorus lift's spans: the level's chorus SPEED zones (`speed` items: the gameplay's chorus speed-up, same
+   * edges and ramps) when it has them, else the song's `chorus*` sections; one that starts on a hush's release (act 3's
+   * drop) steps in ON the downbeat instead of ramping through the hush.
+   */
+  get liftSpans(): LiftSpan[] {
+    const hushEnds = this.cues.filter((c) => c.type === 'hush').map((c) => (c as { to: number }).to);
+    return (this.levelSpans ?? chorusSpans(this.host.song)).map((s) => (hushEnds.some((t) => Math.abs(t - s.from) < 0.25) ? { ...s, rampIn: 0 } : s));
+  }
+
+  /** 0 (rest) .. 1 (full chorus lift) at `beat`; `inChorus` = a chorus section (the gameplay's flag uses the same spans) */
+  liftAt(beat: number): number {
+    return liftAmount(this.liftSpans, beat);
+  }
+
+  inChorus(beat: number): boolean {
+    return inChorus(this.liftSpans, beat);
+  }
+
+  /** (Re)schedule the chorus lift on the audio clock: the music (re)started at `fromBeat` (Conductor.onPlay). */
+  armLift(fromBeat: number): void {
+    const lift = this.host.lift;
+    if (!lift) return;
+    lift.schedule(this.liftSpans, fromBeat, (b) => this.host.clock.ctxAtBeat(b));
+  }
+
   // ------------------------------------------------------------------ level audio cues (audio/cues.ts)
 
   /** Replace the level's audio cues (Game: `stage.setCues(levelAudioCues(levelDef, song))`). */
@@ -452,10 +489,15 @@ export class StageAudio {
     this.resetSchedule();
     this.cues = [...cues].sort((a, b) => cueStart(a) - cueStart(b));
     this.firebombs = new Set((mech.firebombs ?? []).map((b) => Math.round(b * 100)));
+    // a hush may change how a chorus steps in: re-arm the lift if the music is playing
+    const gb = this.host.clock.graphBeat();
+    if (Number.isFinite(gb)) this.armLift(gb);
   }
 
   /** The level's audio: its cues (audio/cues.ts levelAudioCues) + the act-2 mechanics' telegraph voices. */
   useLevel(def: LevelLike, song: SongDef): void {
+    const zones = (def.items as { type?: string; from?: number; to?: number; rampIn?: number; rampOut?: number }[]).filter((it) => it.type === 'speed' && typeof it.from === 'number' && typeof it.to === 'number');
+    this.levelSpans = zones.length ? zones.map((z) => ({ from: z.from as number, to: z.to as number, rampIn: z.rampIn ?? 1, rampOut: z.rampOut ?? 1 })).sort((a, b) => a.from - b.from) : null;
     this.setCues(levelAudioCues(def, song), { firebombs: levelFirebombs(def) });
     // the goons: every jabber plays a part of the song (the art animates it on that part's hits)
     this.goons.clear();

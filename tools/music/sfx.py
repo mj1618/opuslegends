@@ -175,11 +175,14 @@ def main():
     ap.add_argument("--set", default="all", help="which sounds to render: all | core (iterations 1-3) | stage (the act-2/3 "
                     "set, instruments/fx_stage.py) | feel (iteration 6: token voice, WHEW, canister, poster stings, goon "
                     "stingers; instruments/fx_feel.py) | polish (iteration 7: the poster's rank stamp + tier stabs, the roof's "
-                    "neon letters, the intro colour burst, the canister glint; instruments/fx_polish.py). A partial render MERGES into the existing manifest (other ids kept)")
+                    "neon letters, the intro colour burst, the canister glint; instruments/fx_polish.py) | voices (the hero's strike "
+                    "HEYs, the audience HEY, the HUPs: real shouts, iteration 8's de-demoned gang). A partial render MERGES into the existing manifest (other ids kept)")
     args = ap.parse_args()
     W = Writer(args.out, args.q)
     rp, sc = riff_pitches(args.song)
     R = lambda k: np.random.default_rng(k)
+    if args.set in ("all", "core", "voices"):
+        voices_set(W, args.synth)
     if args.set in ("all", "core"):
         core_set(W, rp, args.synth, R)
     if args.set in ("all", "stage"):
@@ -191,25 +194,62 @@ def main():
     write_manifest(W, args, sc)
 
 
+# the hero's strike HEY: ONE performer's natural takes (Mafon2's clean single "Hey!"s, CC0), round-robin, never
+# resampled (the takes' own pitch spread, F0 ~230-280 Hz, is the variation), dry, bright, short. Indices into the
+# cache's HEY list (tools/music/instruments/sample_cache.py; the kept takes of iteration 8), picked on pYIN: a clear
+# voiced vowel at a natural male F0, no bleed of the next "hey" inside 0.3 s.
+HERO_HEY_TAKES = (12, 17, 20, 27)
+HERO_EQ = [("hp", 150, 0.7), ("peak", 320, 1.0, -2.5), ("peak", 3000, 0.9, 3.0), ("hs", 7000, 0.7, 2.0), ("lp", 13000, 0.7)]
+
+
+def hero_hey(take, sr=SR, keep=0.24, fade=0.07):
+    """one solo take: the /h/ pre-roll (<= 60 ms) + the vowel, cut `keep` s after its 50 % onset with a `fade` s tail"""
+    from instruments import sampled
+    t = sampled.sc.section("shouts")["HEY"][take]
+    x = sampled.wav(t["f"]).mean(axis=0)
+    on = int(t["on50"])
+    a = max(0, on - int(0.06 * sr))
+    y = x[a: on + int((keep + fade) * sr)].astype(float)
+    k = int(fade * sr)
+    y[-k:] *= np.linspace(1, 0, k) ** 2
+    return dsp.eq(y, sr, HERO_EQ)
+
+
+def voices_set(W, synth):
+    """the hero's HEYs, the audience HEY and the HUPs (iteration 8: the de-demoned gang, SAMPLES.md)"""
+    P = Palette(use_samples=not synth)
+    if not synth:
+        for i, take in enumerate(HERO_HEY_TAKES):
+            W.add(f"hey_{i + 1}", hero_hey(take), "voice", f"hero HEY! variant {i + 1} of {len(HERO_HEY_TAKES)} (the strike, "
+                  "round-robin): one natural solo take, dry and bright; the vowel lands at onsetSec", -17.0,
+                  _finish={"fade_ms": 30.0})
+    else:
+        for i, (stretch, seed) in enumerate([(1.0, 11), (0.95, 23), (1.08, 37)]):
+            g = P.shouts(voices=1, synth=dict(high_voices=0, spread=0.0))
+            W.add(f"hey_{i + 1}", render(g, [ev(piece="HEY", vel=1.0, voices=1, stretch=stretch, at=0.3)], 1.0, seed),
+                  "voice", f"hero HEY! variant {i + 1}", -17.0)
+    # the audience doubles the hero when the crowd is up: the overlay stem's tight natural gang (<= 8 layers, one take
+    # per performer, ~40 % women, +-1 st max), short and dry
+    g = P.shouts(voices=8)
+    W.add("hey_crowd", render_st(g, [ev(piece="HEY", vel=1.0, voices=8, at=0.3)], 0.9, 5), "voice",
+          "audience HEY! (a tight gang of 8 real voices: doubles the hero's HEY when the crowd is up)", -18.0, stereo=True,
+          _finish={"fade_ms": 80.0})
+    for i, (stretch, seed) in enumerate([(1.0, 41), (0.93, 53)]):
+        g = P.shouts(voices=3, sampled=dict(group_layers=1, pitch_spread=0.35, spread=0.3), synth=dict(high_voices=0, spread=0.25))
+        W.add(f"hup_{i + 1}", render(g, [ev(piece="HUP", vel=1.0, voices=3, stretch=stretch, at=0.3)], 0.7, seed),
+              "voice", f"HUP! variant {i + 1} (the short syllables of HUP-HUP-HEY)", -18.0, _finish={"fade_ms": 60.0})
+
+
+def render_st(inst, events, seconds, seed=1):
+    """render() keeping the stereo image"""
+    n = int(seconds * SR)
+    return inst.render(events, n, SR, np.random.default_rng(seed), None)
+
+
 def core_set(W, rp, synth, R):
     P = Palette(use_samples=not synth)
     sd = P.sampled("drums")
 
-    # ------------------------------------------------------------------ voices (same shouts as the song)
-    for i, (stretch, seed) in enumerate([(1.0, 11), (0.95, 23), (1.08, 37)]):
-        g = P.shouts(voices=2, sampled=dict(group_layers=0, pitch_spread=0.4, spread=0.15),
-                     synth=dict(high_voices=0, spread=0.2))
-        y = render(g, [ev(piece="HEY", vel=1.0, voices=2, stretch=stretch, at=0.3)], 1.0, seed)
-        W.add(f"hey_{i + 1}", y, "voice", f"hero HEY! variant {i + 1} (strike / on-beat action); vowel lands at onsetSec",
-              -17.0)
-    g = P.shouts(voices=10)
-    W.add("hey_crowd", render(g, [ev(piece="HEY", vel=1.0, voices=10, at=0.3)], 1.1, 5), "voice",
-          "audience HEY! layer (doubles the hero HEY when the crowd meter is high)", -18.0, stereo=True)
-    for i, (stretch, seed) in enumerate([(1.0, 41), (0.93, 53)]):
-        g = P.shouts(voices=3, sampled=dict(group_layers=1, pitch_spread=0.5, spread=0.3),
-                     synth=dict(high_voices=1, spread=0.25))
-        W.add(f"hup_{i + 1}", render(g, [ev(piece="HUP", vel=1.0, voices=3, stretch=stretch, at=0.3)], 0.8, seed),
-              "voice", f"HUP! variant {i + 1} (the short syllables of HUP-HUP-HEY)", -18.0)
     g = GangShouts(voices=18, high_voices=6, spread=0.9)
     W.add("crowd_ooh", render(g, [ev(piece="OOH", vel=1.0, voices=18)], 1.6, 21), "crowd",
           "audience 'OOOH' (death): falls in pitch", -19.0, stereo=True)

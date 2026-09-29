@@ -3,6 +3,8 @@
  * All pitched SFX that should sound musical take a MIDI note chosen by the caller from the
  * song's key/harmony (see collectibleNote in song.ts).
  */
+import { HEY_SFX, dbToGain } from './mix';
+import { HERO_HEYS, SampleBank, type SampleId } from './samples';
 import { mtof } from './song';
 
 export class Sfx {
@@ -10,6 +12,11 @@ export class Sfx {
   private out: AudioNode;
   private noise: AudioBuffer;
   enabled = true;
+  /** play the hero's HEY from the recorded takes when StageAudio's sample bank has them (false = the synth: A/B) */
+  sampledHey = true;
+  /** round-robin over HERO_HEYS (a shuffled cycle, never the same take twice in a row) */
+  private heyOrder: SampleId[] = [];
+  private lastHey: SampleId | null = null;
 
   constructor(ctx: BaseAudioContext, out: AudioNode) {
     this.ctx = ctx;
@@ -87,39 +94,69 @@ export class Sfx {
     this.hey(t, crowd ? 4 : 1, heave ? 1.6 : 1);
   }
 
-  /** synthesized gang "HEY!" (formants of /e/) */
+  /**
+   * The hero's "HEY!" at `when` (vowel ON it; no lead time = skip into the /h/): a recorded take, round-robin (one
+   * performer's natural takes, dry, bright), + the audience's gang when `voices` > 1 (louder on a roar: `voices` >= 5).
+   * Without the samples: a synth fallback (one bright unison voice on /e/ after a breathy /h/).
+   */
   hey(when?: number, voices = 1, vol = 1): void {
     if (!this.enabled) return;
     const t = this.at(when);
-    const dur = 0.16 + 0.04 * Math.min(voices, 4);
+    const bank = this.sampledHey ? SampleBank.forContext(this.ctx) : undefined;
+    if (bank && HERO_HEYS.some((id) => bank.has(id))) {
+      const roar = voices >= 5;
+      const o = { align: true, catchUp: HEY_SFX.catchUpSec };
+      bank.play(this.nextHey(bank), this.out, t, { ...o, gain: dbToGain(roar ? HEY_SFX.roarHeroDb : HEY_SFX.heroDb) * vol });
+      if (voices > 1) bank.play('hey_crowd', this.out, t, { ...o, gain: dbToGain(roar ? HEY_SFX.roarCrowdDb : HEY_SFX.crowdDb) * vol });
+      return;
+    }
+    this.synthHey(t, vol);
+  }
+
+  private nextHey(bank: SampleBank): SampleId {
+    if (this.heyOrder.length === 0) {
+      const ids = HERO_HEYS.filter((id) => bank.has(id));
+      for (let i = ids.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [ids[i], ids[j]] = [ids[j], ids[i]];
+      }
+      if (ids.length > 1 && ids[0] === this.lastHey) ids.push(ids.shift() as SampleId);
+      this.heyOrder = ids;
+    }
+    this.lastHey = this.heyOrder.shift() as SampleId;
+    return this.lastHey;
+  }
+
+  /** synth fallback: a breathy /h/ then ONE bright voice on /e/ (a tight unison, no pitch stack), falling a semitone */
+  private synthHey(t: number, vol: number): void {
+    const dur = 0.2;
     const out = this.ctx.createGain();
     out.gain.setValueAtTime(0, t);
-    out.gain.linearRampToValueAtTime(0.18 * vol, t + 0.006);
-    out.gain.setValueAtTime(0.18 * vol, t + dur * 0.6);
+    out.gain.linearRampToValueAtTime(0.2 * vol, t + 0.008);
+    out.gain.setValueAtTime(0.2 * vol, t + dur * 0.55);
     out.gain.linearRampToValueAtTime(0, t + dur);
     out.connect(this.out);
     const src = this.ctx.createGain();
-    [[530, 1], [1840, 0.55], [2480, 0.3]].forEach(([fq, k]) => {
+    [[600, 1, 6], [1900, 0.8, 8], [2700, 0.55, 9], [3500, 0.3, 9]].forEach(([fq, k, q]) => {
       const bp = this.ctx.createBiquadFilter();
       bp.type = 'bandpass';
       bp.frequency.value = fq;
-      bp.Q.value = 7;
+      bp.Q.value = q;
       const g = this.ctx.createGain();
       g.gain.value = k;
       src.connect(bp).connect(g).connect(out);
     });
-    const f0s = [262, 233, 294, 208, 311, 196].slice(0, Math.max(1, voices + 1));
-    for (const f0 of f0s) {
+    for (const cents of [-6, 6]) {
       const o = this.ctx.createOscillator();
       o.type = 'sawtooth';
-      o.frequency.setValueAtTime(f0 * 1.05, t);
-      o.frequency.exponentialRampToValueAtTime(f0 * 0.93, t + dur);
-      o.detune.value = (Math.random() - 0.5) * 20;
+      o.frequency.setValueAtTime(262, t);
+      o.frequency.exponentialRampToValueAtTime(247, t + dur);
+      o.detune.value = cents;
       o.connect(src);
       o.start(t);
       o.stop(t + dur + 0.02);
     }
-    this.burst('bandpass', 1600, 1600, 0.03, 0.12 * vol, 1, t);
+    this.burst('bandpass', 1800, 2600, 0.05, 0.1 * vol, 1.2, Math.max(this.ctx.currentTime, t - 0.03)); // the /h/
   }
 
   /** pendulum targets chime, pitched to the chord */

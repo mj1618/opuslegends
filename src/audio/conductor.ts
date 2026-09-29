@@ -214,9 +214,17 @@ export class Conductor {
     this.lastBeatFired = Math.floor(this.tempo.timeToBeat(from) - 1e-6);
     this.cueIndex = this.cues.findIndex((c) => c.beat >= this.tempo.timeToBeat(from) - 1e-6);
     if (this.cueIndex < 0) this.cueIndex = this.cues.length;
+    const fromBeat = this.tempo.timeToBeat(from);
+    for (const fn of this.playListeners) fn(fromBeat);
   }
 
   private stopListeners: ((mode: 'cut' | 'tape' | 'fade') => void)[] = [];
+  private playListeners: ((fromBeat: number) => void)[] = [];
+
+  /** Called at the end of every play() (the music (re)starts at song beat `fromBeat`: rewinds, count-ins, un-pause). */
+  onPlay(fn: (fromBeat: number) => void): void {
+    this.playListeners.push(fn);
+  }
 
   /** Called whenever the music stops (pause / quit = 'cut', death = 'tape', the end screen = 'fade'). */
   onStop(fn: (mode: 'cut' | 'tape' | 'fade') => void): void {

@@ -6,7 +6,9 @@ mechanic sounds, the act-3 sound set, THE HUSH before the drop, and THE FINALE o
 items 23–31: the run now starts at crowd 14 (the record full from beat 0), tokens sing the melody, the near-miss WHEW,
 the film canisters, the goons' flares and the poster's rank stings. Iteration 7 adds items 32–38: the ending's stings
 now land WITH the picture (THE END on the iris, the billing on the stamp), a warm C for every finisher, tokens that
-answer instead of echoing, the roof's SLIM sign, the colour reel on beat 15 and the canister glints.*
+answer instead of echoing, the roof's SLIM sign, the colour reel on beat 15 and the canister glints. Iteration 9 adds
+items 39–45: the chorus lift (the music louder, brighter and wider in every chorus) and the de-demoned voices (the
+hero's strike HEY is now a real recorded shout, the death groan only a semitone down).*
 
 ## How to listen (about 20 minutes)
 
@@ -79,6 +81,18 @@ answer instead of echoing, the roof's SLIM sign, the colour reel on beat 15 and 
 | 37 | `?coldopen=1` or `?start=0&autoplay=1`, beat 15 (the first HEY) | **The colour reel:** rising air into the HEY and a soft bloom on it (glass bells up the E chord + the house going "aaah") as the film floods to colour | Subtle magic: the room lights up with the picture. **Bad:** a cheesy whoosh, or it masks the record's HEY |
 | 38 | `?start=32&autoplay=1` (canister 1 at the chimney, beat 43) and `?start=164` (170) | **The canister glints:** four tiny glass "tings" climbing the chord on the 4 beats before the held jump's takeoff; if you run under it, a falling "ting-ting" ("up there…"); quiet once found | A treasure whisper that makes you look up. **Bad:** you can't hear it at all, or it clutters the tokens |
 
+## Iteration 9 (new): the chorus lift, the real strike HEY, the softer groan
+
+| # | Where | Listen for | Good sounds like |
+|---|---|---|---|
+| 39 | `?start=80&autoplay=1`, beats 87–89 (into chorus 1) and 119–122 (out into the tag) | **The chorus lift:** over the beat before the chorus downbeat the whole record swells ~2.5 dB louder, a touch brighter and wider, full ON the downbeat; after the chorus it eases back over one beat | "The band leans in": the chorus is clearly bigger than the verse, without you noticing a fader. **Bad:** a jump or a swell you hear as a volume ride, pumping/breathing on the drums, crunch on the snare/cowbell (the lift's clip), or the tag feeling like a drop-out |
+| 40 | a full run, verses 1 and 3 (`?start=32&autoplay=1`, `?start=132&autoplay=1`) | **The verses are 1 dB quieter than before** (the lift's headroom) | The verses still feel full and punchy; your SFX sit a hair more forward. **Bad:** the verses feel limp or small next to the choruses |
+| 41 | `?start=256&autoplay=1`, beat 272 (the drop after THE HUSH) | Chorus 4 **steps** into the lift ON the drop (no ramp through the hush) | The drop hits even harder than before (+17.5 dB from the hushed record). **Bad:** a click on the drop, or the hush sounding less deep |
+| 42 | `?start=96&autoplay=1&miss=98` (die inside chorus 1) | The respawn count-in + rewind inside a chorus: the music comes back AT the chorus level | No swell from quiet to loud after the respawn, no jump |
+| 43 | `?start=32&autoplay=1` (the strikes in bars 13–20) and any chorus | **The hero's strike HEY** is now a real man's shout, four takes alternating (never the same one twice running), short and dry, with the audience's gang behind it | A person, not a machine: natural pitch, varied, bright, ON the beat with the swing. **Bad:** still "demonic" (a growl, a pitch stack), a machine-gun of one sample, too loud or too present over Croce, or a flam against the snare |
+| 44 | `?start=196&autoplay=1` (the Heave through the window, beat 202) | The **Heave's roar**: the hero's HEY + the whole house, ~2 dB bigger than a strike | A crowd shouting WITH you. **Bad:** harsh, or a wall of noise |
+| 45 | die anywhere (e.g. `?start=96&autoplay=1&miss=98`) | **The death groan** is now only a semitone below the "ooh" (it was 4.3 st down) | A disappointed audience "ohhh". **Bad:** still slowed-down / demonic, or now too cheerful |
+
 ## Measured (offline, clean player at FULL HOUSE): what each item should roughly be
 
 Levels are momentary loudness vs the music under the sound. Commands:
@@ -131,6 +145,25 @@ Levels are momentary loudness vs the music under the sound. Commands:
     −14.2 LUFS, no limiting, −2.3 dBTP.
   - **Glints (38):** −18 dB vs the music (up to +2 dB in their 1.4–2.8 kHz band: a sparkle, not a line), the tease
     −16 dB.
+
+- **Iteration 9** (`node src/audio/lab/mixlab.mjs --prefix=chorus` → `tools/music/chorus_report.py`; `--prefix=hey` →
+  `tools/music/hey_report.py`):
+  - **The chorus lift (39–42)**, music only at crowd 14 (LUFS; before the lift in brackets): intro −17.6 (−16.6),
+    verse 1 −15.2 (−14.2), pre-chorus −15.0 (−14.0), **chorus 1 −12.3 (−14.1)**, tag −16.3 (−15.5); verse 3 −15.8
+    (−14.8), pre-chorus −14.9 (−14.0), **chorus 3 −11.6 (−13.4)**, tag −15.3 (−14.6); breakdown −16.1 (−15.1), **chorus 4
+    −11.0 (−12.8)**, tag −15.7 (−15.0), outro −16.1 (−15.1). Chorus over the section before it: +2.7 / +3.3 / +5.1 LU
+    (before: −0.1 / +0.6 / +2.3). Width +1 dB side/mid in the choruses. The lift's half-way points land 0.5 beat before
+    the downbeat and 0.5 beat after the end (chorus 4 steps ON 272). The whole mix at FULL HOUSE with a bell every beat:
+    choruses −10.7 / −10.0 / −9.3 LUFS; limiter > 0.5 dB on 0.7 / 2.0 / 5.2 % of 10 ms blocks (before 2.0 / 3.1 / 4.3),
+    beat-locked GR 0.14 / 0.22 / 0.34 dB (before 0.24 / 0.33 / 0.44): less pumping than before. The lift's soft clip
+    shaves > 0.5 dB on 0.06 % of samples at crowd 14 and 0.45 % at FULL HOUSE (the stacked overlay + snare peaks), the
+    shaved energy −25 dB re the music (listen for crunch here: item 39). True peak ≤ −0.28 dBTP except chorus 4's synth
+    strike bursts (+0.08). Tone test through every ramp and the drop's step: no clicks. The hush: −12.0 dB, the KRAK +9.8
+    dB over it, the drop +17.5 dB; the finale +1.8 LU on the hit, limiter max 0.6 dB (was 2.7).
+  - **The strike HEY (43–44)**, chorus 1 at FULL HOUSE: hero + gang −24.8 LUFS momentary (the old synth −23.2),
+    centroid 2.6 kHz (old 1.7), low-mids 8 dB under presence (old 4 dB over), silent 0.35 s after the beat (−35 dB), the
+    vowel on the beat ±2 ms (old +5..+17 ms), −5.7 dB under the music in 1–4 kHz (old −10.6); the roar −20.7 (old
+    −22.7). **Groan (45):** playback rate 0.78 → 0.94.
 
 Things the numbers cannot tell you: whether the hush reads as "on purpose", whether the letters' pitch line is
 musical, whether the finale feels *huge* rather than just loud, and whether any of this is fun.

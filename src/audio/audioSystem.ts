@@ -2,7 +2,7 @@
  * Owns the AudioContext and the mixer:
  *
  *   record (+ stomps stem) ─> SQUEEZE (the hush) ┐
- *   music (record + overlay stems, MIX.music) ─> BOOTH (film sound, audio/booth.ts) ─┐
+ *   music (record + overlay stems, MIX.music) ─> BOOTH (film sound, audio/booth.ts) ─> CHORUS LIFT (lift.ts) ─┐
  *   sfx   (synth + sampled SFX, MIX.sfx) ─────────────────────────────────────────────┴─> trim ─> LIMITER
  *                                                                        ─> soft clip ─> master (mute) ─> destination
  *
@@ -19,6 +19,7 @@
  * (headless playtests launch chromium with --autoplay-policy=no-user-gesture-required).
  */
 import { Booth, Squeeze } from './booth';
+import { ChorusLift } from './lift';
 import { BOOTH, MIX, dbToGain } from './mix';
 
 export class AudioSystem {
@@ -27,6 +28,8 @@ export class AudioSystem {
   readonly booth: Booth;
   /** the hush (act 3's break shot): a booth squeeze on the record ahead of the music bus (StageAudio.hush) */
   readonly squeeze: Squeeze;
+  /** the chorus lift on the music bus after the booth (audio/lift.ts; scheduled by StageAudio.armLift) */
+  readonly lift: ChorusLift;
   readonly master: GainNode;
   readonly music: GainNode;
   readonly sfx: GainNode;
@@ -60,7 +63,9 @@ export class AudioSystem {
     this.music.connect(this.booth.input);
     this.squeeze = new Squeeze(this.ctx);
     this.squeeze.output.connect(this.music);
-    this.booth.output.connect(this.trim);
+    this.lift = new ChorusLift(this.ctx);
+    this.booth.output.connect(this.lift.input);
+    this.lift.output.connect(this.trim);
     this.trim.gain.value = dbToGain(MIX.headroomDb);
     this.sfx.connect(this.trim);
     this.clip = AudioSystem.makeSoftClip(this.ctx);

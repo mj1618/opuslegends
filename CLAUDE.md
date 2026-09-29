@@ -140,12 +140,28 @@ World y grows DOWN; the base ground top is y = 0.
   the art: bar 3's bottle X, act 2's bottle / rope X, the balls' HOP). Anything else is taught by placement +
   `Game.FAIL_HINTS`, shown once after the player fails the same thing twice — never from ◆304 on (`Tun.hints.until`).
 - **Mix** (`audio/audioSystem.ts`, `audio/mix.ts`): music (record at unity + overlay stems) → **projection
-  booth** (`audio/booth.ts`) ┐ + SFX (+6 dB) → trim (**−4 dB headroom**, cancels the limiter makeup) → soft
+  booth** (`audio/booth.ts`) → **chorus lift** (`audio/lift.ts`) ┐ + SFX (+6 dB) → trim (**−4 dB headroom**, cancels the limiter makeup) → soft
   limiter (DynamicsCompressor, −2.5 dB) → tanh soft clip (safety, −0.6 dBFS ceiling: un-oversampled, so it sits low
   enough that act 3's stacked hits stay ≤ ~−0.2 dBTP) → master. The record (+ the stomps/claps stem) enters the
   music bus through the hush's **Squeeze** (`booth.ts`, below; transparent unless a hush is scheduled). The headroom
   keeps the hot record (peaks +0.75 dBFS, −10.5 LUFS) under the limiter so overlays + SFX add on top without
   pumping. Overlay stem buses carry zero-latency EQ + soft clip (`OVERLAY_RULES.eq/clip`).
+- **The chorus lift** (iteration 9, user: "the music a bit louder just during the chorus"; `audio/lift.ts`, levels in
+  `mix.ts` CHORUS_LIFT): the music bus after the booth sits at −1 dB between choruses and +1.5 dB in every chorus
+  (+ low shelf +1 dB @ 110 Hz, high shelf +1.5 dB @ 5 kHz, width ×1.12), then a zero-latency soft clip (+1.5 dBFS
+  ceiling on the bus) shaves the lifted drum/overlay peaks so the master limiter doesn't pump. Spans = the level's
+  `speed` items (the gameplay's chorus speed-up: 88-120, 204-236, 272-304) else the song's `chorus*` sections; ramps
+  in over the beat before the downbeat, out over the beat after the end; chorus 4 STEPS in ON the drop (a ~10 ms ramp
+  on the hush's release). `StageAudio.armLift` puts the whole envelope on the AUDIO clock on every `Conductor.play`
+  (`conductor.onPlay`: rewinds / count-ins / un-pause); `stage.liftAt(beat)` / `inChorus(beat)`. Measured
+  (`mixlab.mjs --prefix=chorus` → `tools/music/chorus_report.py`, music only at crowd 14): verse 1 −15.2 / pre-chorus
+  −15.0 → chorus 1 −12.3 LUFS (+2.7 LU over the pre-chorus; it was −0.1: the record's chorus 1 is as loud as its
+  verse), chorus 3 +3.3 over its pre-chorus, chorus 4 +5.1 over the breakdown (the record's own +2.3); vs the pre-lift
+  chain choruses +1.8 LU, the rest −1.0. Whole mix at FULL HOUSE with a bell per beat: limiter 0.7-5 % of blocks
+  > 0.5 dB, beat-locked GR 0.14-0.34 dB (pre-lift 0.24-0.44), true peak ≤ −0.28 dBTP except the synth strike's HF
+  bursts on chorus 4's strikes (+0.08; pre-lift +0.22 in the outro); the lift clip touches 0.06 % of samples > 0.5 dB
+  at crowd 14, 0.45 % at FULL HOUSE; ramps land half way 0.5 beat before the downbeat / after the end; no clicks.
+  Every other measured level in these notes sits 1 dB lower outside a chorus.
 - **The music is the reward** (`audio/stage.ts` StageAudio, levels in `audio/mix.ts` BOOTH / OVERLAY_RULES /
   GRADE_SFX). Game wires it with `StageAudio.forGame(audio, conductor)` + `stage.listen(game.events)`; API:
   `setCrowd(value, instant?)`, `onGrade(grade, beat, combo?)`, `onMiss(beat)`, `onStumble()`, `onDeath()`,
@@ -156,7 +172,15 @@ World y grows DOWN; the base ground top is y = 0.
   clip), a cheer swell on the next downbeat and audience swells into vocal gaps. Grades: Perfect = jukebox bell
   on a chord tone (ping-pongs up the chord with the combo), Great = softer/duller bell, Good = silent; a missed
   REWARD = dull thunk on the next swung 8th + the film "snags" (music low-pass dip + 3 % pitch sag); stumble =
-  record-scratch warble + audience "ooh"; death = tape-stop + groan; checkpoint = projector click on the beat.
+  record-scratch warble + audience "ooh"; death = tape-stop + groan (the ooh at `GRADE_SFX.groanRate` 0.94, −1 st;
+  it was 0.78, a "demon" groan); checkpoint = projector click on the beat. **The hero's strike HEY** (`Sfx.hey`,
+  iteration 8/9, `mix.ts` HEY_SFX): a real recorded take round-robin (`hey_1..4` = one performer's natural takes, no
+  resampling, dry, bright, 0.3 s; `tools/music/sfx.py --set=voices`) + the audience's gang (`hey_crowd`, the overlay's
+  de-demoned 8-voice gang) when the crowd is ≥ 4, both louder on a Heave's roar; Sfx borrows StageAudio's bank
+  (`SampleBank.forContext(ctx)`); a HEY fired with no lead time starts into its /h/ (`PlayOpts.catchUp`) so the vowel
+  isn't late; the synth fallback is one bright unison voice. Measured (`--prefix=hey` → `tools/music/hey_report.py`):
+  hero+gang −24.8 LUFS momentary (the old synth −23.2), centroid 2.6 kHz (1.7), low-mids −8 dB under presence (+4),
+  vowel ON the beat (±2 ms).
   The film delay line rests at 6 ms: `AudioSystem.outputDelay` (= film + limiter) is the clock's
   `conductor.outputDelay`, and `conductor.ctxTimeAtSongTime` adds `filmDelay` so beat-scheduled SFX land on the
   music. Measured (offline render of the real graph, chorus 1): booth −18.6 LUFS → crowd 10 −15.1 → open −14.3 →
@@ -310,6 +334,7 @@ src/
            songs.ts       song catalog: jimEdit (bundled beat map), ?song= selection, licensed-file fallback
            mix.ts         mix levels: overlay-stem curves over the crowd, booth + grade-SFX levels, limiter
            booth.ts       projection-booth film-sound processor on the music bus + overlay bus EQ/clip
+           lift.ts        the chorus lift (music bus after the booth: louder/brighter/wider in choruses) + chorusSpans()
            stage.ts       StageAudio: crowd -> booth/overlays/cheers, grade/miss/stumble/death/checkpoint sounds
            cues.ts        level audio cues (hush / at / onSmash / onMiss) derived from level items; STAGE_SFX stacks in mix.ts
            tokenMelody.ts tokens sing the vocal melody (the measured `tokenMelody` lane; chord tones between phrases)
@@ -318,7 +343,7 @@ src/
            lab/mixlab.*   offline render of the real audio graph (OfflineAudioContext in headless Chromium)
            placeholderSong.ts  164 BPM E shuffle synth track in the real form (pickup + 32 bars,
                           chorus stab/HEY grid), rendered in 2-bar chunks, + 'shouts' & 'bonus' stems
-           sfx.ts         synthesized SFX            audioSystem.ts  AudioContext, buses, master limiter
+           sfx.ts         synthesized SFX (+ the hero's sampled HEY)   audioSystem.ts  AudioContext, buses, master limiter
            syncProbe.ts   AudioWorklet onset probe (live check that music plays where the clock says;
                           on the original it listens to the stomps overlay stem vs its own lanes)
   level/   types.ts       level schema               dsl.ts   authoring helpers (spikeHop, gapHop, gapJump, jabber,

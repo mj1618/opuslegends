@@ -100,6 +100,30 @@ export const MIX = {
 } as const;
 
 /**
+ * THE CHORUS LIFT (audio/lift.ts): the music bus after the booth, louder and bigger in every chorus (sections `chorus*`),
+ * a hair under the old level between them. Ramps: in over the beat before the chorus downbeat, out over the beat after
+ * its end (a chorus starting on a hush's release steps in ON the drop). `clipDb` = the lift's zero-latency soft clip
+ * ceiling (dBFS on the music bus, before the -4 dB master trim): identity up to 3 dB under it, so between choruses
+ * only the record's hottest peaks graze it; in a chorus it shaves the lifted drum peaks so the master limiter doesn't
+ * pump. Measured: see the `chorus_*` mix-lab scenes (tools/music/chorus_report.py) and CLAUDE.md.
+ */
+export const CHORUS_LIFT = {
+  /** which sections lift */
+  sections: /^chorus/,
+  /** music bus level between choruses / in a chorus (dB, re the old unity) */
+  restDb: -1,
+  chorusDb: 1.5,
+  /** shelves at full lift (dB): a touch of air + weight */
+  low: { freq: 110, db: 1 },
+  high: { freq: 5000, db: 1.5 },
+  /** stereo width at full lift (x the booth's) */
+  width: 1.12,
+  clipDb: 1.5,
+  rampInBeats: 1,
+  rampOutBeats: 1,
+} as const;
+
+/**
  * The projection booth (audio/booth.ts) as a function of the crowd: `open` 0 (booth) .. 1 (the record as
  * mastered), `house` 0..1 (FULL HOUSE extras: width). Moves are quantized to the next beat and glide over
  * `rampBeats` (setTargetAtTime, tau = ramp/4: 98 % there after the ramp; no zipper, no pumping).
@@ -166,12 +190,29 @@ export const GRADE_SFX = {
   oohDb: -14,
   /** death: the audience groans (the ooh, pitched down + low-passed) under the tape-stop */
   groanDb: -10,
+  /** the groan's playback rate (0.94 = -1 st; iteration 8: was 0.78, -4.3 st, a slowed-down "demon" groan) */
+  groanRate: 0.94,
   /** checkpoint: projector changeover click + cue-dot flare */
   clickDb: -6,
   flareDb: -17,
   /** FULL HOUSE reached: a cheer swell on the next downbeat; cheers into vocal gaps while full */
   cheerDb: -15,
   gapCheerDb: -19,
+} as const;
+
+/**
+ * The hero's strike HEY (Sfx.hey, iteration 8: real shouts, tools/music/sfx.py --set=voices): one performer's natural
+ * takes round-robin (hey_1..4), the audience's tight gang (hey_crowd) doubling it when the crowd is up (every strike at
+ * a crowd >= 4), louder on a Heave's roar. dB on the SFX bus (+6 dB). `catchUpSec`: a HEY fired with no lead time
+ * starts into its /h/ pre-roll keeping this much of it, so the vowel isn't late. Measured: the `hey_*` mix-lab scenes.
+ */
+export const HEY_SFX = {
+  heroDb: -18.5,
+  crowdDb: -25,
+  /** a Heave (Hup-Hup-HEY complete): the hero + the whole house */
+  roarHeroDb: -15.5,
+  roarCrowdDb: -18,
+  catchUpSec: 0.012,
 } as const;
 
 /**
@@ -275,7 +316,8 @@ export const STAGE_SFX = {
     { id: 'tonk_hi', db: -8, beats: 0.659, align: true },
   ],
   goonPiano: [{ id: 'piano_gliss', db: -10, align: true }],
-  goonShouts: [{ id: 'hey_crowd', db: -12, align: true }],
+  // (iteration 8: the re-rendered gang is +3.5 LU hotter per peak: -12 -> -15.5 keeps the stinger's level)
+  goonShouts: [{ id: 'hey_crowd', db: -15.5, align: true }],
   // ---- iteration 7 (tools/music/sfx.py --set=polish, instruments/fx_polish.py)
   /** THE COLOUR REEL (setPiece colorBurst, the record's first HEY on 15): the air rises for 1.43 beats (the file PEAKS at
    *  its end, ~0.53 s) and the bloom (air + glass bells up the E chord + the house's delighted 'aaah') opens ON the beat —
